@@ -1,0 +1,29 @@
+[package]
+name = "ankaios_sdk"
+version = "0.5.0-rc1"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Elektrobit Automotive GmbH and Ankaios contributors"]
+description = "Eclipse Ankaios Rust SDK - provides a convenient Rust interface for interacting with the Ankaios platform."
+documentation = "https://eclipse-ankaios.github.io/ankaios"  # TODO
+repository = "https://github.com/eclipse-ankaios/ank-sdk-rust"
+readme = "README.md"
+keywords = ["ankaios", "eclipse", "elektrobit", "automotive", "sdk", "rust"]
+categories = []  # https://crates.io/categories
+exclude = ["/tests", "/.github"]
+
+[dependencies]
+api = { git = "https://github.com/eclipse-ankaios/ankaios.git", tag = "v0.5.0", subdir = "api" }
+prost = "0.11"
+tonic = "0.9"
+log = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+thiserror = "1.0"
+
+[build-dependencies]
+tonic-build = "0.9"
+
+[features]
+default = []
+test_utils = []
