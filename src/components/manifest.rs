@@ -82,7 +82,7 @@ impl Manifest {
         true
     }
 
-    fn calculate_masks(&self) -> Vec<String> {
+    pub fn calculate_masks(&self) -> Vec<String> {
         let mut masks = vec![];
         print!("{:?}", self.manifest);
         for wl_name in self.manifest["workloads"].as_mapping().unwrap_or(&serde_yaml::Mapping::default()).keys() {

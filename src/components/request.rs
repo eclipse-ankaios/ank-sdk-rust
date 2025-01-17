@@ -12,7 +12,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use std::fmt;
+use uuid::Uuid;
+use api::ank_base::{Request as AnkaiosRequest, request::RequestContent, UpdateStateRequest, CompleteStateRequest};
 use crate::AnkaiosError;
+use crate::components::complete_state::CompleteState;
 
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
@@ -23,7 +27,9 @@ pub enum RequestType {
 }
 
 pub struct Request{
-    // TODO
+    request: AnkaiosRequest,
+    request_id: String,
+    request_type: RequestType,
 }
 
 impl std::fmt::Display for RequestType {
@@ -37,18 +43,93 @@ impl std::fmt::Display for RequestType {
 }
 
 impl Request {
-    pub fn new() -> Self {
-        Self{}
+    pub fn new(request_type: RequestType) -> Self {
+        let request_id = Uuid::new_v4().to_string();
+        log::debug!("Creating new request of type {} with id {}", request_type, request_id);
+        match request_type {
+            RequestType::UpdateState => {
+                Self{
+                    request: AnkaiosRequest{
+                        request_id: request_id.clone(),
+                        request_content: Some(RequestContent::UpdateStateRequest(
+                            Box::new(UpdateStateRequest{
+                                new_state: None,
+                                update_mask: Default::default(),
+                            })
+                        )),
+                    },
+                    request_id,
+                    request_type,
+                }
+            },
+            RequestType::GetState => {
+                Self{
+                    request: AnkaiosRequest{
+                        request_id: request_id.clone(),
+                        request_content: Some(RequestContent::CompleteStateRequest(
+                            CompleteStateRequest::default()
+                        )),
+                    },
+                    request_id,
+                    request_type,
+                }
+            },
+        }
     }
 
-    pub fn print(&self) {
-        println!("I need to be implemented!!");
+    pub fn to_proto(&self) -> AnkaiosRequest {
+        self.request.clone()
+    }
+
+    pub fn get_id(&self) -> String {
+        self.request_id.clone()
+    }
+
+    pub fn set_complete_state(&mut self, complete_state: CompleteState) -> Result<(), AnkaiosError> {
+        if self.request_type != RequestType::UpdateState {
+            return Err(AnkaiosError::RequestError("Complete state can only be set for an update state request.".to_string()));
+        }
+
+        if let Some(RequestContent::UpdateStateRequest(ref mut update_state_request)) = self.request.request_content {
+            update_state_request.new_state = Some(complete_state.to_proto());
+        }
+        Ok(())
+    }
+
+    pub fn add_mask(&mut self, mask: String) {
+        match self.request_type {
+            RequestType::UpdateState => {
+                if let Some(RequestContent::UpdateStateRequest(ref mut update_state_request)) = self.request.request_content {
+                    update_state_request.update_mask.push(mask);
+                }
+            },
+            RequestType::GetState => {
+                if let Some(RequestContent::CompleteStateRequest(ref mut complete_state_request)) = self.request.request_content {
+                    complete_state_request.field_mask.push(mask);
+                }
+            },
+        }
+    }
+
+    pub fn set_masks(&mut self, masks: Vec<String>) {
+        match self.request_type {
+            RequestType::UpdateState => {
+                if let Some(RequestContent::UpdateStateRequest(ref mut update_state_request)) = self.request.request_content {
+                    update_state_request.update_mask = masks;
+                }
+            },
+            RequestType::GetState => {
+                if let Some(RequestContent::CompleteStateRequest(ref mut complete_state_request)) = self.request.request_content {
+                    complete_state_request.field_mask = masks;
+                }
+            },
+        }
     }
 }
 
-impl Default for Request {
-    fn default() -> Self {
-        Self::new()
+impl fmt::Display for Request {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.to_proto())
     }
 }
 
@@ -62,10 +143,10 @@ impl Default for Request {
 
 #[cfg(test)]
 mod tests {
-    use super::Request;
+    use super::{Request, RequestType};
 
     #[test]
     fn test_request() {
-        let _ = Request::new();
+        let _ = Request::new(RequestType::UpdateState);
     }
 }

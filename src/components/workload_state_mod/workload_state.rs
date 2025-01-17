@@ -24,13 +24,13 @@ type ExecutionsStatesForId = HashMap<String, WorkloadExecutionState>;
 type ExecutionsStatesOfWorkload = HashMap<String, ExecutionsStatesForId>;
 type WorkloadStatesMap = HashMap<String, ExecutionsStatesOfWorkload>;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct WorkloadState {
     pub execution_state: WorkloadExecutionState,
     pub workload_instance_name: WorkloadInstanceName,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct WorkloadStateCollection {
     workload_states: WorkloadStatesMap,
 }

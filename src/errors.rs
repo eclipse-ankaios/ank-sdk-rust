@@ -13,11 +13,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use thiserror::Error;
+use tokio::time::error::Elapsed;
 
 #[derive(Error, Debug)]
 pub enum AnkaiosError{
     #[error("IO Error: {0}")]
     IoError(#[from] std::io::Error),
+    #[error("Timeout error: {0}")]
+    TimeoutError(#[from] Elapsed),
 
     #[error("Invalid value for field {0}: {1}.")]
     WorkloadFieldError(String, String),

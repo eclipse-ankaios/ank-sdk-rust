@@ -12,67 +12,148 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::AnkaiosError;
+use core::fmt;
+use std::collections::HashMap;
+use std::default;
+use api::ank_base::{response::ResponseContent as AnkaiosResponseContent, UpdateStateSuccess as AnkaiosUpdateStateSuccess, Error};
+use api::control_api::{FromAnkaios, from_ankaios::FromAnkaiosEnum};
+use crate::components::complete_state::CompleteState;
+
+use super::workload_state_mod::WorkloadInstanceName;
 
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
-#[repr(i32)]
+#[derive(Clone, Debug)]
 pub enum ResponseType {
-    Error = 0,
-    CompleteState = 1,
-    UpdateStateSuccess = 2,
+    CompleteState(Box<CompleteState>),
+    UpdateStateSuccess(Box<UpdateStateSuccess>),
+    Error(String),
+    ConnectionClosedReason(String),
 }
 
+#[derive(Default, Clone, Debug)]
 pub struct Response{
-    // TODO
+    pub content: ResponseType,
+    pub id: String,
 }
 
-// ResponseEvent?
-
-pub struct UpdateStateSuccess{
-    // TODO
+#[derive(Clone, Debug)]
+pub struct UpdateStateSuccess {
+    pub added_workloads: Vec<WorkloadInstanceName>,
+    pub deleted_workloads: Vec<WorkloadInstanceName>,
 }
 
-impl std::fmt::Display for ResponseType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let res_str = match self {
-            ResponseType::Error => "Error",
-            ResponseType::CompleteState => "CompleteState",
-            ResponseType::UpdateStateSuccess => "UpdateStateSuccess",
-        };
-        write!(f, "{}", res_str)
+impl fmt::Display for ResponseType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ResponseType::CompleteState(_) => write!(f, "CompleteState"),
+            ResponseType::UpdateStateSuccess(_) => write!(f, "UpdateStateSuccess"),
+            ResponseType::Error(_) => write!(f, "Error"),
+            ResponseType::ConnectionClosedReason(_) => write!(f, "ConnectionClosedReason"),
+        }
+    }
+}
+
+impl default::Default for ResponseType {
+    fn default() -> Self {
+        ResponseType::Error(String::default())
     }
 }
 
 impl Response {
-    pub fn new() -> Self {
-        Self{}
+    pub fn new(response: FromAnkaios) -> Self {
+        if let Some(response_enum) = response.from_ankaios_enum {
+            match response_enum {
+                FromAnkaiosEnum::Response(response) => {
+                    Self{
+                        content: match response.response_content.unwrap_or(
+                            AnkaiosResponseContent::Error(Error{
+                                message: String::from("Response content is None."),
+                            })
+                        )  {
+                            AnkaiosResponseContent::Error(err) => ResponseType::Error(
+                                err.message
+                            ),
+                            AnkaiosResponseContent::CompleteState(complete_state) => ResponseType::CompleteState(
+                                Box::new(CompleteState::new_from_proto(complete_state)),
+                            ),
+                            AnkaiosResponseContent::UpdateStateSuccess(update_state_success) => ResponseType::UpdateStateSuccess(
+                                Box::new(UpdateStateSuccess::new_from_proto(update_state_success)),
+                            ),
+                        },
+                        id: response.request_id,
+                    }
+                },
+                FromAnkaiosEnum::ConnectionClosed(connection_closed) => {
+                    Self{
+                        content: ResponseType::ConnectionClosedReason(connection_closed.reason),
+                        id: String::from(""),
+                    }
+                },
+            }
+        } else {
+            Self{
+                content: ResponseType::Error(String::from("Response is empty.")),
+                id: String::from(""),
+            }
+        }
     }
 
-    pub fn print(&self) {
-        println!("I need to be implemented!!");
+    pub fn get_request_id(&self) -> String {
+        self.id.clone()
+    }
+
+    pub fn get_content(&self) -> ResponseType {
+        self.content.clone()
     }
 }
 
-impl Default for Response {
-    fn default() -> Self {
-        Self::new()
+
+impl UpdateStateSuccess{
+    pub fn new_from_proto(update_state_success: AnkaiosUpdateStateSuccess) -> Self {
+        let mut added_workloads: Vec<WorkloadInstanceName> = Vec::new();
+        let mut deleted_workloads: Vec<WorkloadInstanceName> = Vec::new();
+
+        for workload in update_state_success.added_workloads {
+            let parts: Vec<&str> = workload.split('.').collect();
+            let (name, id, state) = match &parts[..] {
+                [name, id, state] => (name, id, state),
+                _ => continue,
+            };
+            added_workloads.push(WorkloadInstanceName::new(name.to_string(), id.to_string(), state.to_string()));
+        }
+
+        for workload in update_state_success.deleted_workloads {
+            let parts: Vec<&str> = workload.split('.').collect();
+            let (name, id, state) = match &parts[..] {
+                [name, id, state] => (name, id, state),
+                _ => continue,
+            };
+            deleted_workloads.push(WorkloadInstanceName::new(name.to_string(), id.to_string(), state.to_string()));
+        }
+
+        Self{
+            added_workloads,
+            deleted_workloads,
+        }
+    }
+
+    pub fn to_dict(&self) -> HashMap<String, Vec<serde_yaml::Mapping>> {
+        let mut map = HashMap::new();
+        map.insert(
+            "added_workloads".to_string(),
+            self.added_workloads.iter().map(|instance_name| instance_name.to_dict()).collect::<Vec<_>>(),
+        );
+        map.insert(
+            "deleted_workloads".to_string(),
+            self.deleted_workloads.iter().map(|instance_name| instance_name.to_dict()).collect::<Vec<_>>(),
+        );
+        map
     }
 }
 
-impl UpdateStateSuccess {
-    pub fn new() -> Self {
-        Self{}
-    }
-
-    pub fn print(&self) {
-        println!("I need to be implemented!!");
-    }
-}
-
-impl Default for UpdateStateSuccess {
-    fn default() -> Self {
-        Self::new()
+impl fmt::Display for UpdateStateSuccess {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "UpdateStateSuccess: added_workloads: {:?}, deleted_workloads: {:?}", self.added_workloads, self.deleted_workloads)
     }
 }
 
@@ -87,14 +168,16 @@ impl Default for UpdateStateSuccess {
 #[cfg(test)]
 mod tests {
     use super::{Response, UpdateStateSuccess};
+    use api::ank_base::UpdateStateSuccess as AnkaiosUpdateStateSuccess;
+    use api::control_api::FromAnkaios;
 
     #[test]
     fn test_response() {
-        let _ = Response::new();
+        let _ = Response::new(FromAnkaios::default());
     }
 
     #[test]
     fn test_update_state_success() {
-        let _ = UpdateStateSuccess::new();
+        let _ = UpdateStateSuccess::new_from_proto(AnkaiosUpdateStateSuccess::default());
     }
 }

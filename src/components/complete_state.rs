@@ -16,6 +16,7 @@ use std::fmt;
 use std::collections::HashMap;
 
 pub use api::ank_base;
+use api::ank_base::CompleteState as AnkaiosCompleteState;
 use crate::components::workload_mod::Workload;
 use crate::components::workload_state_mod::WorkloadStateCollection;
 use crate::components::manifest::Manifest;
@@ -23,9 +24,9 @@ use crate::AnkaiosError;
 
 const SUPPORTED_API_VERSION: &str = "v0.1";
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct CompleteState{
-    complete_state: ank_base::CompleteState,
+    complete_state: AnkaiosCompleteState,
     workloads: Vec<Workload>,
     workload_state_collection: WorkloadStateCollection,
     configs: HashMap<String, serde_yaml::Value>
