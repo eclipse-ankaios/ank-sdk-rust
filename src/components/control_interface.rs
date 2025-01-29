@@ -12,17 +12,22 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::fs::File;
-use tokio::spawn;
-use tokio::sync::mpsc;
+use std::{
+    sync::{Arc, Mutex},
+    path::Path,
+};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt, BufReader, Error},
+    time::{sleep, Duration},
+    net::unix::pipe,
+    sync::mpsc,
+    spawn,
+};
 use prost::Message;
-use tokio::time::{sleep, Duration};
-use std::{io, io::{Read, Write}, process::exit};
 
 use api::control_api::{
-    to_ankaios::ToAnkaiosEnum, FromAnkaios, Hello, ToAnkaios,
+    to_ankaios::ToAnkaiosEnum,
+    FromAnkaios, Hello, ToAnkaios,
 };
 use crate::AnkaiosError;
 use crate::components::request::Request;
@@ -44,20 +49,17 @@ pub enum ControlInterfaceState {
 
 pub struct ControlInterface{
     pub path: String,
-    output_file: Option<File>,
+    output_file: Option<pipe::Sender>,
     read_thread_handler: Option<tokio::task::JoinHandle<Result<(), AnkaiosError>>>,
     state: Arc<Mutex<ControlInterfaceState>>,
     response_sender: mpsc::Sender<Response>,
     state_changed_sender: mpsc::Sender<ControlInterfaceState>,
 }
 
-fn read_varint_data(file: &mut File) -> Result<[u8; MAX_VARINT_SIZE], io::Error> {
+async fn read_varint_data(file: &mut BufReader<pipe::Receiver>) -> Result<[u8; MAX_VARINT_SIZE], Error> {
     let mut res = [0u8; MAX_VARINT_SIZE];
-    let mut one_byte_buffer = [0u8; 1];
     for item in res.iter_mut() {
-        file.read_exact(&mut one_byte_buffer)?;
-        *item = one_byte_buffer[0];
-        // check if most significant bit is set to 0 if so it is the last byte to be read
+        *item = file.read_u8().await?;
         if *item & 0b10000000 == 0 {
             break;
         }
@@ -65,16 +67,15 @@ fn read_varint_data(file: &mut File) -> Result<[u8; MAX_VARINT_SIZE], io::Error>
     Ok(res)
 }
 
-fn read_protobuf_data(file: &mut File) -> Result<Box<[u8]>, io::Error> {
-    let varint_data = read_varint_data(file)?;
+async fn read_protobuf_data(file: &mut BufReader<pipe::Receiver>) -> Result<Vec<u8>, Error> {
+    let varint_data = read_varint_data(file).await?;
     let mut varint_data = Box::new(&varint_data[..]);
 
-    // determine the exact size for exact reading of the bytes later by decoding the varint data
     let size = prost::encoding::decode_varint(&mut varint_data)? as usize;
 
     let mut buf = vec![0; size];
-    file.read_exact(&mut buf[..])?; // read exact bytes from file
-    Ok(buf.into_boxed_slice())
+    file.read_exact(&mut buf[..]).await?;
+    Ok(buf)
 }
 
 impl std::fmt::Display for ControlInterfaceState {
@@ -119,14 +120,17 @@ impl ControlInterface {
         }
 
         let output_path = Path::new(&self.path).to_path_buf().join("output");
-        self.output_file = match File::open(output_path) {
+        self.output_file = match pipe::OpenOptions::new().open_sender(output_path) {
             Ok(file) => Some(file),
-            Err(e) => return Err(AnkaiosError::ControlInterfaceError(format!("Error while opening output fifo: {}", e))),
+            Err(err) => {
+                log::error!("Error while opening output fifo: {}", err);
+                return Err(AnkaiosError::ControlInterfaceError(format!("Error while opening output fifo: {}", err)));
+            }
         };
 
         self.read_from_control_interface();
         self.change_state(ControlInterfaceState::Initialized).await;
-        self.send_initial_hello();
+        self.send_initial_hello().await;
 
         Ok(())
     }
@@ -135,14 +139,16 @@ impl ControlInterface {
         if *self.state.lock().unwrap() != ControlInterfaceState::Initialized {
             return Err(AnkaiosError::ControlInterfaceError("Already disconnected.".to_string()));
         }
-        self.read_thread_handler.take().unwrap().abort();
-        *self.state.lock().unwrap() = ControlInterfaceState::Terminated;
+        if let Some(handler) = self.read_thread_handler.take() {
+            handler.abort();
+        }
+        self.state.lock().unwrap().clone_from(&ControlInterfaceState::Terminated);
         self.output_file = None;
         Ok(())
     }
 
     pub async fn change_state(&mut self, new_state: ControlInterfaceState) {
-        self.state = Arc::new(Mutex::new(new_state));
+        self.state.lock().unwrap().clone_from(&new_state);
         self.state_changed_sender.send(new_state).await.unwrap_or_else(|err| {
             log::error!("Error while sending state change: '{}'", err);
         });
@@ -152,13 +158,12 @@ impl ControlInterface {
         let input_path = Path::new(&self.path).to_path_buf().join("input");
         let response_sender_clone = self.response_sender.clone();
         self.read_thread_handler = Some(spawn(async move {
-            let mut input_file = File::open(&input_path).unwrap_or_else(|err| {
-                log::error!("Error while opening input fifo: {}", err);
-                exit(1);
-            });
+            let mut input_file = BufReader::new(
+                pipe::OpenOptions::new().open_receiver(input_path).unwrap()
+            );
 
             loop {
-                match read_protobuf_data(&mut input_file){
+                match read_protobuf_data(&mut input_file).await{
                     Ok(binary) => {
                         match FromAnkaios::decode(&mut Box::new(binary.as_ref())) {
                             Ok(from_ankaios) => {
@@ -182,6 +187,7 @@ impl ControlInterface {
         }));
     }
 
+    #[allow(dead_code)]
     async fn agent_gone_routine(&mut self) {
         const AGENT_RECONNECT_INTERVAL: u64 = 1;
         while *self.state.lock().unwrap() == ControlInterfaceState::AgentDisconnected {
@@ -190,12 +196,12 @@ impl ControlInterface {
         }
     }
 
-    fn write_to_pipe(&mut self, message: ToAnkaios) {
+    async fn write_to_pipe(&mut self, message: ToAnkaios) {
         match self.output_file {
             Some(ref mut file) => {
-                file.write_all(&message.encode_length_delimited_to_vec()).unwrap_or_else(|err| {
+                file.write_all(&message.encode_length_delimited_to_vec()).await.unwrap_or_else(|err| {
                     log::error!("Error while writing to output fifo: '{}'", err);
-                    self.disconnect();
+                    let _ = self.disconnect();
                 });
             }
             None => {
@@ -204,7 +210,7 @@ impl ControlInterface {
         };
     }
 
-    pub fn write_request(&mut self, request: Request) {
+    pub async fn write_request(&mut self, request: Request) {
         if *self.state.lock().unwrap() != ControlInterfaceState::Initialized {
             log::error!("Control interface is not initialized.");
             return;
@@ -212,17 +218,17 @@ impl ControlInterface {
         let message = ToAnkaios {
             to_ankaios_enum: Some(ToAnkaiosEnum::Request(request.to_proto())),
         };
-        self.write_to_pipe(message);
+        self.write_to_pipe(message).await;
     }
 
-    fn send_initial_hello(&mut self) {
+    async fn send_initial_hello(&mut self) {
         log::trace!("Sending initial hello message to the control interface.");
         let hello_msg = ToAnkaios {
             to_ankaios_enum: Some(ToAnkaiosEnum::Hello(Hello {
                 protocol_version: ANKAIOS_VERSION.to_string(),
             })),
         };
-        self.write_to_pipe(hello_msg);
+        self.write_to_pipe(hello_msg).await;
     }
 }
 

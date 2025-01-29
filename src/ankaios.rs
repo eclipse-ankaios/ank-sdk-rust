@@ -13,7 +13,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
-
 use tokio::sync::mpsc;
 use tokio::time::{timeout as tokio_timeout, Duration};
 
@@ -22,7 +21,7 @@ use crate::components::response::{Response, ResponseType, UpdateStateSuccess};
 use crate::components::workload_mod::Workload;
 use crate::{AnkaiosError, CompleteState, Manifest};
 use crate::components::control_interface::{ControlInterface, ControlInterfaceState};
-use crate::components::workload_state_mod::{WorkloadInstanceName, WorkloadState, WorkloadStateCollection};
+use crate::components::workload_state_mod::{WorkloadInstanceName, WorkloadState, WorkloadStateCollection, WorkloadStateEnum};
 
 const WORKLOADS_PREFIX: &str = "desiredState.workloads";
 const CONFIGS_PREFIX: &str = "desiredState.configs";
@@ -74,11 +73,7 @@ impl Ankaios {
 
     async fn send_request(&mut self, request: Request, timeout: Option<Duration>) -> Result<Response, AnkaiosError> {
         let request_id = request.get_id();
-        self.control_interface.write_request(request);
-        // Check if the response is correct
-        // check id: request_id
-        // check if the response is connection closed
-        // if not correct id => warn
+        self.control_interface.write_request(request).await;
         let timeout_duration = timeout.unwrap_or(Duration::from_secs(DEFAULT_TIMEOUT));
         loop {
             match tokio_timeout(timeout_duration, self.response_receiver.recv()).await {
@@ -105,7 +100,7 @@ impl Ankaios {
         }
     }
 
-    pub async fn apply_manifest(&mut self, manifest:Manifest, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
+    pub async fn apply_manifest(&mut self, manifest: Manifest, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
         // Create request
         let mut request: Request = Request::new(RequestType::UpdateState);
         request.set_complete_state(CompleteState::new_from_manifest(&manifest)).unwrap();
@@ -131,7 +126,7 @@ impl Ankaios {
         }
     }
 
-    pub async fn delete_manifest(&mut self, manifest:Manifest, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
+    pub async fn delete_manifest(&mut self, manifest: Manifest, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
         // Create request
         let mut request: Request = Request::new(RequestType::UpdateState);
         request.set_complete_state(CompleteState::default()).unwrap();
@@ -157,7 +152,7 @@ impl Ankaios {
         }
     }
 
-    pub async fn apply_workload(&mut self, workload:Workload, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
+    pub async fn apply_workload(&mut self, workload: Workload, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
         let masks = workload.masks.clone();
 
         // Create CompleteState
@@ -194,11 +189,11 @@ impl Ankaios {
         Ok(complete_state.get_workloads()[0].clone())
     }
 
-    pub async fn delete_workload(&mut self, workload:Workload, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
+    pub async fn delete_workload(&mut self, workload_name: String, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
         // Create request
         let mut request: Request = Request::new(RequestType::UpdateState);
         request.set_complete_state(CompleteState::default()).unwrap();
-        request.add_mask(format!("{}.{}",WORKLOADS_PREFIX, workload.name));
+        request.add_mask(format!("{}.{}",WORKLOADS_PREFIX, workload_name));
 
         // Wait for the response
         let response = self.send_request(request, timeout).await?;
@@ -399,10 +394,40 @@ impl Ankaios {
         }
         Ok(workload_states_for_name)
     }
+
+    pub async fn wait_for_workload_to_reach_state(&mut self, instance_name: WorkloadInstanceName, state: WorkloadStateEnum, timeout: Option<Duration>) -> Result<(), AnkaiosError> {
+        let timeout_duration = timeout.unwrap_or(Duration::from_secs(DEFAULT_TIMEOUT));
+
+        let poll_future = async {
+            loop {
+                let workload_state = self.get_execution_state_for_instance_name(instance_name.clone(), None).await?;
+                if workload_state.execution_state.state == state {
+                    return Ok(());
+                }
+
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        };
+
+        match tokio_timeout(timeout_duration, poll_future).await {
+            Ok(Ok(())) => {
+                Ok(())
+            },
+            Ok(Err(err)) => {
+                log::error!("Error while waiting for workload to reach state: {}", err);
+                Err(err)
+            },
+            Err(err) => {
+                log::error!("Timeout while waiting for workload to reach state: {}", err);
+                Err(AnkaiosError::TimeoutError(err))
+            },
+        }
+    }
 }
 
 impl Drop for Ankaios {
     fn drop(&mut self) {
+        log::trace!("Dropping Ankaios");
         self.control_interface.disconnect().unwrap_or_else(|err| {
             log::error!("Error while disconnecting: '{}'", err);
         });

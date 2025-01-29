@@ -16,7 +16,7 @@ FROM ghcr.io/eclipse-ankaios/devcontainer-base:0.10.2
 
 ARG USERNAME=vscode
 
-# add some convinence aliases
+# add some convenience aliases
 RUN echo 'alias ll="ls -la"' | tee -a /home/${USERNAME}/.bashrc /home/${USERNAME}/.zshrc
 RUN echo 'alias ..="cd .."' | tee -a /home/${USERNAME}/.bashrc /home/${USERNAME}/.zshrc
 RUN echo 'alias ...="cd ../.."' | tee -a /home/${USERNAME}/.bashrc /home/${USERNAME}/.zshrc

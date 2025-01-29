@@ -102,6 +102,7 @@ impl Response {
         self.id.clone()
     }
 
+    #[allow(dead_code)]
     pub fn get_content(&self) -> ResponseType {
         self.content.clone()
     }
@@ -115,20 +116,20 @@ impl UpdateStateSuccess{
 
         for workload in update_state_success.added_workloads {
             let parts: Vec<&str> = workload.split('.').collect();
-            let (name, id, state) = match &parts[..] {
-                [name, id, state] => (name, id, state),
+            let (workload_name, workload_id, agent_name) = match &parts[..] {
+                [workload_name, workload_id, agent_name] => (workload_name, workload_id, agent_name),
                 _ => continue,
             };
-            added_workloads.push(WorkloadInstanceName::new(name.to_string(), id.to_string(), state.to_string()));
+            added_workloads.push(WorkloadInstanceName::new(agent_name.to_string(), workload_name.to_string(), workload_id.to_string()));
         }
 
         for workload in update_state_success.deleted_workloads {
             let parts: Vec<&str> = workload.split('.').collect();
-            let (name, id, state) = match &parts[..] {
-                [name, id, state] => (name, id, state),
+            let (workload_name, workload_id, agent_name) = match &parts[..] {
+                [workload_name, workload_id, agent_name] => (workload_name, workload_id, agent_name),
                 _ => continue,
             };
-            deleted_workloads.push(WorkloadInstanceName::new(name.to_string(), id.to_string(), state.to_string()));
+            deleted_workloads.push(WorkloadInstanceName::new(agent_name.to_string(), workload_name.to_string(), workload_id.to_string()));
         }
 
         Self{

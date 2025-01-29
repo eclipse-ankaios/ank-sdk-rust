@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Elektrobit Automotive GmbH
+// Copyright (c) 2023 Elektrobit Automotive GmbH
 //
 // This program and the accompanying materials are made available under the
 // terms of the Apache License, Version 2.0 which is available at
@@ -12,17 +12,24 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-mod workload_state;
-mod workload_state_enums;
-mod workload_execution_state;
-mod workload_instance_name;
+// use std::thread::sleep;
 
-pub use workload_state::{WorkloadState, WorkloadStateCollection};
-#[allow(unused)]
-pub use workload_state_enums::{WorkloadStateEnum, WorkloadSubStateEnum};
-#[allow(unused)]
-pub use workload_execution_state::WorkloadExecutionState;
-pub use workload_instance_name::WorkloadInstanceName;
+use ankaios_sdk::Ankaios;
+use tokio::time::{Duration, sleep};
 
-#[cfg(test)]
-pub use workload_state::generate_test_workload_states_proto;
+#[tokio::main]
+async fn main() {
+    {
+        println!("Ankaios 1");
+        let mut _ank = Ankaios::new().await.unwrap();
+        sleep(Duration::from_secs(5)).await;
+    }
+    println!("Pause");
+    sleep(Duration::from_secs(5)).await;
+    {
+        println!("Ankaios 2");
+        let mut _ank = Ankaios::new().await.unwrap();
+        sleep(Duration::from_secs(5)).await;
+    }
+    println!("End");
+}

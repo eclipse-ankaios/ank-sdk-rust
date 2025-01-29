@@ -26,7 +26,7 @@ fn read_file_to_string(path: &Path) -> Result<String, std::io::Error> {
 #[cfg(test)]
 use self::read_to_string_mock as read_file_to_string;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Manifest{
     manifest: serde_yaml::Value
 }

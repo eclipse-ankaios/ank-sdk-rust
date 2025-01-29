@@ -24,7 +24,7 @@ use crate::AnkaiosError;
 
 const SUPPORTED_API_VERSION: &str = "v0.1";
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct CompleteState{
     complete_state: AnkaiosCompleteState,
     workloads: Vec<Workload>,
@@ -34,7 +34,12 @@ pub struct CompleteState{
 
 impl CompleteState {
     pub fn new() -> Self {
-        let mut obj = Self::default();
+        let mut obj = Self{
+            complete_state: AnkaiosCompleteState::default(),
+            workloads: Vec::new(),
+            workload_state_collection: WorkloadStateCollection::new(),
+            configs: HashMap::new(),
+        };
         obj.set_api_version(SUPPORTED_API_VERSION.to_string());
         obj
     }
@@ -86,13 +91,15 @@ impl CompleteState {
                 None => serde_yaml::Value::Null,
             }
         }
-        if let Some(configs) = proto.desired_state.as_ref().unwrap().configs.as_ref() {
-            obj.configs = configs.configs.iter().map(|(k, v)| (k.clone(), from_config_item(v))).collect();
-        }
+        if proto.desired_state.is_some() {
+            if let Some(configs) = proto.desired_state.as_ref().unwrap().configs.as_ref() {
+                obj.configs = configs.configs.iter().map(|(k, v)| (k.clone(), from_config_item(v))).collect();
+            }
 
-        if let Some(workloads) = proto.desired_state.as_ref().unwrap().workloads.as_ref() {
-            for (workload_name, workload) in workloads.workloads.iter() {
-                obj.workloads.push(Workload::new_from_proto(workload_name, workload.clone()));
+            if let Some(workloads) = proto.desired_state.as_ref().unwrap().workloads.as_ref() {
+                for (workload_name, workload) in workloads.workloads.iter() {
+                    obj.workloads.push(Workload::new_from_proto(workload_name, workload.clone()));
+                }
             }
         }
 
@@ -226,6 +233,12 @@ impl CompleteState {
 
     pub fn get_configs(&self) -> HashMap<String, serde_yaml::Value> {
         self.configs.clone()
+    }
+}
+
+impl Default for CompleteState {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
