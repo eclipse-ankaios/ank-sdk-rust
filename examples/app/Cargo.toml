@@ -1,0 +1,20 @@
+[package]
+name = "app"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+ankaios_sdk = { path = "/workspaces/build/ankaios_sdk" }
+chrono = "0.4"
+# required for encoding/decoding of protobuf varint format
+prost = "0.11"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+tokio = { version = "1.41", features = [
+    "macros",
+    "rt-multi-thread",
+    "fs",
+    "io-util",
+    "process",
+] }
+console-subscriber = "0.4.1"
