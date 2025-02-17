@@ -18,7 +18,6 @@ use std::default;
 use api::ank_base::{response::ResponseContent as AnkaiosResponseContent, UpdateStateSuccess as AnkaiosUpdateStateSuccess, Error};
 use api::control_api::{FromAnkaios, from_ankaios::FromAnkaiosEnum};
 use crate::components::complete_state::CompleteState;
-
 use super::workload_state_mod::WorkloadInstanceName;
 
 
@@ -36,7 +35,7 @@ pub struct Response{
     pub id: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct UpdateStateSuccess {
     pub added_workloads: Vec<WorkloadInstanceName>,
     pub deleted_workloads: Vec<WorkloadInstanceName>,
@@ -166,19 +165,141 @@ impl fmt::Display for UpdateStateSuccess {
 //                    ##     #######   #########      ##                    //
 //////////////////////////////////////////////////////////////////////////////
 
+#[cfg(any(feature = "test_utils", test))]
+pub fn generate_test_proto_update_state_success(req_id: String) -> FromAnkaios {
+    FromAnkaios{
+        from_ankaios_enum: Some(FromAnkaiosEnum::Response(
+            Box::new(api::ank_base::Response{
+                request_id: req_id,
+                response_content: Some(AnkaiosResponseContent::UpdateStateSuccess(
+                    AnkaiosUpdateStateSuccess{
+                        added_workloads: vec!["workload_test.1234.agent_Test".to_string()],
+                        deleted_workloads: Default::default(),
+                    }
+                ))
+            })
+        ))
+    }
+}
+
+#[cfg(any(feature = "test_utils", test))]
+pub fn generate_test_response_update_state_success(req_id: String) -> Response {
+    Response::new(generate_test_proto_update_state_success(req_id))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Response, UpdateStateSuccess};
-    use api::ank_base::UpdateStateSuccess as AnkaiosUpdateStateSuccess;
-    use api::control_api::FromAnkaios;
+    use std::collections::HashMap;
+    use super::{ResponseType, Response, UpdateStateSuccess};
+    use api::ank_base::{
+        Response as AnkaiosResponse,
+        response::ResponseContent as AnkaiosResponseContent,
+        UpdateStateSuccess as AnkaiosUpdateStateSuccess,
+    };
+    use api::control_api::{from_ankaios, FromAnkaios};
 
     #[test]
-    fn test_response() {
-        let _ = Response::new(FromAnkaios::default());
+    fn utest_response_type() {
+        let mut response_type = ResponseType::default();
+        assert_eq!(format!("{}", response_type), "Error");
+        response_type = ResponseType::CompleteState(Box::default());
+        assert_eq!(format!("{}", response_type), "CompleteState");
+        response_type = ResponseType::UpdateStateSuccess(Box::default());
+        assert_eq!(format!("{}", response_type), "UpdateStateSuccess");
+        response_type = ResponseType::ConnectionClosedReason(String::default());
+        assert_eq!(format!("{}", response_type), "ConnectionClosedReason");
     }
 
     #[test]
-    fn test_update_state_success() {
-        let _ = UpdateStateSuccess::new_from_proto(AnkaiosUpdateStateSuccess::default());
+    fn utest_response_error() {
+        let response = Response::new(FromAnkaios{
+            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(
+                Box::new(AnkaiosResponse{
+                    request_id: String::from("123"),
+                    response_content: Some(AnkaiosResponseContent::Error(
+                        Default::default()
+                    ))
+                })
+            ))
+        });
+        assert_eq!(response.get_request_id(), "123".to_string());
+        assert_eq!(format!("{}", response.get_content()), format!("{}", ResponseType::Error(String::default())));
+    }
+
+    #[test]
+    fn utest_response_complete_state() {
+        let response = Response::new(FromAnkaios{
+            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(
+                Box::new(AnkaiosResponse{
+                    request_id: String::from("123"),
+                    response_content: Some(AnkaiosResponseContent::CompleteState(
+                        Default::default()
+                    ))
+                })
+            ))
+        });
+        assert_eq!(response.get_request_id(), "123".to_string());
+        assert_eq!(format!("{}", response.get_content()), format!("{}", ResponseType::CompleteState(Box::default())));
+    }
+
+    #[test]
+    fn utest_response_update_state_success() {
+        let response = Response::new(FromAnkaios{
+            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(
+                Box::new(AnkaiosResponse{
+                    request_id: String::from("123"),
+                    response_content: Some(AnkaiosResponseContent::UpdateStateSuccess(
+                        Default::default()
+                    ))
+                })
+            ))
+        });
+        assert_eq!(response.get_request_id(), "123".to_string());
+        assert_eq!(format!("{}", response.get_content()), format!("{}", ResponseType::UpdateStateSuccess(Box::default())));
+    }
+
+    #[test]
+    fn utest_response_connection_closed() {
+        let response = Response::new(FromAnkaios{
+            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::ConnectionClosed(
+                Default::default()
+            ))
+        });
+        assert_eq!(response.get_request_id(), "".to_string());
+        assert_eq!(format!("{}", response.get_content()), format!("{}", ResponseType::ConnectionClosedReason(String::default())));
+    }
+
+    #[test]
+    fn utest_response_empty() {
+        let response = Response::new(FromAnkaios{
+            from_ankaios_enum: None
+        });
+        assert_eq!(response.get_request_id(), "".to_string());
+        assert_eq!(format!("{}", response.get_content()), format!("{}", ResponseType::Error(String::from("Response is empty."))));
+    }
+
+    #[test]
+    fn utest_update_state_success() {
+        let update_state_success = UpdateStateSuccess::new_from_proto(AnkaiosUpdateStateSuccess{
+            added_workloads: vec!["workload_new.1234.agent_Test".to_string()],
+            deleted_workloads: vec!["workload_old.5678.agent_Test".to_string()],
+        });
+
+        assert_eq!(update_state_success.added_workloads.len(), 1);
+        assert_eq!(update_state_success.deleted_workloads.len(), 1);
+        assert_eq!(update_state_success.to_dict(), HashMap::from([
+            ("added_workloads".to_string(), vec![serde_yaml::Mapping::from_iter([
+                (serde_yaml::Value::String("agent_name".to_string()), serde_yaml::Value::String("agent_Test".to_string())),
+                (serde_yaml::Value::String("workload_name".to_string()), serde_yaml::Value::String("workload_new".to_string())),
+                (serde_yaml::Value::String("workload_id".to_string()), serde_yaml::Value::String("1234".to_string())),
+            ])]),
+            ("deleted_workloads".to_string(), vec![serde_yaml::Mapping::from_iter([
+                (serde_yaml::Value::String("agent_name".to_string()), serde_yaml::Value::String("agent_Test".to_string())),
+                (serde_yaml::Value::String("workload_name".to_string()), serde_yaml::Value::String("workload_old".to_string())),
+                (serde_yaml::Value::String("workload_id".to_string()), serde_yaml::Value::String("5678".to_string())),
+            ])]),
+        ]));
+
+        assert_eq!(format!("{}", update_state_success), "UpdateStateSuccess: added_workloads: [WorkloadInstanceName { agent_name: \"agent_Test\", workload_name: \"workload_new\", workload_id: \"1234\" }], deleted_workloads: [WorkloadInstanceName { agent_name: \"agent_Test\", workload_name: \"workload_old\", workload_id: \"5678\" }]");
     }
 }

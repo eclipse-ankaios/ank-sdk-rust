@@ -23,4 +23,7 @@ RUN --mount=type=cache,target=${WORKSPACE_DIR}/target/release cargo build --rele
 # RUN target=${WORKSPACE_DIR}/target/release cargo build --release \
 #     && cp ${WORKSPACE_DIR}/target/release/app /usr/local/bin/
 
+ENV RUST_BACKTRACE=full
+ENV RUST_LOG=trace
+
 ENTRYPOINT ["/usr/local/bin/app"]

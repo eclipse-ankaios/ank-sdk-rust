@@ -11,5 +11,9 @@
         "thiserror",
         "utest",
         "varint",
-    ]
+    ],
+    // "rust-analyzer.cfg.setTest": false,
+    // "rust-analyzer.diagnostics.disabled": [
+    //     "inactive-code"
+    // ],
 }

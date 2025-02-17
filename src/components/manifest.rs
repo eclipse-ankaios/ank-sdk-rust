@@ -168,7 +168,7 @@ mod tests {
     use super::{Manifest, MANIFEST_CONTENT};
 
     #[test]
-    fn test_creation() {
+    fn utest_creation() {
         let manifest = Manifest::from_file(Path::new(MANIFEST_CONTENT)).unwrap();
         assert_eq!(manifest.manifest["apiVersion"], "v0.1");
         assert_eq!(manifest.calculate_masks(), vec!["desiredState.workloads.nginx_test", "desiredState.configs.config1", "desiredState.configs.config2", "desiredState.configs.config3"]);
@@ -179,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn test_no_workloads() {
+    fn utest_no_workloads() {
         let manifest_result = Manifest::from_string("apiVersion: v0.1");
         assert!(manifest_result.is_ok());
         let manifest: Manifest = manifest_result.unwrap();

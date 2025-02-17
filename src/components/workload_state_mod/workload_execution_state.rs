@@ -103,7 +103,7 @@ mod tests {
     use super::{WorkloadExecutionState, WorkloadStateEnum, WorkloadSubStateEnum};
 
     #[test]
-    fn test_default_functionality() {
+    fn utest_default_functionality() {
         let default_exec_state = WorkloadExecutionState::new(
             ank_base::ExecutionState {
                 execution_state_enum: None,
@@ -140,20 +140,20 @@ mod tests {
         };
     }
 
-    generate_test_for_workload_execution_state!(test_agent_disconnected, AgentDisconnected, AgentDisconnected,
+    generate_test_for_workload_execution_state!(utest_agent_disconnected, AgentDisconnected, AgentDisconnected,
         ank_base::execution_state::ExecutionStateEnum::AgentDisconnected(ank_base::AgentDisconnected::AgentDisconnected as i32));
-    generate_test_for_workload_execution_state!(test_pending, Pending, PendingWaitingToStart,
+    generate_test_for_workload_execution_state!(utest_pending, Pending, PendingWaitingToStart,
         ank_base::execution_state::ExecutionStateEnum::Pending(ank_base::Pending::WaitingToStart as i32));
-    generate_test_for_workload_execution_state!(test_running, Running, RunningOk,
+    generate_test_for_workload_execution_state!(utest_running, Running, RunningOk,
         ank_base::execution_state::ExecutionStateEnum::Running(ank_base::Running::Ok as i32));
-    generate_test_for_workload_execution_state!(test_stopping, Stopping, StoppingWaitingToStop,
+    generate_test_for_workload_execution_state!(utest_stopping, Stopping, StoppingWaitingToStop,
         ank_base::execution_state::ExecutionStateEnum::Stopping(ank_base::Stopping::WaitingToStop as i32));
-    generate_test_for_workload_execution_state!(test_succeeded, Succeeded, SucceededOk,
+    generate_test_for_workload_execution_state!(utest_succeeded, Succeeded, SucceededOk,
         ank_base::execution_state::ExecutionStateEnum::Succeeded(ank_base::Succeeded::Ok as i32));
-    generate_test_for_workload_execution_state!(test_failed, Failed, FailedExecFailed,
+    generate_test_for_workload_execution_state!(utest_failed, Failed, FailedExecFailed,
         ank_base::execution_state::ExecutionStateEnum::Failed(ank_base::Failed::ExecFailed as i32));
-    generate_test_for_workload_execution_state!(test_not_scheduled, NotScheduled, NotScheduled,
+    generate_test_for_workload_execution_state!(utest_not_scheduled, NotScheduled, NotScheduled,
         ank_base::execution_state::ExecutionStateEnum::NotScheduled(ank_base::NotScheduled::NotScheduled as i32));
-    generate_test_for_workload_execution_state!(test_removed, Removed, Removed,
+    generate_test_for_workload_execution_state!(utest_removed, Removed, Removed,
         ank_base::execution_state::ExecutionStateEnum::Removed(ank_base::Removed::Removed as i32));
 }

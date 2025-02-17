@@ -63,7 +63,7 @@ mod tests {
     use super::WorkloadInstanceName;
 
     #[test]
-    fn test_instance_name() {
+    fn utest_instance_name() {
         let instance_name = WorkloadInstanceName::new(
             "agent_Test".to_string(), "workload_Test".to_string(), "1234".to_string()
         );

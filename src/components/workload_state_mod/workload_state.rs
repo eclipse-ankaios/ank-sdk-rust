@@ -198,7 +198,7 @@ mod tests {
     use super::generate_test_workload_states_proto;
 
     #[test]
-    fn test_workload_state() {
+    fn utest_workload_state() {
         let agent_name = "agent_name".to_string();
         let workload_name = "workload_name".to_string();
         let workload_id = "workload_id".to_string();
@@ -221,9 +221,9 @@ mod tests {
     }
 
     #[test]
-    fn test_workload_state_collection() {
-        let state_collection = WorkloadStateCollection::new_from_proto(
-            &generate_test_workload_states_proto());
+    fn utest_workload_state_collection() {
+        let state_collection = WorkloadStateCollection::try_from(
+            generate_test_workload_states_proto()).unwrap();
         let mut state_list = state_collection.get_as_list();
         // The list comes unsorted, thus the test is not deterministic
         state_list.sort_by(|a, b| a.workload_instance_name.agent_name.cmp(&b.workload_instance_name.agent_name));

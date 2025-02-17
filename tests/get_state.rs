@@ -19,37 +19,27 @@ use tokio::time::Duration;
 
 async fn get_workloads(ank: &mut Ankaios) {
     // Request the state of the system, filtered with the workloadStates
-    match ank.get_state(Some(vec!["workloadStates".to_string()]), Some(Duration::from_secs(5))).await {
-        Ok(complete_state) => {
-            // Get the workload states present in the complete state
-            let workload_states_dict = complete_state.get_workload_states().get_as_dict();
+    let complete_state = ank.get_state(Some(vec!["workloadStates".to_string()]), Some(Duration::from_secs(5))).await.unwrap();
 
-            // Print the states of the workloads
-            for (agent_name, workload_states) in workload_states_dict.iter() {
-                for (workload_name, workload_states) in workload_states.as_mapping().unwrap().iter() {
-                    for (_workload_id, workload_state) in workload_states.as_mapping().unwrap().iter() {
-                        println!("Workload {} on agent {} has the state {:?}", 
-                            workload_name.as_str().unwrap(), agent_name.as_str().unwrap(), workload_state.get("state").unwrap().as_str().unwrap().to_string());
-                    }
-                }
+    // Get the workload states present in the complete state
+    let workload_states_dict = complete_state.get_workload_states().get_as_dict();
+
+    // Print the states of the workloads
+    for (agent_name, workload_states) in workload_states_dict.iter() {
+        for (workload_name, workload_states) in workload_states.as_mapping().unwrap().iter() {
+            for (_workload_id, workload_state) in workload_states.as_mapping().unwrap().iter() {
+                println!("Workload {} on agent {} has the state {:?}", 
+                    workload_name.as_str().unwrap(), agent_name.as_str().unwrap(), workload_state.get("state").unwrap().as_str().unwrap().to_string());
             }
-        }
-        Err(err) => {
-            println!("Error while getting state: {:?}", err);
         }
     }
 }
 
 #[tokio::main]
 async fn main() {
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-
     // Create a new Ankaios object.
     // The connection to the control interface is automatically done at this step.
-    let mut ank = Ankaios::new().await.unwrap_or_else(|err| {
-        println!("Error while creating Ankaios object: {:?}", err);
-        std::process::exit(1);
-    });
+    let mut ank = Ankaios::new().await.unwrap();
 
     // Create a new workload
     let workload = Workload::builder()

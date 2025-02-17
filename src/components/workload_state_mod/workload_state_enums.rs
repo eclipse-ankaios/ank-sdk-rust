@@ -239,7 +239,7 @@ mod tests {
     use super::{WorkloadStateEnum, WorkloadSubStateEnum};
 
     #[test]
-    fn test_workload_state_enum_helpers() {
+    fn utest_workload_state_enum_helpers() {
         let state = WorkloadStateEnum::default();
         assert!(WorkloadStateEnum::is_valid(0));
         assert_eq!(WorkloadStateEnum::from_i32(0).unwrap(), state);
@@ -258,24 +258,24 @@ mod tests {
         };
     }
 
-    generate_test_for_workload_state_enum!(test_workload_state_enum_agent_disconnected, AgentDisconnected, 0);
-    generate_test_for_workload_state_enum!(test_workload_state_enum_pending, Pending, 1);
-    generate_test_for_workload_state_enum!(test_workload_state_enum_running, Running, 2);
-    generate_test_for_workload_state_enum!(test_workload_state_enum_stopping, Stopping, 3);
-    generate_test_for_workload_state_enum!(test_workload_state_enum_succeeded, Succeeded, 4);
-    generate_test_for_workload_state_enum!(test_workload_state_enum_failed, Failed, 5);
-    generate_test_for_workload_state_enum!(test_workload_state_enum_not_scheduled, NotScheduled, 6);
-    generate_test_for_workload_state_enum!(test_workload_state_enum_removed, Removed, 7);
+    generate_test_for_workload_state_enum!(utest_workload_state_enum_agent_disconnected, AgentDisconnected, 0);
+    generate_test_for_workload_state_enum!(utest_workload_state_enum_pending, Pending, 1);
+    generate_test_for_workload_state_enum!(utest_workload_state_enum_running, Running, 2);
+    generate_test_for_workload_state_enum!(utest_workload_state_enum_stopping, Stopping, 3);
+    generate_test_for_workload_state_enum!(utest_workload_state_enum_succeeded, Succeeded, 4);
+    generate_test_for_workload_state_enum!(utest_workload_state_enum_failed, Failed, 5);
+    generate_test_for_workload_state_enum!(utest_workload_state_enum_not_scheduled, NotScheduled, 6);
+    generate_test_for_workload_state_enum!(utest_workload_state_enum_removed, Removed, 7);
 
     #[test]
     #[should_panic]
-    fn test_workload_state_str_invalid() {
+    fn utest_workload_state_str_invalid() {
         assert!(WorkloadStateEnum::from_str(stringify!(Invalid)).is_err());
         WorkloadStateEnum::new_from_str("Invalid");
     }
 
     #[test]
-    fn test_workload_sub_state_enum_helpers() {
+    fn utest_workload_sub_state_enum_helpers() {
         let substate = WorkloadSubStateEnum::default();
         assert_eq!(substate.to_i32(), 0);
         assert_eq!(WorkloadSubStateEnum::from_i32(0).unwrap(), substate);
@@ -293,41 +293,41 @@ mod tests {
         };
     }
 
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_agent_disconnected,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_agent_disconnected,
         AgentDisconnected, AgentDisconnected, ank_base::AgentDisconnected::AgentDisconnected as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_pending_initial,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_pending_initial,
         PendingInitial, Pending, ank_base::Pending::Initial as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_pending_waiting_to_start,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_pending_waiting_to_start,
         PendingWaitingToStart, Pending, ank_base::Pending::WaitingToStart as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_pending_starting,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_pending_starting,
         PendingStarting, Pending, ank_base::Pending::Starting as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_pending_starting_failed,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_pending_starting_failed,
         PendingStartingFailed, Pending, ank_base::Pending::StartingFailed as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_running_ok,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_running_ok,
         RunningOk, Running, ank_base::Running::Ok as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_stopping,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_stopping,
         Stopping, Stopping, ank_base::Stopping::Stopping as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_stopping_waiting_to_stop,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_stopping_waiting_to_stop,
         StoppingWaitingToStop, Stopping, ank_base::Stopping::WaitingToStop as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_stopping_requested_at_runtime,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_stopping_requested_at_runtime,
         StoppingRequestedAtRuntime, Stopping, ank_base::Stopping::RequestedAtRuntime as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_stopping_delete_failed,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_stopping_delete_failed,
         StoppingDeleteFailed, Stopping, ank_base::Stopping::DeleteFailed as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_succeeded_ok,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_succeeded_ok,
         SucceededOk, Succeeded, ank_base::Succeeded::Ok as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_failed_exec_failed,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_failed_exec_failed,
         FailedExecFailed, Failed, ank_base::Failed::ExecFailed as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_failed_unknown,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_failed_unknown,
         FailedUnknown, Failed, ank_base::Failed::Unknown as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_failed_lost,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_failed_lost,
         FailedLost, Failed, ank_base::Failed::Lost as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_not_scheduled,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_not_scheduled,
         NotScheduled, NotScheduled, ank_base::NotScheduled::NotScheduled as i32);
-    generate_test_for_workload_state_enum!(test_workload_substate_enum_removed,
+    generate_test_for_workload_state_enum!(utest_workload_substate_enum_removed,
         Removed, Removed, ank_base::Removed::Removed as i32);
 
     #[test]
-    fn test_workload_substate_enum_err() {
+    fn utest_workload_substate_enum_err() {
         assert!(WorkloadSubStateEnum::new(&WorkloadStateEnum::AgentDisconnected, 20).is_err());
         assert!(WorkloadSubStateEnum::new(&WorkloadStateEnum::Pending, 20).is_err());
         assert!(WorkloadSubStateEnum::new(&WorkloadStateEnum::Running, 20).is_err());
@@ -339,7 +339,7 @@ mod tests {
     }
 
     #[test]
-    fn test_workload_substate_str_invalid() {
+    fn utest_workload_substate_str_invalid() {
         assert!(WorkloadSubStateEnum::from_str(stringify!(Invalid)).is_err());
     }
 }

@@ -13,6 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
+use std::vec;
 use tokio::sync::mpsc;
 use tokio::time::{timeout as tokio_timeout, Duration};
 
@@ -29,42 +30,23 @@ const DEFAULT_TIMEOUT: u64 = 5;  // seconds
 
 pub struct Ankaios{
     response_receiver: mpsc::Receiver<Response>,
-    state_changed_receiver_handler: Option<tokio::task::JoinHandle<Result<(), AnkaiosError>>>,
     control_interface: ControlInterface,
 }
 
 impl Ankaios {
     pub async fn new() -> Result<Self, AnkaiosError> {
-        let (request_sender, response_receiver) = mpsc::channel::<Response>(100);
-        let (state_changed_sender, mut state_changed_receiver) = mpsc::channel::<ControlInterfaceState>(100);
+        let (response_sender, response_receiver) = mpsc::channel::<Response>(100);
         let mut object = Self{
             response_receiver,
-            state_changed_receiver_handler: None,
-            control_interface: ControlInterface::new(request_sender, state_changed_sender),
+            control_interface: ControlInterface::new(response_sender),
         };
 
-        object.state_changed_receiver_handler = Some(tokio::spawn(async move {
-            loop {
-                match state_changed_receiver.recv().await {
-                    Some(state) => {
-                        log::info!("State changed: {:?}", state);
-                    },
-                    None => {
-                        log::error!("State changed receiver closed unexpectedly.");
-                        return Err(AnkaiosError::ControlInterfaceError("State changed receiver closed.".to_string()));
-                    },
-                }
-            }
-        }));
+        object.control_interface.connect().await?;
 
-        match object.control_interface.connect().await {
-            Ok(_) => {
-                Ok(object)
-            },
-            Err(err) => {
-                Err(err)
-            }
-        }
+        // Test connection
+        object.get_state(Some(vec!["desiredState.apiVersion".to_string()]), None).await?;
+
+        Ok(object)
     }
 
     pub async fn state(&mut self) -> ControlInterfaceState {
@@ -73,7 +55,7 @@ impl Ankaios {
 
     async fn send_request(&mut self, request: Request, timeout: Option<Duration>) -> Result<Response, AnkaiosError> {
         let request_id = request.get_id();
-        self.control_interface.write_request(request).await;
+        self.control_interface.write_request(request).await?;
         let timeout_duration = timeout.unwrap_or(Duration::from_secs(DEFAULT_TIMEOUT));
         loop {
             match tokio_timeout(timeout_duration, self.response_receiver.recv()).await {

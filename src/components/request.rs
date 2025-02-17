@@ -19,7 +19,7 @@ use crate::AnkaiosError;
 use crate::components::complete_state::CompleteState;
 
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(i32)]
 pub enum RequestType {
     UpdateState = 0,
@@ -141,12 +141,62 @@ impl fmt::Display for Request {
 //                    ##     #######   #########      ##                    //
 //////////////////////////////////////////////////////////////////////////////
 
+#[cfg(any(feature = "test_utils", test))]
+pub fn generate_test_request() -> Request {
+    let mut req = Request::new(RequestType::UpdateState);
+    req.add_mask("test_mask".to_string());
+    req
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Request, RequestType};
+    use api::ank_base::Request as AnkaiosRequest;
+    use super::{RequestType, Request, CompleteState};
 
     #[test]
-    fn test_request() {
-        let _ = Request::new(RequestType::UpdateState);
+    fn utest_request_type() {
+        let mut request_type = RequestType::UpdateState;
+        assert_eq!(format!("{}", request_type), "UpdateState");
+        request_type = RequestType::GetState;
+        assert_eq!(format!("{}", request_type), "GetState");
+    }
+
+    #[test]
+    fn utest_request_update_state() {
+        let mut request = Request::new(RequestType::UpdateState);
+        let id = request.get_id();
+        assert!(request.set_complete_state(Default::default()).is_ok());
+
+        request.set_masks(vec!["mask1".to_string()]);
+        request.add_mask("mask2".to_string());
+        assert_eq!(request.to_proto(), AnkaiosRequest{
+            request_id: id,
+            request_content: Some(api::ank_base::request::RequestContent::UpdateStateRequest(
+                Box::new(api::ank_base::UpdateStateRequest{
+                    new_state: Some(CompleteState::default().to_proto()),
+                    update_mask: vec!["mask1".to_string(), "mask2".to_string()],
+                })
+            ))
+        });
+    }
+
+    #[test]
+    fn utest_request_get_state() {
+        let mut request = Request::new(RequestType::GetState);
+        let id = request.get_id();
+        assert!(request.set_complete_state(Default::default()).is_err());
+
+        request.set_masks(vec!["mask1".to_string()]);
+        request.add_mask("mask2".to_string());
+        assert_eq!(request.to_proto(), AnkaiosRequest{
+            request_id: id,
+            request_content: Some(api::ank_base::request::RequestContent::CompleteStateRequest(
+                api::ank_base::CompleteStateRequest{
+                    field_mask: vec!["mask1".to_string(), "mask2".to_string()],
+                }
+            ))
+        });
+
+        assert_eq!(format!("{}", request), format!("{:?}", request.to_proto()));
     }
 }

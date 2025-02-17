@@ -345,28 +345,29 @@ fn generate_complete_state_proto() -> ank_base::CompleteState {
 #[cfg(test)]
 mod tests {
     use std::any::Any;
+    use std::collections::HashMap;
 
     use super::{generate_complete_state_proto, CompleteState, SUPPORTED_API_VERSION};
     use crate::components::manifest::generate_test_manifest;
     use crate::components::workload_state_mod::WorkloadInstanceName;
 
     #[test]
-    fn test_api_version() {
-        let mut complete_state = CompleteState::new();
+    fn utest_api_version() {
+        let mut complete_state = CompleteState::default();
         assert_eq!(complete_state.get_api_version(), SUPPORTED_API_VERSION);
         complete_state.set_api_version("v0.2");
         assert_eq!(complete_state.get_api_version(), "v0.2");
     }
 
     #[test]
-    fn test_proto() {
+    fn utest_proto() {
         let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
         let other_complete_state = CompleteState::new_from_proto(complete_state.to_proto());
         assert_eq!(complete_state.to_string(), other_complete_state.to_string());
     }
 
     #[test]
-    fn test_from_manifest() {
+    fn utest_from_manifest() {
         let manifest = generate_test_manifest();
         let complete_state = CompleteState::try_from(&manifest).unwrap();
         assert_eq!(complete_state.get_workloads().len(), 1);
@@ -376,7 +377,17 @@ mod tests {
     }
 
     #[test]
-    fn test_to_dict() {
+    fn utest_invalid_value_config() {
+        let mut complete_state = CompleteState::default();
+        let mut configs = HashMap::new();
+        configs.insert("config1".to_string(), serde_yaml::Value::Null);
+        complete_state.set_configs(configs);
+        assert_eq!(complete_state.get_configs().len(), 1);
+        assert!(complete_state.get_configs().get("config1").unwrap().is_null());
+    }
+
+    #[test]
+    fn utest_to_dict() {
         let complete_state = CompleteState::try_from(generate_complete_state_proto()).unwrap();
 
         // Populate the expected mapping
@@ -391,14 +402,14 @@ mod tests {
     }
 
     #[test]
-    fn test_get_workload() {
+    fn utest_get_workload() {
         let complete_state = CompleteState::try_from(generate_complete_state_proto()).unwrap();
         let workload = complete_state.get_workload("nginx_test").unwrap();
         assert_eq!(workload.name, "nginx_test");
     }
 
     #[test]
-    fn test_get_workload_states() {
+    fn utest_get_workload_states() {
         let complete_state = CompleteState::try_from(generate_complete_state_proto()).unwrap();
         let workload_states = complete_state.get_workload_states();
         let workload_instance_name = WorkloadInstanceName::new("agent_A".to_string(), "nginx".to_string(), "1234".to_string());

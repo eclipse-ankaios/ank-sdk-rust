@@ -324,9 +324,6 @@ impl Workload {
                     cond
                 )),
             };
-            if self.workload.dependencies.is_none() {
-                self.workload.dependencies = Some(ank_base::Dependencies::default());
-            }
             self.workload.dependencies.as_mut().unwrap().dependencies.insert(workload_name.into(), add_condition);
         }
         self.add_mask(format!("{}.dependencies", self.main_mask));
@@ -614,7 +611,13 @@ mod tests {
 
     #[test]
     fn utest_tags() {
-        let mut wl = generate_test_workload("Agent_A", "Test", "podman");
+        let mut wl = Workload::builder()
+            .workload_name("Test")
+            .agent_name("agent_A")
+            .runtime("podman")
+            .runtime_config("config")
+            .build().unwrap();
+        wl.add_tag("key_test_1", "val_test_1");
         let mut tags = wl.get_tags();
         assert_eq!(tags.len(), 1);
 
@@ -652,7 +655,13 @@ mod tests {
 
     #[test]
     fn utest_configs() {
-        let mut wl = generate_test_workload("Agent_A", "Test", "podman");
+        let mut wl = Workload::builder()
+            .workload_name("Test")
+            .agent_name("agent_A")
+            .runtime("podman")
+            .runtime_config("config")
+            .build().unwrap();
+        wl.add_config("alias_test_1", "config_test_1");
         let mut configs = wl.get_configs();
         assert_eq!(configs.len(), 1);
 
@@ -768,5 +777,16 @@ mod tests {
             .build()
             .is_err()
         );
+    }
+
+    #[test]
+    fn utest_display() {
+        let wl = Workload::builder()
+            .workload_name("Test")
+            .agent_name("agent_A")
+            .runtime("podman")
+            .runtime_config("config")
+            .build().unwrap();
+        assert_eq!(format!("{}", wl), "Workload Test: Workload { agent: Some(\"agent_A\"), restart_policy: None, dependencies: None, tags: None, runtime: Some(\"podman\"), runtime_config: Some(\"config\"), control_interface_access: None, configs: None }");
     }
 }
