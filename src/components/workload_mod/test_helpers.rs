@@ -14,7 +14,8 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use api::ank_base;
+use crate::ankaios_api;
+use ankaios_api::ank_base;
 use crate::Workload;
 
 #[cfg(test)]

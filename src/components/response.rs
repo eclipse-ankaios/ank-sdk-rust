@@ -41,8 +41,9 @@
 use core::fmt;
 use std::collections::HashMap;
 use std::default;
-use api::ank_base::{response::ResponseContent as AnkaiosResponseContent, UpdateStateSuccess as AnkaiosUpdateStateSuccess, Error};
-use api::control_api::{FromAnkaios, from_ankaios::FromAnkaiosEnum};
+use crate::ankaios_api;
+use ankaios_api::ank_base::{response::ResponseContent as AnkaiosResponseContent, UpdateStateSuccess as AnkaiosUpdateStateSuccess, Error};
+use ankaios_api::control_api::{FromAnkaios, from_ankaios::FromAnkaiosEnum};
 use crate::components::complete_state::CompleteState;
 use super::workload_state_mod::WorkloadInstanceName;
 
@@ -244,7 +245,7 @@ impl fmt::Display for UpdateStateSuccess {
 pub fn generate_test_proto_update_state_success(req_id: String) -> FromAnkaios {
     FromAnkaios{
         from_ankaios_enum: Some(FromAnkaiosEnum::Response(
-            Box::new(api::ank_base::Response{
+            Box::new(ankaios_api::ank_base::Response{
                 request_id: req_id,
                 response_content: Some(AnkaiosResponseContent::UpdateStateSuccess(
                     AnkaiosUpdateStateSuccess{
@@ -267,12 +268,13 @@ mod tests {
     use std::collections::HashMap;
     use super::{ResponseType, Response, UpdateStateSuccess,
         generate_test_response_update_state_success};
-    use api::ank_base::{
+    use crate::ankaios_api;
+    use ankaios_api::ank_base::{
         Response as AnkaiosResponse,
         response::ResponseContent as AnkaiosResponseContent,
         UpdateStateSuccess as AnkaiosUpdateStateSuccess,
     };
-    use api::control_api::{from_ankaios, FromAnkaios};
+    use ankaios_api::control_api::{from_ankaios, FromAnkaios};
 
     #[test]
     fn test_doc_examples() {

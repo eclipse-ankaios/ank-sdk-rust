@@ -17,7 +17,8 @@
 use std::fmt;
 use std::collections::HashMap;
 
-use api::ank_base;
+use crate::ankaios_api;
+use ankaios_api::ank_base;
 use crate::components::workload_mod::Workload;
 use crate::components::workload_state_mod::WorkloadStateCollection;
 use crate::components::manifest::Manifest;

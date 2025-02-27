@@ -15,7 +15,8 @@
 use std::fmt;
 use std::{collections::HashMap, path::Path, vec};
 use serde_yaml;
-use api::ank_base;
+use crate::ankaios_api;
+use ankaios_api::ank_base;
 use crate::AnkaiosError;
 use crate::WorkloadBuilder;
 

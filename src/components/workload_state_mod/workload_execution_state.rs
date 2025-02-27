@@ -14,7 +14,8 @@
 
 use std::fmt;
 
-use api::ank_base;
+use crate::ankaios_api;
+use ankaios_api::ank_base;
 use super::workload_state_enums::{WorkloadStateEnum, WorkloadSubStateEnum};
 
 /// Represents the execution state of a Workload.

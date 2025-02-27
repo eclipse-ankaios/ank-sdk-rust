@@ -44,6 +44,7 @@
 #![doc = include_str!("../target/README.md")]
 
 mod docs;
+mod ankaios_api;
 
 mod errors;
 pub use errors::AnkaiosError;

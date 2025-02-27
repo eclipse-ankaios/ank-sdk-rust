@@ -44,7 +44,8 @@
 
 use std::fmt;
 use uuid::Uuid;
-use api::ank_base::{Request as AnkaiosRequest, request::RequestContent, UpdateStateRequest, CompleteStateRequest};
+use crate::ankaios_api;
+use ankaios_api::ank_base::{Request as AnkaiosRequest, request::RequestContent, UpdateStateRequest, CompleteStateRequest};
 use crate::AnkaiosError;
 use crate::components::complete_state::CompleteState;
 
@@ -229,7 +230,8 @@ pub fn generate_test_request() -> Request {
 
 #[cfg(test)]
 mod tests {
-    use api::ank_base::Request as AnkaiosRequest;
+    use crate::ankaios_api;
+    use ankaios_api::ank_base::Request as AnkaiosRequest;
 
     use super::{RequestType, Request, CompleteState};
 
@@ -268,8 +270,8 @@ mod tests {
         request.add_mask("mask2".to_string());
         assert_eq!(request.to_proto(), AnkaiosRequest{
             request_id: id,
-            request_content: Some(api::ank_base::request::RequestContent::UpdateStateRequest(
-                Box::new(api::ank_base::UpdateStateRequest{
+            request_content: Some(ankaios_api::ank_base::request::RequestContent::UpdateStateRequest(
+                Box::new(ankaios_api::ank_base::UpdateStateRequest{
                     new_state: Some(CompleteState::default().to_proto()),
                     update_mask: vec!["mask1".to_string(), "mask2".to_string()],
                 })
@@ -287,8 +289,8 @@ mod tests {
         request.add_mask("mask2".to_string());
         assert_eq!(request.to_proto(), AnkaiosRequest{
             request_id: id,
-            request_content: Some(api::ank_base::request::RequestContent::CompleteStateRequest(
-                api::ank_base::CompleteStateRequest{
+            request_content: Some(ankaios_api::ank_base::request::RequestContent::CompleteStateRequest(
+                ankaios_api::ank_base::CompleteStateRequest{
                     field_mask: vec!["mask1".to_string(), "mask2".to_string()],
                 }
             ))

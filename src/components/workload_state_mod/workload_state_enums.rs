@@ -14,7 +14,8 @@
 
 use std::fmt;
 
-use api::ank_base;
+use crate::ankaios_api;
+use ankaios_api::ank_base;
 
 /// Enum representing the state of a Workload.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
@@ -297,7 +298,8 @@ impl std::str::FromStr for WorkloadSubStateEnum {
 mod tests {
     use std::str::FromStr;
 
-    use api::ank_base;
+    use crate::ankaios_api;
+    use ankaios_api::ank_base;
 
     use super::{WorkloadStateEnum, WorkloadSubStateEnum};
 

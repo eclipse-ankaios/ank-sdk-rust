@@ -23,7 +23,8 @@ use tokio::{
 };
 use prost::Message;
 
-use api::control_api::{
+use crate::ankaios_api;
+use ankaios_api::control_api::{
     to_ankaios::ToAnkaiosEnum,
     FromAnkaios, Hello, ToAnkaios,
 };
@@ -376,7 +377,8 @@ mod tests {
         unistd::mkfifo,
     };
 
-    use api::control_api::{
+    use crate::ankaios_api;
+    use ankaios_api::control_api::{
         to_ankaios::ToAnkaiosEnum,
         Hello, ToAnkaios,
     };

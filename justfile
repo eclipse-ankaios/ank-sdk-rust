@@ -39,7 +39,7 @@ cov-open:
 
 # Generate documentation
 doc:
-    tools/generate_docs.sh
+    cargo doc --no-deps --all-features --document-private-items
 
 # Open documentation
 doc-open:
