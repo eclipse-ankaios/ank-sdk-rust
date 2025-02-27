@@ -14,7 +14,19 @@
 
 use std::fmt;
 
-
+/// Helper struct that contains information about a Workload instance.
+/// 
+/// # Example
+/// 
+/// ## Create a Workload Instance Name object
+/// 
+/// ```rust
+/// let workload_instance_name = WorkloadInstanceName::new(
+///     "agent_Test".to_string(),
+///     "workload_Test".to_string(),
+///     "1234".to_string()
+/// );
+/// ```
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct WorkloadInstanceName{
     pub agent_name: String,
@@ -23,6 +35,17 @@ pub struct WorkloadInstanceName{
 }
 
 impl WorkloadInstanceName {
+    /// Creates a new `WorkloadInstanceName` object.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `agent_name` - A [String] containing the name of the agent;
+    /// * `workload_name` - A [String] containing the name of the workload;
+    /// * `workload_id` - A [String] containing the id of the workload.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [WorkloadInstanceName] object.
     pub fn new(agent_name: String, workload_name: String, workload_id: String) -> WorkloadInstanceName {
         WorkloadInstanceName {
             agent_name,
@@ -31,6 +54,11 @@ impl WorkloadInstanceName {
         }
     }
 
+    /// Converts the `WorkloadInstanceName` to a [Mapping](serde_yaml::Mapping).
+    /// 
+    /// ## Returns
+    /// 
+    /// A [Mapping](serde_yaml::Mapping) containing the `WorkloadInstanceName` information.
     pub fn to_dict(&self) -> serde_yaml::Mapping {
         let mut map = serde_yaml::Mapping::new();
         map.insert(serde_yaml::Value::String("agent_name".to_string()), serde_yaml::Value::String(self.agent_name.clone()));
@@ -39,6 +67,11 @@ impl WorkloadInstanceName {
         map
     }
 
+    /// Returns the filter mask of the Workload Instance Name.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [String] that represents the filter mask.
     pub fn get_filter_mask(&self) -> String {
         format!("workloadStates.{}.{}.{}", self.agent_name, self.workload_name, self.workload_id)
     }

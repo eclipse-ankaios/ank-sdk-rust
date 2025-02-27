@@ -11,6 +11,7 @@
         "thiserror",
         "utest",
         "varint",
+        "clippy",
     ],
     // "rust-analyzer.cfg.setTest": false,
     // "rust-analyzer.diagnostics.disabled": [

@@ -15,7 +15,7 @@
 use std::fmt;
 use std::{collections::HashMap, path::Path, vec};
 use serde_yaml;
-pub use api::ank_base;
+use api::ank_base;
 use crate::AnkaiosError;
 use crate::WorkloadBuilder;
 
@@ -29,16 +29,90 @@ fn read_file_to_string(path: &Path) -> Result<String, std::io::Error> {
 #[cfg(test)]
 use crate::components::workload_mod::test_helpers::read_to_string_mock as read_file_to_string;
 
+/// Represents a workload with various attributes and methods to update them.
+///
+/// The `Workload` struct is used to store the [Ankaios] workload, allowing for
+/// easy manipulation of the workload's fields and conversion to and from
+/// different formats.
+/// 
+/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
+///
+/// # Examples
+///
+/// ## Create a workload using the [WorkloadBuilder]:
+/// 
+/// ```rust
+/// use ankaios_sdk::Workload;
+///
+/// let workload = Workload::builder()
+///     .workload_name("example_workload")
+///     .agent_name("agent_A")
+///     .runtime("podman")
+///     .restart_policy("NEVER")
+///     .runtime_config("image: docker.io/library/nginx\n
+///                      commandOptions: [\"-p\", \"8080:80\"]")
+///     .add_dependency("other_workload", "ADD_COND_RUNNING")
+///     .add_tag("key1", "value1")
+///     .add_tag("key2", "value2")
+///     .build().unwrap();
+/// ```
+/// 
+/// ## Update fields of the workload:
+/// 
+/// ```
+/// workload.update_agent_name("agent_B");
+/// ```
+/// 
+/// ## Update dependencies:
+/// 
+/// ```rust
+/// let mut deps = workload.get_dependencies();
+/// if let Some(value) = deps.get_mut("other_workload") {
+///    *value = "ADD_COND_SUCCEEDED".to_string();
+/// }
+/// workload.update_dependencies(deps).unwrap();
+/// ```
+/// 
+/// ## Update tags:
+/// 
+/// ```rust
+/// let mut tags = workload.get_tags();
+/// tags.push(vec!["key3".to_string(), "value3".to_string()]);
+/// workload.update_tags(&tags);
+/// ```
+/// 
+/// ## Print the updated workload:
+/// 
+/// ```rust
+/// println!("{}", workload);
+/// ```
 #[derive(Debug, Clone)]
 pub struct Workload{
+    #[doc(hidden)]
+    /// The underlying workload data from the proto file.
     pub(crate) workload: ank_base::Workload,
+    #[doc(hidden)]
+    /// The main mask of the workload.
     pub(crate) main_mask: String,
+    /// A vector of strings representing the masks for the workload.
     pub masks: Vec<String>,
+    /// The name of the workload.
     pub name: String,
 }
 
 impl Workload {
-    pub fn new_from_builder<T: Into<String>>(name: T) -> Self {
+    #[doc(hidden)]
+    /// Creates a new `Workload` instance from the builder.
+    /// Must be called only from within the builder.
+    ///
+    /// ## Arguments
+    ///
+    /// * `name` - A [String] that represents the name of the workload.
+    ///
+    /// ## Returns
+    ///
+    /// A new [Workload] instance.
+    pub(crate) fn new_from_builder<T: Into<String>>(name: T) -> Self {
         let name_str = name.into();
         Self{
             workload: ank_base::Workload::default(),
@@ -48,7 +122,18 @@ impl Workload {
         }
     }
 
-    pub fn new_from_proto<T: Into<String>>(name: T, proto: ank_base::Workload) -> Self {
+    #[doc(hidden)]
+    /// Creates a new `Workload` instance from a proto.
+    ///
+    /// ## Arguments
+    ///
+    /// * `name` - A [String] that represents the name of the workload;
+    /// * `proto` - A proto instance of [ank_base::Workload].
+    ///
+    /// ## Returns
+    ///
+    /// A new [Workload] instance.
+    pub(crate) fn new_from_proto<T: Into<String>>(name: T, proto: ank_base::Workload) -> Self {
         let name_str = name.into();
         Self{
             workload: proto,
@@ -58,7 +143,22 @@ impl Workload {
         }
     }
 
-    pub fn new_from_dict<T: Into<String>>(name: T, dict_workload: serde_yaml::Mapping) -> Result<Self, AnkaiosError> {
+    #[doc(hidden)]
+    /// Creates a new `Workload` instance from a Map.
+    ///
+    /// ## Arguments
+    ///
+    /// * `name` - A [String] that represents the name of the workload;
+    /// * `dict_workload` - An instance of [serde_yaml::Mapping] that represents the workload.
+    ///
+    /// ## Returns
+    ///
+    /// A new [Workload] instance.
+    ///
+    /// ## Errors
+    ///
+    /// * [AnkaiosError]::[WorkloadBuilderError](AnkaiosError::WorkloadBuilderError) - If the builder fails.
+    pub(crate) fn new_from_dict<T: Into<String>>(name: T, dict_workload: serde_yaml::Mapping) -> Result<Self, AnkaiosError> {
         let mut wl_builder = Self::builder();
         wl_builder = wl_builder.workload_name(name);
 
@@ -117,10 +217,20 @@ impl Workload {
         wl_builder.build()
     }
 
+    /// Converts the `Workload` instance to a proto message.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [ank_base::Workload] instance.
     pub fn to_proto(&self) -> ank_base::Workload {
         self.workload.clone()
     }
 
+    /// Converts the `Workload` instance to a [serde_yaml::Mapping].
+    /// 
+    /// ## Returns
+    /// 
+    /// A [serde_yaml::Mapping] instance.
     pub fn to_dict(&self) -> serde_yaml::Mapping {
         let mut dict = serde_yaml::Mapping::new();
         if self.workload.agent.is_some() {
@@ -256,40 +366,81 @@ impl Workload {
         dict
     }
 
+    /// Creates a new [WorkloadBuilder] instance.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [WorkloadBuilder] instance.
     pub fn builder() -> WorkloadBuilder {
         WorkloadBuilder::new()
     }
 
+    /// Updates the name of the workload.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `new_name` - A [String] that represents the new name of the workload.
     pub fn update_workload_name<T: Into<String>>(&mut self, new_name: T) {
         self.name = new_name.into();
         self.main_mask = format!("desiredState.workloads.{}", self.name);
         self.masks = vec![format!("desiredState.workloads.{}", self.name)];
     }
 
+    /// Updates the agent name of the workload.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `agent_name` - A [String] that represents the new [agent name](ank_base::Workload).
     pub fn update_agent_name<T: Into<String>>(&mut self, agent_name: T) {
         self.workload.agent = Some(agent_name.into());
         self.add_mask(format!("{}.agent", self.main_mask));
     }
 
+    /// Updates the runtime of the workload.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `runtime` - A [String] that represents the new [runtime](ank_base::Workload).
     pub fn update_runtime<T: Into<String>>(&mut self, runtime: T) {
         self.workload.runtime = Some(runtime.into());
         self.add_mask(format!("{}.runtime", self.main_mask));
     }
 
+    /// Updates the runtime config of the workload.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `runtime_config` - A [String] that represents the new [runtime config](ank_base::Workload).
     pub fn update_runtime_config<T: Into<String>>(&mut self, runtime_config: T) {
         self.workload.runtime_config = Some(runtime_config.into());
         self.add_mask(format!("{}.runtimeConfig", self.main_mask));
     }
 
+    /// Updates the runtime config of the workload using a file.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `file_path` - A [Path] towards the [runtime config](ank_base::Workload) file.
+    /// 
+    /// ## Returns
+    /// 
+    /// An [AnkaiosError]::[IoError](AnkaiosError::IoError) if the file cannot be read.
     pub fn update_runtime_config_from_file(&mut self, file_path: &Path) -> Result<(), AnkaiosError> {
-        let runtime_config = match read_file_to_string(file_path) {
-            Ok(config) => config,
-            Err(err) => return Err(AnkaiosError::IoError(err))
-        };
+        let runtime_config = read_file_to_string(file_path)?;
         self.update_runtime_config(runtime_config);
         Ok(())
     }
 
+    /// Updates the restart policy of the workload.
+    /// Allowed values are "NEVER", "ON_FAILURE" and "ALWAYS".
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `restart_policy` - A [String] that represents the new [restart policy](ank_base::Workload).
+    /// 
+    /// ## Returns
+    /// 
+    /// An [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) if the value is not a valid restart policy.
     pub fn update_restart_policy<T: Into<String>>(&mut self, restart_policy: T) -> Result<(), AnkaiosError> {
         let restart_policy = restart_policy.into();
         self.workload.restart_policy = match ank_base::RestartPolicy::from_str_name(&restart_policy.clone()) {
@@ -303,6 +454,11 @@ impl Workload {
         Ok(())
     }
 
+    /// Getter for the dependencies of the workload.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [HashMap] containing the [dependencies](ank_base::Workload) of the workload.
     pub fn get_dependencies(&self) -> HashMap<String, String> {
         let mut dependencies = HashMap::new();
         if let Some(deps) = &self.workload.dependencies {
@@ -313,6 +469,16 @@ impl Workload {
         dependencies
     }
 
+    /// Updates the dependencies of the workload.
+    /// Allowed values for the conditions are "ADD_COND_RUNNING", "ADD_COND_SUCCEEDED" and "ADD_COND_FAILED".
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `dependencies` - A [HashMap] containing the [dependencies](ank_base::Workload) of the workload.
+    /// 
+    /// ## Returns
+    /// 
+    /// An [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) if the values are not valid dependency conditions.
     pub fn update_dependencies<T: Into<String>>(&mut self, dependencies: HashMap<T, T>) -> Result<(), AnkaiosError> {
         self.workload.dependencies = Some(ank_base::Dependencies::default());
         for (workload_name, condition) in dependencies {
@@ -330,6 +496,12 @@ impl Workload {
         Ok(())
     }
 
+    /// Adds a tag to the workload.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `key` - A [String] containing the [tag](ank_base::Workload) key;
+    /// * `value` - A [String] containing the [tag](ank_base::Workload) value.
     pub fn add_tag<T: Into<String>>(&mut self, key: T, value: T) {
         if self.workload.tags.is_none() {
             self.workload.tags = Some(ank_base::Tags::default());
@@ -341,6 +513,11 @@ impl Workload {
         }
     }
 
+    /// Getter for the tags of the workload.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [Vec] containing the [tags](ank_base::Workload) of the workload.
     pub fn get_tags(&self) -> Vec<Vec<String>> {
         let mut tags = vec![];
         if let Some(tags_list) = &self.workload.tags {
@@ -351,6 +528,11 @@ impl Workload {
         tags
     }
 
+    /// Updates the tags of the workload.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `tags` - A [Vec] containing the [tags](ank_base::Workload) of the workload.
     pub fn update_tags(&mut self, tags: &Vec<Vec<String>>) {
         self.workload.tags = Some(ank_base::Tags::default());
         for tag in tags {
@@ -360,6 +542,20 @@ impl Workload {
         self.add_mask(format!("{}.tags", self.main_mask));
     }
 
+    /// Given an operation and a list of filter masks, generates an [AccessRightsRule](ank_base::AccessRightsRule).
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `operation` - A [String] containing the operation;
+    /// * `filter_masks` - A [Vec] containing the filter masks.
+    ///
+    /// ## Returns
+    /// 
+    /// An [AccessRightsRule](ank_base::AccessRightsRule) instance.
+    ///
+    /// ## Errors
+    /// 
+    /// * [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
     fn generate_access_right_rule(&self, operation: &str, filter_masks: Vec<String>) -> Result<ank_base::AccessRightsRule, AnkaiosError> {
         Ok(ank_base::AccessRightsRule {
             access_rights_rule_enum: Some(ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(
@@ -380,6 +576,19 @@ impl Workload {
         })
     }
 
+    /// Converts an [AccessRightsRule](ank_base::AccessRightsRule) to a tuple of [Strings](String).
+    ///     
+    /// ## Arguments
+    /// 
+    /// * `rule` - An [AccessRightsRule](ank_base::AccessRightsRule) instance.
+    /// 
+    /// ## Returns
+    /// 
+    /// A tuple containing the operation and the filter masks.
+    /// 
+    /// ## Errors
+    /// 
+    /// * [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
     fn access_right_rule_to_str(&self, rule: &ank_base::StateRule) -> Result<(String, Vec<String>), AnkaiosError> {
         Ok((match ank_base::ReadWriteEnum::from_i32(rule.operation) {
             Some(op) => match op.as_str_name() {
@@ -399,6 +608,15 @@ impl Workload {
         }, rule.filter_masks.clone()))
     }
 
+    /// Getter for the [allow rules](ank_base::Workload) of the workload.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [Vec] containing the allow rules of the workload.
+    /// 
+    /// ## Errors
+    /// 
+    /// * [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
     pub fn get_allow_rules(&self) -> Result<Vec<(String, Vec<String>)>, AnkaiosError> {
         let mut rules = vec![];
         if let Some(access) = &self.workload.control_interface_access {
@@ -418,6 +636,15 @@ impl Workload {
         Ok(rules)
     }
 
+    /// Updates the [allow rules](ank_base::Workload) of the workload.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `rules` - A [Vec] containing the allow rules of the workload.
+    /// 
+    /// ## Returns
+    /// 
+    /// * [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
     pub fn update_allow_rules<T: Into<String>>(&mut self, rules: Vec<(T, Vec<T>)>) -> Result<(), AnkaiosError> {
         if self.workload.control_interface_access.is_none() {
             self.workload.control_interface_access = Some(ank_base::ControlInterfaceAccess::default());
@@ -437,6 +664,15 @@ impl Workload {
         Ok(())
     }
 
+    /// Getter for the [deny rules](ank_base::Workload) of the workload.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [Vec] containing the deny rules of the workload.
+    /// 
+    /// ## Errors
+    /// 
+    /// * [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
     pub fn get_deny_rules(&self) -> Result<Vec<(String, Vec<String>)>, AnkaiosError> {
         let mut rules = vec![];
         if let Some(access) = &self.workload.control_interface_access {
@@ -454,6 +690,15 @@ impl Workload {
         Ok(rules)
     }
 
+    /// Updates the [deny rules](ank_base::Workload) of the workload.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `rules` - A [Vec] containing the deny rules of the workload.
+    /// 
+    /// ## Returns
+    /// 
+    /// * [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
     pub fn update_deny_rules<T: Into<String>>(&mut self, rules: Vec<(T, Vec<T>)>) -> Result<(), AnkaiosError> {
         if self.workload.control_interface_access.is_none() {
             self.workload.control_interface_access = Some(ank_base::ControlInterfaceAccess::default());
@@ -473,6 +718,12 @@ impl Workload {
         Ok(())
     }
 
+    /// Adds a [config alias](ank_base::Workload) to the workload.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `alias` - A [String] containing the alias of the config;
+    /// * `name` - A [String] containing the name of the config it refers to.
     pub fn add_config<T: Into<String>>(&mut self, alias: T, name: T) {
         if self.workload.configs.is_none() {
             self.workload.configs = Some(ank_base::ConfigMappings{
@@ -487,6 +738,11 @@ impl Workload {
         self.add_mask(format!("{}.configs", self.main_mask));
     }
 
+    /// Getter for the [configs](ank_base::Workload) of the workload.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [HashMap] containing the configs of the workload.
     pub fn get_configs(&self) -> HashMap<String, String> {
         let mut configs = HashMap::new();
         if let Some(configs_map) = &self.workload.configs {
@@ -497,12 +753,22 @@ impl Workload {
         configs
     }
 
+    /// Updates the [configs](ank_base::Workload) of the workload.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `configs` - A [HashMap] containing the configs of the workload.
     pub fn update_configs(&mut self, configs: HashMap<String, String>) {
         self.workload.configs = Some(ank_base::ConfigMappings{
             configs: configs.into_iter().collect(),
         });
     }
 
+    /// Adds a mask to the workload.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `mask` - A [String] containing the mask to be added.
     fn add_mask(&mut self, mask: String) {
         if !self.masks.contains(&mask) && !self.masks.contains(&self.main_mask) {
             self.masks.push(mask);
@@ -533,6 +799,40 @@ mod tests {
     use crate::components::workload_mod::test_helpers::{
         generate_test_workload, generate_test_workload_proto, generate_test_runtime_config
     };
+
+    #[test]
+    fn test_doc_examples() {
+        // Create a workload
+        let mut workload = Workload::builder()
+            .workload_name("example_workload")
+            .agent_name("agent_A")
+            .runtime("podman")
+            .restart_policy("NEVER")
+            .runtime_config("image: docker.io/library/nginx\n
+                             commandOptions: [\"-p\", \"8080:80\"]")
+            .add_dependency("other_workload", "ADD_COND_RUNNING")
+            .add_tag("key1", "value1")
+            .add_tag("key2", "value2")
+            .build().unwrap();
+
+        // Update fields
+        workload.update_agent_name("agent_B");
+
+        // Update dependencies
+        let mut deps = workload.get_dependencies();
+        if let Some(value) = deps.get_mut("other_workload") {
+            *value = "ADD_COND_SUCCEEDED".to_string();
+        }
+        workload.update_dependencies(deps).unwrap();
+
+        // Update tags
+        let mut tags = workload.get_tags();
+        tags.push(vec!["key3".to_string(), "value3".to_string()]);
+        workload.update_tags(&tags);
+
+        // Print the updated workload
+        println!("{}", workload);
+    }
 
     #[test]
     fn utest_workload() {

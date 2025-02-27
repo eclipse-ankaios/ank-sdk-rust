@@ -12,11 +12,12 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains the [CompleteState] struct.
+
 use std::fmt;
 use std::collections::HashMap;
 
-pub use api::ank_base;
-use api::ank_base::CompleteState as AnkaiosCompleteState;
+use api::ank_base;
 use crate::components::workload_mod::Workload;
 use crate::components::workload_state_mod::WorkloadStateCollection;
 use crate::components::manifest::Manifest;
@@ -24,18 +25,77 @@ use crate::AnkaiosError;
 
 const SUPPORTED_API_VERSION: &str = "v0.1";
 
+/// Struct encapsulates the complete state of the [Ankaios] system.
+/// 
+/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
+/// 
+/// # Examples
+/// 
+/// ## Create a new `CompleteState` object:
+/// 
+/// ```rust
+/// let complete_state = CompleteState::new();
+/// ```
+/// 
+/// ## Get the API version of the complete state:
+/// 
+/// ```rust
+/// let api_version = complete_state.get_api_version();
+/// ```
+/// ## Add a workload to the complete state:
+/// 
+/// ```rust
+/// let workload = /* */;
+/// complete_state.add_workload(workload);
+/// ```
+/// 
+/// ## Get a workload from the complete state:
+/// 
+/// ```rust
+/// let workload = complete_state.get_workload("workload_name");
+/// ```
+/// 
+/// ## Get the entire list of workloads from the complete state:
+/// 
+/// ```rust
+/// let workloads = complete_state.get_workloads();
+/// ```
+/// 
+/// ## Get the connected agents:
+/// 
+/// ```rust
+/// let agents = complete_state.get_agents();
+/// ```
+/// 
+/// ## Get the workload states:
+/// 
+/// ```rust
+/// let workload_states = complete_state.get_workload_states();
+/// ```
+/// 
+/// ## Create a `CompleteState` object from a `Manifest`:
+/// 
+/// ```rust
+/// let manifest = /* */;
+/// let complete_state = CompleteState::try_from(&manifest).unwrap();
+/// ```
 #[derive(Debug, Clone)]
 pub struct CompleteState{
-    complete_state: AnkaiosCompleteState,
+    complete_state: ank_base::CompleteState,
     workloads: Vec<Workload>,
     workload_state_collection: WorkloadStateCollection,
     configs: HashMap<String, serde_yaml::Value>
 }
 
 impl CompleteState {
+    /// Creates a new `CompleteState` object.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [CompleteState] instance.
     pub fn new() -> Self {
         let mut obj = Self{
-            complete_state: AnkaiosCompleteState::default(),
+            complete_state: ank_base::CompleteState::default(),
             workloads: Vec::new(),
             workload_state_collection: WorkloadStateCollection::new(),
             configs: HashMap::new(),
@@ -44,6 +104,15 @@ impl CompleteState {
         obj
     }
 
+    /// Creates a new `CompleteState` object from a [Manifest].
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `manifest` - The [Manifest] to create the [CompleteState] from.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [CompleteState] instance.
     pub fn new_from_manifest(manifest: &Manifest) -> Self {
         let dict_state = manifest.to_dict();
         let mut obj = Self::new();
@@ -65,7 +134,17 @@ impl CompleteState {
         obj
     }
 
-    pub fn new_from_proto(proto: ank_base::CompleteState) -> Self {
+    #[doc(hidden)]
+    /// Creates a new `CompleteState` object from a [ank_base::CompleteState].
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `proto` - The [ank_base::CompleteState] to create the [CompleteState] from.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [CompleteState] instance.
+    pub(crate) fn new_from_proto(proto: ank_base::CompleteState) -> Self {
         let mut obj = Self::new();
         obj.complete_state = proto.clone();
 
@@ -109,6 +188,11 @@ impl CompleteState {
         obj
     }
 
+    /// Converts the `CompleteState` to a [serde_yaml::Mapping].
+    /// 
+    /// ## Returns
+    /// 
+    /// A [serde_yaml::Mapping] containing the `CompleteState` information.
     pub fn to_dict(&self) -> serde_yaml::Mapping {
         let mut dict = serde_yaml::Mapping::new();
         dict.insert(serde_yaml::Value::String("apiVersion".to_string()), serde_yaml::Value::String(self.get_api_version()));
@@ -135,10 +219,21 @@ impl CompleteState {
         dict
     }
 
-    pub fn to_proto(&self) -> ank_base::CompleteState {
+    #[doc(hidden)]
+    /// Converts the `CompleteState` to a [ank_base::CompleteState].
+    /// 
+    /// ## Returns
+    /// 
+    /// A [ank_base::CompleteState] containing the `CompleteState` information.
+    pub(crate) fn to_proto(&self) -> ank_base::CompleteState {
         self.complete_state.clone()
     }
 
+    /// Sets the API version of the `CompleteState`.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `api_version` - A [String] containing the API version.
     fn set_api_version<T: Into<String>>(&mut self, api_version: T) {
         if self.complete_state.desired_state.is_none() {
             self.complete_state.desired_state = Some(ank_base::State{
@@ -152,10 +247,20 @@ impl CompleteState {
         }
     }
 
+    /// Gets the API version of the `CompleteState`.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [String] containing the API version.
     pub fn get_api_version(&self) -> String {
         self.complete_state.desired_state.as_ref().unwrap().api_version.clone()
     }
 
+    /// Adds a workload to the `CompleteState`.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `workload` - The [Workload] to add.
     pub fn add_workload(&mut self, workload: Workload) {
         self.workloads.push(workload.clone());
         if self.complete_state.desired_state.as_mut().unwrap().workloads.is_none() {
@@ -166,6 +271,15 @@ impl CompleteState {
         self.complete_state.desired_state.as_mut().unwrap().workloads.as_mut().unwrap().workloads.insert(workload.name.clone(), workload.to_proto());
     }
 
+    /// Gets a workload from the `CompleteState`.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `workload_name` - A [String] containing the name of the workload.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [Workload] instance if found, otherwise `None`.
     pub fn get_workload<T: Into<String>>(&self, workload_name: T) -> Option<Workload> {
         let workload_name = workload_name.into();
         self.workloads
@@ -174,14 +288,29 @@ impl CompleteState {
             .cloned()
     }
 
+    /// Gets all workloads from the `CompleteState`.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [Vec] containing all the workloads.
     pub fn get_workloads(&self) -> Vec<Workload> {
         self.workloads.clone()
     }
 
+    /// Gets the workload states from the `CompleteState`.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [WorkloadStateCollection] containing the workload states.
     pub fn get_workload_states(&self) -> &WorkloadStateCollection {
         &self.workload_state_collection
     }
 
+    /// Gets the connected agents from the `CompleteState`.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [HashMap] containing the connected agents.
     pub fn get_agents(&self) -> HashMap<String, HashMap<String, String>> {
         let mut agents = HashMap::new();
         if let Some(agent_map) = &self.complete_state.agents {
@@ -199,6 +328,11 @@ impl CompleteState {
         agents
     }
 
+    /// Sets the configurations of the `CompleteState`.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `configs` - A [HashMap] containing the configurations.
     pub fn set_configs(&mut self, configs: HashMap<String, serde_yaml::Value>) {
         self.configs = configs;
 
@@ -231,6 +365,11 @@ impl CompleteState {
         self.complete_state.desired_state.as_mut().unwrap().configs.as_mut().unwrap().configs = self.configs.iter().map(|(k, v)| (k.clone(), to_config_item(v))).collect();
     }
 
+    /// Gets the configurations of the `CompleteState`.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [HashMap] containing the configurations.
     pub fn get_configs(&self) -> HashMap<String, serde_yaml::Value> {
         self.configs.clone()
     }
@@ -272,13 +411,13 @@ impl TryFrom<ank_base::CompleteState> for CompleteState {
 //                    ##     #######   #########      ##                    //
 //////////////////////////////////////////////////////////////////////////////
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 use crate::components::workload_mod::test_helpers::generate_test_workload_proto;
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 use crate::components::workload_state_mod::generate_test_workload_states_proto;
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 fn generate_test_configs_proto() -> ank_base::ConfigMap {
     ank_base::ConfigMap { configs: HashMap::from([
         ("config1".to_string(), ank_base::ConfigItem {
@@ -311,7 +450,7 @@ fn generate_test_configs_proto() -> ank_base::ConfigMap {
     ])}
 }
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 fn generate_agents_proto() -> ank_base::AgentMap {
     ank_base::AgentMap { agents: HashMap::from([
         ("agent_A".to_string(), ank_base::AgentAttributes {
@@ -325,7 +464,7 @@ fn generate_agents_proto() -> ank_base::AgentMap {
     ])}
 }
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 fn generate_complete_state_proto() -> ank_base::CompleteState {
     ank_base::CompleteState {
         desired_state: Some(ank_base::State {
@@ -349,7 +488,37 @@ mod tests {
 
     use super::{generate_complete_state_proto, CompleteState, SUPPORTED_API_VERSION};
     use crate::components::manifest::generate_test_manifest;
+    use crate::components::workload_mod::test_helpers::generate_test_workload;
     use crate::components::workload_state_mod::WorkloadInstanceName;
+
+    #[test]
+    fn test_doc_examples() {
+        // Create a new `CompleteState` object
+        let mut complete_state = CompleteState::new();
+
+        // Get the API version of the complete state
+        let _api_version = complete_state.get_api_version();
+
+        // Add a workload to the complete state
+        let workload = generate_test_workload("agent_test", "workload_test", "podman");
+        complete_state.add_workload(workload);
+
+        // Get a workload from the complete state
+        let _workload = complete_state.get_workload("workload_test");
+
+        // Get the entire list of workloads from the complete state
+        let _workloads = complete_state.get_workloads();
+
+        // Get the connected agents
+        let _agents = complete_state.get_agents();
+
+        // Get the workload states
+        let _workload_states = complete_state.get_workload_states();
+
+        // Create a `CompleteState` object from a `Manifest`
+        let manifest = generate_test_manifest();
+        let _complete_state = CompleteState::try_from(&manifest).unwrap();
+    }
 
     #[test]
     fn utest_api_version() {

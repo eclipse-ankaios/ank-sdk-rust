@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Elektrobit Automotive GmbH
+// Copyright (c) 2025 Elektrobit Automotive GmbH
 //
 // This program and the accompanying materials are made available under the
 // terms of the Apache License, Version 2.0 which is available at
@@ -12,15 +12,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains structs and enums that are used to
-//! work with the components of the [Ankaios] application.
-//! 
-//! [Ankaios]: https://eclipse-ankaios.github.io/ankaios
+//! This module is used to include additional markdown files in
+//! the documentation.
 
-pub mod workload_mod;
-pub mod workload_state_mod;
-pub mod manifest;
-pub mod complete_state;
-pub mod request;
-pub mod response;
-pub mod control_interface;
+mod contributing {
+    #![doc = include_str!("../target/CONTRIBUTING.md")]
+}
+
+mod conduct {
+    #![doc = include_str!("../CODE_OF_CONDUCT.md")]
+}

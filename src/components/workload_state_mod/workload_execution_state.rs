@@ -17,16 +17,29 @@ use std::fmt;
 use api::ank_base;
 use super::workload_state_enums::{WorkloadStateEnum, WorkloadSubStateEnum};
 
-
+/// Represents the execution state of a Workload.
 #[derive(Debug, Default, Clone)]
 pub struct WorkloadExecutionState{
+    // The state of the workload.
     pub state: WorkloadStateEnum,
+    // The substate of the workload.
     pub substate: WorkloadSubStateEnum,
+    // Additional information about the state.
     pub additional_info: String,
 }
 
 impl WorkloadExecutionState {
-    pub fn new(exec_state: ank_base::ExecutionState) -> WorkloadExecutionState {
+    #[doc(hidden)]
+    /// Creates a new `WorkloadExecutionState`` from an [ExecutionState](ank_base::ExecutionState).
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `exec_state` - The [ExecutionState](ank_base::ExecutionState) to create the [WorkloadExecutionState] from.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [WorkloadExecutionState] instance.
+    pub(crate) fn new(exec_state: ank_base::ExecutionState) -> WorkloadExecutionState {
         match exec_state.execution_state_enum {
             Some(execution_state_enum) => {
                 let (state, substate) = WorkloadExecutionState::parse_state(execution_state_enum);
@@ -44,6 +57,11 @@ impl WorkloadExecutionState {
         }
     }
 
+    /// Converts the `WorkloadExecutionState` to a [String].
+    /// 
+    /// ## Returns
+    /// 
+    /// A [String] representation of the [WorkloadExecutionState].
     pub fn to_dict(&self) -> serde_yaml::Mapping {
         let mut map = serde_yaml::Mapping::new();
         map.insert(serde_yaml::Value::String("state".to_string()), serde_yaml::Value::String(self.state.to_string()));
@@ -52,7 +70,18 @@ impl WorkloadExecutionState {
         map
     }
 
-    pub fn parse_state(exec_state: ank_base::execution_state::ExecutionStateEnum) -> (WorkloadStateEnum, WorkloadSubStateEnum) {
+    #[doc(hidden)]
+    /// Helper function to parse the state and substate from the [ExecutionStateEnum](ank_base::execution_state::ExecutionStateEnum).
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `exec_state` - The [ExecutionStateEnum](ank_base::execution_state::ExecutionStateEnum) to parse.
+    /// 
+    /// ## Returns
+    /// 
+    /// A tuple containing the [WorkloadStateEnum] and [WorkloadSubStateEnum] parsed
+    /// from the [ExecutionStateEnum](ank_base::execution_state::ExecutionStateEnum).
+    pub(crate) fn parse_state(exec_state: ank_base::execution_state::ExecutionStateEnum) -> (WorkloadStateEnum, WorkloadSubStateEnum) {
         let (state, value) = match exec_state {
             ank_base::execution_state::ExecutionStateEnum::AgentDisconnected(value) => {
                 (WorkloadStateEnum::AgentDisconnected, value)

@@ -12,6 +12,32 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains the [Response] and [UpdateStateSuccess] structs and the [ResponseType] enum.
+//! 
+//! # Examples
+//! 
+//! ## Get response content:
+//! 
+//! ```rust
+//! let response = /* */;
+//! let content = response.get_content();
+//! ```
+//! 
+//! ## Check if the request_id matches
+//! 
+//! ```rust
+//! if response.get_request_id() == "1234" {
+//!     println!("Request ID matches.");
+//! }
+//! ```
+//! 
+//! ## Convert the update state success to a dictionary
+//! 
+//! ```rust
+//! let update_state_success = /* */;
+//! let dict = update_state_success.to_dict();
+//! ```
+
 use core::fmt;
 use std::collections::HashMap;
 use std::default;
@@ -20,24 +46,38 @@ use api::control_api::{FromAnkaios, from_ankaios::FromAnkaiosEnum};
 use crate::components::complete_state::CompleteState;
 use super::workload_state_mod::WorkloadInstanceName;
 
-
+/// Enum that represents the type of responses that can be provided by the [Ankaios] cluster.
+/// 
+/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 #[derive(Clone, Debug)]
 pub enum ResponseType {
+    /// The complete state of the system.
     CompleteState(Box<CompleteState>),
+    /// The success of an update state request.
     UpdateStateSuccess(Box<UpdateStateSuccess>),
+    // An error provided by the cluster.
     Error(String),
+    // The reason a connection closed was received.
     ConnectionClosedReason(String),
 }
 
+/// Struct that represents a response from the [Ankaios] cluster.
+/// 
+/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 #[derive(Default, Clone, Debug)]
 pub struct Response{
+    /// The content of the response.
     pub content: ResponseType,
+    /// The ID of the response. It should match the ID of the request.
     pub id: String,
 }
 
+/// Struct that handles the UpdateStateSuccess response.
 #[derive(Clone, Debug, Default)]
 pub struct UpdateStateSuccess {
+    /// The workload instance names of the workloads that were added.
     pub added_workloads: Vec<WorkloadInstanceName>,
+    /// The workload instance names of the workloads that were deleted.
     pub deleted_workloads: Vec<WorkloadInstanceName>,
 }
 
@@ -59,6 +99,15 @@ impl default::Default for ResponseType {
 }
 
 impl Response {
+    /// Creates a new `Response` object.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `response` - The response proto message to create the [Response] from.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [Response] instance.
     pub fn new(response: FromAnkaios) -> Self {
         if let Some(response_enum) = response.from_ankaios_enum {
             match response_enum {
@@ -97,11 +146,21 @@ impl Response {
         }
     }
 
+    /// Returns the request ID of the response.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [String] containing the request ID of the response.
     pub fn get_request_id(&self) -> String {
         self.id.clone()
     }
 
     #[allow(dead_code)]
+    /// Returns the content of the response.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [ResponseType] containing the content of the response.
     pub fn get_content(&self) -> ResponseType {
         self.content.clone()
     }
@@ -109,7 +168,18 @@ impl Response {
 
 
 impl UpdateStateSuccess{
-    pub fn new_from_proto(update_state_success: AnkaiosUpdateStateSuccess) -> Self {
+    #[doc(hidden)]
+    /// Creates a new `UpdateStateSuccess` object from a
+    /// [AnkaiosUpdateStateSuccess](ank_base::UpdateStateSuccess) proto message.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `update_state_success` - The [AnkaiosUpdateStateSuccess](ank_base::UpdateStateSuccess) to create the [UpdateStateSuccess] from.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [UpdateStateSuccess] instance.
+    pub(crate) fn new_from_proto(update_state_success: AnkaiosUpdateStateSuccess) -> Self {
         let mut added_workloads: Vec<WorkloadInstanceName> = Vec::new();
         let mut deleted_workloads: Vec<WorkloadInstanceName> = Vec::new();
 
@@ -137,6 +207,11 @@ impl UpdateStateSuccess{
         }
     }
 
+    /// Converts the `UpdateStateSuccess` to a [HashMap].
+    /// 
+    /// ## Returns
+    /// 
+    /// A [HashMap] containing the [UpdateStateSuccess] information.
     pub fn to_dict(&self) -> HashMap<String, Vec<serde_yaml::Mapping>> {
         let mut map = HashMap::new();
         map.insert(
@@ -165,7 +240,7 @@ impl fmt::Display for UpdateStateSuccess {
 //                    ##     #######   #########      ##                    //
 //////////////////////////////////////////////////////////////////////////////
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 pub fn generate_test_proto_update_state_success(req_id: String) -> FromAnkaios {
     FromAnkaios{
         from_ankaios_enum: Some(FromAnkaiosEnum::Response(
@@ -182,7 +257,7 @@ pub fn generate_test_proto_update_state_success(req_id: String) -> FromAnkaios {
     }
 }
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 pub fn generate_test_response_update_state_success(req_id: String) -> Response {
     Response::new(generate_test_proto_update_state_success(req_id))
 }
@@ -190,13 +265,33 @@ pub fn generate_test_response_update_state_success(req_id: String) -> Response {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use super::{ResponseType, Response, UpdateStateSuccess};
+    use super::{ResponseType, Response, UpdateStateSuccess,
+        generate_test_response_update_state_success};
     use api::ank_base::{
         Response as AnkaiosResponse,
         response::ResponseContent as AnkaiosResponseContent,
         UpdateStateSuccess as AnkaiosUpdateStateSuccess,
     };
     use api::control_api::{from_ankaios, FromAnkaios};
+
+    #[test]
+    fn test_doc_examples() {
+        // Get response content
+        let response = generate_test_response_update_state_success("1234".to_string());
+        let _content = response.get_content();
+
+        // Check if the request_id matches
+        if response.get_request_id() == "1234" {
+            println!("Request ID matches.");
+        }
+
+        // Convert the update state success to a dictionary
+        let update_state_success = UpdateStateSuccess::new_from_proto(AnkaiosUpdateStateSuccess{
+            added_workloads: vec!["workload_test.1234.agent_Test".to_string()],
+            deleted_workloads: Default::default(),
+        });
+        let _dict = update_state_success.to_dict();
+    }
 
     #[test]
     fn utest_response_type() {

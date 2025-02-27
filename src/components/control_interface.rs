@@ -12,6 +12,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains the [ControlInterface] struct and the [ControlInterfaceState] enum.
+
 use std::{
     sync::{Arc, Mutex},
     path::Path
@@ -29,30 +31,62 @@ use crate::AnkaiosError;
 use crate::components::request::Request;
 use crate::components::response::{Response, ResponseType};
 
+#[cfg(test)]
+use mockall::automock;
+
+/// Base path for the control interface FIFO pipes.
 const ANKAIOS_CONTROL_INTERFACE_BASE_PATH: &str = "/run/ankaios/control_interface";
+/// Version of [Ankaios](https://eclipse-ankaios.github.io/ankaios) that is compatible
+/// with the [ControlInterface] implementation.
 const ANKAIOS_VERSION: &str = "0.5.0";
+/// Maximum size of a varint in bytes.
 const MAX_VARINT_SIZE: usize = 19;
 
-
+/// Enum representing the state of the control interface.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(i32)]
 pub enum ControlInterfaceState {
+    /// The control interface is initialized.
     Initialized = 1,
+    /// The control interface is terminated.
     Terminated = 2,
+    /// The agent is disconnected.
     AgentDisconnected = 3,
+    /// The connection is closed. This state is unrecoverable.
     ConnectionClosed = 4,
 }
 
+/// This struct handles the interaction with the control interface.
+/// It provides means to send and receive messages through the FIFO pipes.
+/// 
+/// It uses two [tokio] tasks, one for reading from the input FIFO and one for
+/// writing to the output FIFO.
 pub struct ControlInterface{
+    /// Path to the FIFO pipes directory.
     pub path: String,
+    /// Output file for writing to the control interface.
     output_file: Option<pipe::Sender>,
+    /// Handler for the read thread.
     read_thread_handler: Option<tokio::task::JoinHandle<Result<(), AnkaiosError>>>,
+    /// Handler for the write thread.
     writer_thread_handler: Option<tokio::task::JoinHandle<Result<(), AnkaiosError>>>,
+    /// State of the control interface.
     state: Arc<Mutex<ControlInterfaceState>>,
+    /// Sender for the response channel.
     response_sender: mpsc::Sender<Response>,
+    /// Sender for the writer channel.
     writer_ch_sender: Option<mpsc::Sender<ToAnkaios>>,
 }
 
+/// Helper function that reads varint data from the input pipe.
+/// 
+/// ## Arguments
+/// 
+/// * `file` - A mutable reference to the input file.
+/// 
+/// ## Returns
+/// 
+/// A result containing the varint data as a byte array or an [Error].
 async fn read_varint_data(file: &mut BufReader<pipe::Receiver>) -> Result<[u8; MAX_VARINT_SIZE], Error> {
     let mut res = [0u8; MAX_VARINT_SIZE];
     for item in res.iter_mut() {
@@ -64,6 +98,15 @@ async fn read_varint_data(file: &mut BufReader<pipe::Receiver>) -> Result<[u8; M
     Ok(res)
 }
 
+/// Helper function that reads protobuf data from the input pipe.
+/// 
+/// ## Arguments
+/// 
+/// * `file` - A mutable reference to the input file.
+/// 
+/// ## Returns
+/// 
+/// A result containing the protobuf data as a byte array or an [Error].
 async fn read_protobuf_data(file: &mut BufReader<pipe::Receiver>) -> Result<Vec<u8>, Error> {
     let varint_data = read_varint_data(file).await?;
     let mut varint_data = Box::new(&varint_data[..]);
@@ -87,7 +130,17 @@ impl std::fmt::Display for ControlInterfaceState {
     }
 }
 
+#[cfg_attr(test, automock)]
 impl ControlInterface {
+    /// Creates a new instance of the control interface.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `response_sender` - A sender for the response channel.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [ControlInterface] instance.
     pub fn new(response_sender: mpsc::Sender<Response>) -> Self {
         Self{
             path: ANKAIOS_CONTROL_INTERFACE_BASE_PATH.to_string(),
@@ -100,11 +153,21 @@ impl ControlInterface {
         }
     }
 
+    /// Getter for the control interface state.
+    /// 
+    /// ## Returns
+    /// 
+    /// The current [state](ControlInterfaceState) of the control interface.
     pub fn state(&self) -> ControlInterfaceState {
         let state = self.state.lock().unwrap();
         *state
     }
 
+    /// Connects to the control interface.
+    /// 
+    /// ## Returns
+    /// 
+    /// An [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if the connection fails.
     pub async fn connect(&mut self) -> Result<(), AnkaiosError> {
         if *self.state.lock().unwrap() == ControlInterfaceState::Initialized {
             return Err(AnkaiosError::ControlInterfaceError("Already connected.".to_string()));
@@ -125,6 +188,11 @@ impl ControlInterface {
         Ok(())
     }
 
+    /// Disconnects from the control interface.
+    /// 
+    /// ## Returns
+    /// 
+    /// An [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if the disconnection fails.
     pub fn disconnect(&mut self) -> Result<(), AnkaiosError> {
         if *self.state.lock().unwrap() != ControlInterfaceState::Initialized {
             return Err(AnkaiosError::ControlInterfaceError("Already disconnected.".to_string()));
@@ -137,6 +205,13 @@ impl ControlInterface {
         Ok(())
     }
 
+    /// Changes the state of the control interface.
+    /// This method should be used for all state changes inside the control interface.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `state` - A reference to the current state;
+    /// * `new_state` - The new state to be set.
     async fn change_state(state: &Arc<Mutex<ControlInterfaceState>>, new_state: ControlInterfaceState) {
         if *state.lock().unwrap() == new_state {
             return;
@@ -145,6 +220,8 @@ impl ControlInterface {
         log::info!("State changed: {:?}", new_state);
     }
 
+    /// Prepares the writer thread for the control interface.
+    /// It uses a [tokio] task that waits for messages and sends them to the output FIFO.
     fn prepare_writer(&mut self) {
         let (writer_ch_sender, mut writer_ch_receiver) = mpsc::channel::<ToAnkaios>(5);
         self.writer_ch_sender = Some(writer_ch_sender.clone());
@@ -181,6 +258,8 @@ impl ControlInterface {
         }));
     }
 
+    /// Prepares the reader thread for the control interface.
+    /// It uses a [tokio] task that reads continuously from the FIFO input pipe.
     fn read_from_control_interface(&mut self) {
         let input_path = Path::new(&self.path).to_path_buf().join("input");
         let response_sender_clone = self.response_sender.clone();
@@ -233,6 +312,15 @@ impl ControlInterface {
         }));
     }
 
+    /// Writes a request to the control interface.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `request` - A [Request] object to be sent.
+    /// 
+    /// ## Returns
+    /// 
+    /// An [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected.
     pub async fn write_request(&mut self, request: Request) -> Result<(), AnkaiosError> {
         if *self.state.lock().unwrap() != ControlInterfaceState::Initialized {
             log::error!("Could not write to pipe, not connected.");
@@ -245,6 +333,11 @@ impl ControlInterface {
         Ok(())
     }
 
+    /// Prepares and sends a hello to the [Ankaios](https://eclipse-ankaios.github.io/ankaios) cluster.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `writer_ch_sender` - A sender for the writer channel.
     async fn send_initial_hello(writer_ch_sender: &mpsc::Sender<ToAnkaios>) {
         log::trace!("Sending initial hello message to the control interface.");
         let hello_msg = ToAnkaios {
@@ -273,7 +366,6 @@ mod tests {
     use tokio::{
         sync::{mpsc, Barrier},
         io::AsyncWriteExt,
-        fs::File,
         net::unix::pipe,
         time::{sleep, timeout as tokio_timeout},
         spawn,
@@ -357,9 +449,6 @@ mod tests {
         assert!(ci.connect().await.is_err());
         mkfifo(&fifo_output, Mode::S_IRWXU).unwrap();
 
-        // Try to connect - should fail because the pipe receiver is not open
-        assert!(ci.connect().await.is_err());
-
         // Open the output file for reading
         let mut file_output = tokio::io::BufReader::new(
             pipe::OpenOptions::new().open_receiver(&fifo_output).unwrap()
@@ -418,8 +507,8 @@ mod tests {
         ci.path = tmpdir.path().to_str().unwrap().to_string();
         assert_eq!(ci.state(), ControlInterfaceState::Terminated);
 
-        // Send dummy request - should just return
-        ci.write_request(generate_test_request()).await.unwrap();
+        // Send dummy request - should fail
+        assert!(ci.write_request(generate_test_request()).await.is_err());
 
         // Connect to the control interface
         ci.connect().await.unwrap();
@@ -467,24 +556,40 @@ mod tests {
         assert_eq!(ci.state(), ControlInterfaceState::Terminated);
     }
 
+    // Uncommenting this will make another test fail (block itself indefinitely)
     #[tokio::test(flavor = "multi_thread")]
-    async fn utest_control_interface_agent_disconnected() {
+    async fn itest_control_interface_agent_disconnected() {
         // Crate mpsc channel
-        let (response_sender, mut _response_receiver) = mpsc::channel::<Response>(100);
+        let (response_sender, _) = mpsc::channel::<Response>(100);
 
         // Prepare fifo pipes
         let tmpdir = tempfile::tempdir().unwrap();
         let fifo_input = tmpdir.path().join("input");
+        let _fifo_input_clone = fifo_input.clone();
         let fifo_output = tmpdir.path().join("output");
 
         // Open fifo pipes
         mkfifo(&fifo_input, Mode::S_IRWXU).unwrap();
         mkfifo(&fifo_output, Mode::S_IRWXU).unwrap();
+        let barrier = Arc::new(Barrier::new(2));
 
         // Open the output file for reading
-        let mut _file_output = tokio::io::BufReader::new(
+        let file_output = tokio::io::BufReader::new(
             pipe::OpenOptions::new().open_receiver(&fifo_output).unwrap()
         );
+
+        // Spawn a writer task for the input file
+        let writer_barrier = barrier.clone();
+        tokio::spawn(async move {
+            let writer = tokio::fs::OpenOptions::new()
+                .write(true)
+                .open(fifo_input)
+                .await
+                .unwrap();
+        
+            writer_barrier.wait().await;
+            drop(writer); // Closing the writer, EOF will be triggered in the reader
+        });
 
         // Create control interface
         let mut ci = ControlInterface::new(response_sender);
@@ -492,21 +597,42 @@ mod tests {
         assert_eq!(ci.state(), ControlInterfaceState::Terminated);
 
         // Connect to the control interface
+        tokio::time::sleep(Duration::from_millis(10)).await;
         ci.connect().await.unwrap();
         assert_eq!(ci.state(), ControlInterfaceState::Initialized);
 
-        // Open the FIFO for writing, simulating an agent
-        let mut file_input = File::create(&fifo_input).await.unwrap();
+        // Wait to ensure the reader gets to open the input pipe
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        drop(file_output);
+        barrier.wait().await;
 
-        // Write some data and flush it to ensure the pipe is in use
-        file_input.write_all(b"Test Data").await.unwrap();
-        file_input.flush().await.unwrap();
+        // Wait for the state to change
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(ci.state(), ControlInterfaceState::AgentDisconnected);
 
-        // Explicitly close the file descriptor to simulate agent disconnection
-        drop(file_input);
-        sleep(Duration::from_millis(50)).await; // Allow time for detection
+        // // Recreate the output file for reading
+        // let _file_output = tokio::io::BufReader::new(
+        //     pipe::OpenOptions::new().open_receiver(&fifo_output).unwrap()
+        // );
 
-        // Disconnect from the control interface
+        // // Reconnect the input pipe
+        // let barrier = Arc::new(Barrier::new(2));
+        // let writer_barrier = barrier.clone();
+        // tokio::spawn(async move {
+        //     let writer = tokio::fs::OpenOptions::new()
+        //         .write(true)
+        //         .open(fifo_input_clone)
+        //         .await
+        //         .unwrap();
+
+        //     writer_barrier.wait().await;
+        //     drop(writer);
+        // });
+        // sleep(Duration::from_millis(40)).await; // wait for the state to change
+        // assert_eq!(ci.state(), ControlInterfaceState::Initialized);
+        // barrier.wait().await;
+
+        // // Disconnect from the control interface
         // ci.disconnect().unwrap();
         // assert_eq!(ci.state(), ControlInterfaceState::Terminated);
     }

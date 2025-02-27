@@ -17,6 +17,10 @@ clean:
     cargo clean
     rm -rf build
 
+# Run clippy code checks
+clippy:
+    cargo clippy --all-targets --no-deps --all-features -- -D warnings
+
 # Run unit tests
 utest:
     cargo test
@@ -32,6 +36,14 @@ cov-html:
 # Open code coverage HTML
 cov-open:
     python3 -m http.server -d target/llvm-cov/html 8000
+
+# Generate documentation
+doc:
+    tools/generate_docs.sh
+
+# Open documentation
+doc-open:
+    python3 -m http.server -d target/x86_64-unknown-linux-musl/doc/ 8001
 
 # Open code coverage HTML as a server, depending on the method
 # cov-open method="server":

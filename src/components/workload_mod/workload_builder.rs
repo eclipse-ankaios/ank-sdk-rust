@@ -26,83 +26,234 @@ fn read_file_to_string(path: &Path) -> Result<String, std::io::Error> {
 #[cfg(test)]
 use crate::components::workload_mod::test_helpers::read_to_string_mock as read_file_to_string;
 
+/// A builder struct for the [Workload] struct.
+/// 
+/// # Example
+///
+/// ## Create a workload using the [WorkloadBuilder]:
+/// 
+/// ```rust
+/// use ankaios_sdk::{Workload, WorkloadBuilder};
+///
+/// let workload: Workload = WorkloadBuilder::new()
+///     .workload_name("example_workload")
+///     .agent_name("agent_A")
+///     .runtime("podman")
+///     .restart_policy("NEVER")
+///     .runtime_config("image: docker.io/library/nginx\n
+///                      commandOptions: [\"-p\", \"8080:80\"]")
+///     .add_dependency("other_workload", "ADD_COND_RUNNING")
+///     .add_tag("key1", "value1")
+///     .add_tag("key2", "value2")
+///     .build().unwrap();
+/// ```
 #[derive(Debug, Default)]
 pub struct WorkloadBuilder {
+    /// The name of the workload.
     pub wl_name: String,
+    /// The name of the agent.
     pub wl_agent_name: String,
+    /// The runtime.
     pub wl_runtime: String,
+    /// The runtime config.
     pub wl_runtime_config: String,
+    /// The restart policy. Allowed values: "`ALWAYS`", "`ON_FAILURE`", "`NEVER`".
     pub wl_restart_policy: Option<String>,
+    /// The dependencies. Allowed values: "`ADD_COND_SUCCEEDED`", "`ADD_COND_FAILED`", "`ADD_COND_RUNNING`".
     pub dependencies: HashMap<String, String>,
+    /// The tags.
     pub tags: Vec<Vec<String>>,
+    /// The allow rules. Allowed values: "`Nothing`", "`Write`", "`Read`", "`ReadWrite`".
     pub allow_rules: Vec<(String, Vec<String>)>,
+    /// The deny rules. Allowed values: "`Nothing`", "`Write`", "`Read`", "`ReadWrite`".
     pub deny_rules: Vec<(String, Vec<String>)>,
+    /// The config aliases.
     pub configs: HashMap<String, String>,
 }
 
 impl WorkloadBuilder{
+    /// Creates a new [WorkloadBuilder] instance.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [WorkloadBuilder] instance.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Sets the name of the workload.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `name` - A [String] that represents the name of the workload.
+    /// 
+    /// ## Returns
+    /// 
+    /// The [WorkloadBuilder] instance.
     pub fn workload_name<T: Into<String>>(mut self, name: T) -> Self {
         self.wl_name = name.into();
         self
     }
 
+    /// Sets the name of the agent.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `name` - A [String] that represents the name of the agent.
+    /// 
+    /// ## Returns
+    /// 
+    /// The [WorkloadBuilder] instance.
     pub fn agent_name<T: Into<String>>(mut self, name: T) -> Self {
         self.wl_agent_name = name.into();
         self
     }
 
+    /// Sets the runtime.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `runtime` - A [String] that represents the runtime.
+    /// 
+    /// ## Returns
+    /// 
+    /// The [WorkloadBuilder] instance.
     pub fn runtime<T: Into<String>>(mut self, runtime: T) -> Self {
         self.wl_runtime = runtime.into();
         self
     }
 
+    /// Sets the runtime config.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `runtime_config` - A [String] that represents the runtime config.
+    /// 
+    /// ## Returns
+    /// 
+    /// The [WorkloadBuilder] instance.
     pub fn runtime_config<T: Into<String>>(mut self, runtime_config: T) -> Self {
         self.wl_runtime_config = runtime_config.into();
         self
     }
 
+    /// Sets the runtime config from a file.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `file_path` - A [Path] object that represents the path to the file.
+    /// 
+    /// ## Returns
+    /// 
+    /// The [WorkloadBuilder] instance.
     pub fn runtime_config_from_file(self, file_path: &Path) -> Result<Self, AnkaiosError> {
-        let runtime_config = match read_file_to_string(file_path) {
-            Ok(config) => config,
-            Err(err) => return Err(AnkaiosError::IoError(err)),
-        };
+        let runtime_config = read_file_to_string(file_path)?;
         Ok(self.runtime_config(runtime_config))
     }
 
+    /// Sets the restart policy.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `restart_policy` - A [String] that represents the restart policy.
+    /// 
+    /// ## Returns
+    /// 
+    /// The [WorkloadBuilder] instance.
     pub fn restart_policy<T: Into<String>>(mut self, restart_policy: T) -> Self {
         self.wl_restart_policy = Some(restart_policy.into());
         self
     }
 
+    /// Adds a dependency.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `workload_name` - A [String] that represents the name of the workload;
+    /// * `condition` - A [String] that represents the condition.
+    /// 
+    /// ## Returns
+    /// 
+    /// The [WorkloadBuilder] instance.
     pub fn add_dependency<T: Into<String>>(mut self, workload_name: T, condition: T) -> Self {
         self.dependencies.insert(workload_name.into(), condition.into());
         self
     }
 
+    /// Adds a tag.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `key` - A [String] that represents the key of the tag;
+    /// * `value` - A [String] that represents the value of the tag.
+    ///
+    /// ## Returns
+    ///
+    /// The [WorkloadBuilder] instance.
     pub fn add_tag<T: Into<String>>(mut self, key: T, value: T) -> Self {
         self.tags.push(vec![key.into(), value.into()]);
         self
     }
 
+    /// Adds an allow rule.
+    ///
+    /// ## Arguments
+    ///
+    /// * `operation` - A [String] that represents the operation;
+    /// * `filter_masks` - A [vector](Vec) of [strings](String) that represents the filter masks.
+    ///
+    /// ## Returns
+    ///
+    /// The [WorkloadBuilder] instance.
     pub fn add_allow_rule<T: Into<String>>(mut self, operation: T, filter_masks: Vec<String>) -> Self {
         self.allow_rules.push((operation.into(), filter_masks));
         self
     }
 
+    /// Adds a deny rule.
+    ///
+    /// ## Arguments
+    ///
+    /// * `operation` - A [String] that represents the operation;
+    /// * `filter_masks` - A [vector](Vec) of [strings](String) that represents the filter masks.
+    ///
+    /// ## Returns
+    ///
+    /// The [WorkloadBuilder] instance.
     pub fn add_deny_rule<T: Into<String>>(mut self, operation: T, filter_masks: Vec<String>) -> Self {
         self.deny_rules.push((operation.into(), filter_masks));
         self
     }
 
+    /// Adds a config alias.
+    ///
+    /// ## Arguments
+    ///
+    /// * `alias` - A [String] that represents the alias of the config;
+    /// * `name` - A [String] that represents the name of the config it refers to.
+    ///
+    /// ## Returns
+    ///
+    /// The [WorkloadBuilder] instance.
     pub fn add_config<T: Into<String>>(mut self, alias: T, name: T) -> Self {
         self.configs.insert(alias.into(), name.into());
         self
     }
 
+    /// Creates a new `Workload` instance from a Map.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - A [String] that represents the name of the workload;
+    /// * `dict_workload` - An instance of [serde_yaml::Mapping] that represents the workload.
+    ///
+    /// # Returns
+    ///
+    /// A new [Workload] instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [AnkaiosError]::[WorkloadBuilderError](AnkaiosError::WorkloadBuilderError) if the builder fails to build the workload.
     pub fn build(self) -> Result<Workload, AnkaiosError> {
         if self.wl_name.is_empty() {
             return Err(AnkaiosError::WorkloadBuilderError("Workload can not be built without a name."));

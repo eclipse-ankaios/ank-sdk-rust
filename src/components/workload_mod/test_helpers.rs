@@ -17,12 +17,12 @@ use std::path::Path;
 use api::ank_base;
 use crate::Workload;
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 pub fn read_to_string_mock(_path: &Path) -> Result<String, std::io::Error> {
     Ok(_path.to_str().unwrap().to_string())
 }
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 pub fn generate_test_dependencies() -> HashMap<String, i32> {
 
     HashMap::from([
@@ -41,7 +41,7 @@ commandArgs: ["bash"]
     )
 }
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 pub fn generate_test_workload_proto<T: Into<String>>(
     agent_name: T,
     runtime_name: T,
@@ -87,7 +87,7 @@ pub fn generate_test_workload_proto<T: Into<String>>(
     }
 }
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 pub fn generate_test_workload<T: Into<String>>(
     agent_name: T,
     workload_name: T,

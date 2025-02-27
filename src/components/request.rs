@@ -12,23 +12,63 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains the [Request] struct and the [RequestType] enum.
+//! 
+//! # Examples
+//! 
+//! ## Create a `Request` for updating the state:
+//! 
+//! ```rust
+//! let complete_state = /* */;
+//! let mut request = Request::new(RequestType::UpdateState);
+//! request.set_complete_state(complete_state).unwrap();
+//! ```
+//! 
+//! ## Create a `Request` for getting the state:
+//! 
+//! ```rust
+//! let mut request = Request::new(RequestType::GetState);
+//! ```
+//! 
+//! ## Get the request ID:
+//! 
+//! ```rust
+//! let request_id = request.get_id();
+//! ```
+//!
+//! ## Add a mask to the request:
+//!
+//! ```rust
+//! request.add_mask("desiredState.workloads".to_string());
+//! ```
+
 use std::fmt;
 use uuid::Uuid;
 use api::ank_base::{Request as AnkaiosRequest, request::RequestContent, UpdateStateRequest, CompleteStateRequest};
 use crate::AnkaiosError;
 use crate::components::complete_state::CompleteState;
 
-
+/// Enum that represents the type of request that can be made to the [Ankaios] application.
+/// 
+/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(i32)]
 pub enum RequestType {
+    /// Request that updates the state of the cluster.
     UpdateState = 0,
+    /// Request that gets the state of the cluster.
     GetState = 1,
 }
 
+/// Struct that represents a request that can be made to the [Ankaios] application.
+/// 
+/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 pub struct Request{
+    /// The request proto message that will be sent to the cluster.
     request: AnkaiosRequest,
+    /// The unique identifier of the request.
     request_id: String,
+    /// The type of request.
     request_type: RequestType,
 }
 
@@ -43,6 +83,15 @@ impl std::fmt::Display for RequestType {
 }
 
 impl Request {
+    /// Creates a new `Request` object.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `request_type` - The type of request to create.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [Request] object.
     pub fn new(request_type: RequestType) -> Self {
         let request_id = Uuid::new_v4().to_string();
         log::debug!("Creating new request of type {} with id {}", request_type, request_id);
@@ -77,14 +126,34 @@ impl Request {
         }
     }
 
+    /// Returns the underlying [AnkaiosRequest] proto message.
+    /// 
+    /// ## Returns
+    /// 
+    /// The [AnkaiosRequest] proto message.
     pub fn to_proto(&self) -> AnkaiosRequest {
         self.request.clone()
     }
 
+    /// Returns the unique identifier of the request.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [String] containing the unique identifier of the request.
     pub fn get_id(&self) -> String {
         self.request_id.clone()
     }
 
+    /// Sets the complete state of the request.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `complete_state` - The complete state to set.
+    /// 
+    /// ## Returns
+    /// 
+    /// An [AnkaiosError]::[RequestError](AnkaiosError::RequestError) if the
+    /// request type is not [RequestType::UpdateState].
     pub fn set_complete_state(&mut self, complete_state: CompleteState) -> Result<(), AnkaiosError> {
         if self.request_type != RequestType::UpdateState {
             return Err(AnkaiosError::RequestError("Complete state can only be set for an update state request.".to_string()));
@@ -96,6 +165,11 @@ impl Request {
         Ok(())
     }
 
+    /// Adds a mask to the request.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `mask` - A [String] containing the mask to add.
     pub fn add_mask(&mut self, mask: String) {
         match self.request_type {
             RequestType::UpdateState => {
@@ -111,6 +185,11 @@ impl Request {
         }
     }
 
+    /// Sets the masks of the request.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `masks` - A [Vec] of [Strings](String) containing the masks to set.
     pub fn set_masks(&mut self, masks: Vec<String>) {
         match self.request_type {
             RequestType::UpdateState => {
@@ -141,7 +220,7 @@ impl fmt::Display for Request {
 //                    ##     #######   #########      ##                    //
 //////////////////////////////////////////////////////////////////////////////
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 pub fn generate_test_request() -> Request {
     let mut req = Request::new(RequestType::UpdateState);
     req.add_mask("test_mask".to_string());
@@ -151,7 +230,25 @@ pub fn generate_test_request() -> Request {
 #[cfg(test)]
 mod tests {
     use api::ank_base::Request as AnkaiosRequest;
+
     use super::{RequestType, Request, CompleteState};
+
+    #[test]
+    fn test_doc_examples() {
+        // Create a `Request` for updating the state
+        let complete_state = CompleteState::new();
+        let mut request = Request::new(RequestType::UpdateState);
+        request.set_complete_state(complete_state).unwrap();
+
+        // Create a `Request` for getting the state
+        let mut request = Request::new(RequestType::GetState);
+
+        // Get the request ID
+        let _request_id = request.get_id();
+
+        // Add a mask to the request
+        request.add_mask("desiredState.workloads".to_string());
+    }
 
     #[test]
     fn utest_request_type() {

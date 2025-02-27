@@ -24,25 +24,56 @@ type ExecutionsStatesForId = HashMap<String, WorkloadExecutionState>;
 type ExecutionsStatesOfWorkload = HashMap<String, ExecutionsStatesForId>;
 type WorkloadStatesMap = HashMap<String, ExecutionsStatesOfWorkload>;
 
+/// Struct that contains the instance name and
+/// the execution state of the workload.
 #[derive(Debug, Default, Clone)]
 pub struct WorkloadState {
+    /// The execution state of the workload.
     pub execution_state: WorkloadExecutionState,
+    /// The instance name of the workload.
     pub workload_instance_name: WorkloadInstanceName,
 }
 
+/// Helper struct that specializes in managing a collection of [WorkloadStates](WorkloadState).
 #[derive(Debug, Default, Clone)]
 pub struct WorkloadStateCollection {
+    /// The collection of [WorkloadStates](WorkloadState).
     workload_states: WorkloadStatesMap,
 }
 
 impl WorkloadState {
-    pub fn new_from_ank_base(agent_name: String, workload_name: String, workload_id: String, state: ank_base::ExecutionState) -> WorkloadState {
+    #[doc(hidden)]
+    /// Creates a new `WorkloadState` from an [ExecutionState](ank_base::ExecutionState).
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `agent_name` - The name of the agent;
+    /// * `workload_name` - The name of the workload;
+    /// * `workload_id` - The id of the workload;
+    /// * `state` - The [ExecutionState](ank_base::ExecutionState) to create the [WorkloadState] from.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [WorkloadState] instance.
+    pub(crate) fn new_from_ank_base(agent_name: String, workload_name: String, workload_id: String, state: ank_base::ExecutionState) -> WorkloadState {
         WorkloadState {
             execution_state: WorkloadExecutionState::new(state),
             workload_instance_name: WorkloadInstanceName::new(agent_name, workload_name, workload_id),
         }
     }
 
+    /// Creates a new `WorkloadState` from a [WorkloadExecutionState] instance.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `agent_name` - The name of the agent;
+    /// * `workload_name` - The name of the workload;
+    /// * `workload_id` - The id of the workload;
+    /// * `exec_state` - The [WorkloadExecutionState] to create the [WorkloadState] from.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [WorkloadState] instance.
     pub fn new_from_exec_state(agent_name: String, workload_name: String, workload_id: String, exec_state: WorkloadExecutionState) -> WorkloadState {
         WorkloadState {
             execution_state: exec_state,
@@ -58,13 +89,28 @@ impl fmt::Display for WorkloadState {
 }
 
 impl WorkloadStateCollection {
+    /// Creates a new `WorkloadStateCollection` instance.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [WorkloadStateCollection] instance.
     pub fn new() -> WorkloadStateCollection {
         WorkloadStateCollection {
             workload_states: HashMap::new(),
         }
     }
 
-    pub fn new_from_proto(workload_states_map: &ank_base::WorkloadStatesMap) -> WorkloadStateCollection {
+    #[doc(hidden)]
+    /// Creates a new `WorkloadStateCollection` from a [WorkloadStatesMap](ank_base::WorkloadStatesMap).
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `workload_states_map` - The [WorkloadStatesMap](ank_base::WorkloadStatesMap) to create the [WorkloadStateCollection] from.
+    /// 
+    /// ## Returns
+    /// 
+    /// A new [WorkloadStateCollection] instance.
+    pub(crate) fn new_from_proto(workload_states_map: &ank_base::WorkloadStatesMap) -> WorkloadStateCollection {
         let mut workload_states = WorkloadStateCollection::new();
         for (agent_name, workloads) in workload_states_map.agent_state_map.iter() {
             for (workload_name, workload_states_for_id) in workloads.wl_name_state_map.iter() {
@@ -77,6 +123,11 @@ impl WorkloadStateCollection {
         workload_states
     }
 
+    /// Adds a [WorkloadState] to the collection.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `workload_state` - The [WorkloadState] to add to the collection.
     pub fn add_workload_state(&mut self, workload_state: WorkloadState) {
         let agent_name = workload_state.workload_instance_name.agent_name.clone();
         let workload_name = workload_state.workload_instance_name.workload_name.clone();
@@ -93,6 +144,11 @@ impl WorkloadStateCollection {
         self.workload_states.get_mut(&agent_name).unwrap().get_mut(&workload_name).unwrap().insert(workload_id, workload_state.execution_state);
     }
 
+    /// Converts the `WorkloadStateCollection` to a [Mapping](serde_yaml::Mapping).
+    /// 
+    /// ## Returns
+    /// 
+    /// A [Mapping](serde_yaml::Mapping) containing the [WorkloadStateCollection] information.
     pub fn get_as_dict(&self) -> serde_yaml::Mapping {
         let mut map = serde_yaml::Mapping::new();
         for (agent_name, workload_states) in self.workload_states.iter() {
@@ -109,6 +165,11 @@ impl WorkloadStateCollection {
         map
     }
 
+    /// Converts the `WorkloadStateCollection` to a [Vec] of [WorkloadState].
+    /// 
+    /// ## Returns
+    /// 
+    /// A [Vec] of [WorkloadStates](WorkloadState) containing the [WorkloadStateCollection] information.
     pub fn get_as_list(&self) -> Vec<WorkloadState> {
         let mut list = Vec::new();
         for (agent_name, workload_states_for_agent) in self.workload_states.iter() {
@@ -129,6 +190,16 @@ impl WorkloadStateCollection {
         list
     }
 
+    /// Returns the [WorkloadState] for a given [WorkloadInstanceName].
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `instance_name` - The [WorkloadInstanceName] to get the [WorkloadState] for.
+    /// 
+    /// ## Returns
+    /// 
+    /// The [WorkloadState] for the given [WorkloadInstanceName].
+    /// If the [WorkloadState] is not found, `None` is returned.
     pub fn get_for_instance_name(&self, instance_name: &WorkloadInstanceName) -> Option<&WorkloadExecutionState> {
         self.workload_states.get(&instance_name.agent_name)
             .and_then(|workloads| workloads.get(&instance_name.workload_name))
@@ -152,7 +223,7 @@ impl TryFrom<ank_base::WorkloadStatesMap> for WorkloadStateCollection {
 //                    ##     #######   #########      ##                    //
 //////////////////////////////////////////////////////////////////////////////
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 pub fn generate_test_workload_states_proto() -> ank_base::WorkloadStatesMap {
     ank_base::WorkloadStatesMap { agent_state_map: HashMap::from([
         ("agent_A".to_string(), ank_base::ExecutionsStatesOfWorkload{
@@ -188,6 +259,21 @@ pub fn generate_test_workload_states_proto() -> ank_base::WorkloadStatesMap {
             ])
         },),
     ])}
+}
+
+#[cfg(test)]
+pub fn generate_test_workload_state() -> WorkloadState {
+    WorkloadState::new_from_exec_state(
+        "agent_name".to_string(),
+        "workload_name".to_string(),
+        "1234".to_string(),
+        WorkloadExecutionState::new(
+            ank_base::ExecutionState {
+                execution_state_enum: Some(ank_base::execution_state::ExecutionStateEnum::Pending(ank_base::Pending::WaitingToStart as i32)),
+                additional_info: "additional_info".to_string(),
+            }
+        )
+    )
 }
 
 #[cfg(test)]

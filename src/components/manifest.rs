@@ -12,6 +12,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains the [Manifest] struct.
+
 use std::path::Path;
 use serde_yaml;
 use crate::AnkaiosError;
@@ -26,12 +28,52 @@ fn read_file_to_string(path: &Path) -> Result<String, std::io::Error> {
 #[cfg(test)]
 use self::read_to_string_mock as read_file_to_string;
 
+/// Struct represents a manifest file.
+///
+/// The `Manifest` struct is used to load a manifest file and
+/// directly use it to modify the [Ankaios] cluster.
+///
+/// # Examples
+///
+/// ## Load a manifest from a file's [Path]:
+/// 
+/// ```rust
+/// let manifest = Manifest::from_file(Path::new("path/to/manifest.yaml")).unwrap();
+/// ```
+/// 
+/// ## Load a manifest from a [String]:
+/// 
+/// ```rust
+/// let manifest = Manifest::from_string("apiVersion: v0.1").unwrap();
+/// ```
+/// 
+/// ## Load a manifest from a [serde_yaml::Value]:
+/// 
+/// ```rust
+/// let dict = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
+/// let _manifest = Manifest::from_dict(dict).unwrap();
+/// ```
+/// 
+/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 #[derive(Debug, Clone)]
 pub struct Manifest{
     manifest: serde_yaml::Value
 }
 
 impl Manifest {
+    /// Create a new `Manifest` object.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `manifest` - A [serde_yaml::Value] object representing the manifest.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [Manifest] object if the manifest is valid.
+    /// 
+    /// ## Errors
+    /// 
+    /// Returns an [AnkaiosError]::[InvalidManifestError](AnkaiosError::InvalidManifestError) if the manifest is not valid.
     pub fn new(manifest: serde_yaml::Value) -> Result<Manifest, AnkaiosError> {
         let obj = Self{manifest};
         if !obj.check() {
@@ -40,10 +82,36 @@ impl Manifest {
         Ok(obj)
     }
 
+    /// Create a new `Manifest` object from a [serde_yaml::Value].
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `manifest` - A [serde_yaml::Value] object representing the manifest.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [Manifest] object if the manifest is valid.
+    /// 
+    /// ## Errors
+    /// 
+    /// Returns an [AnkaiosError]::[InvalidManifestError](AnkaiosError::InvalidManifestError) if the manifest is not valid.
     pub fn from_dict(manifest: serde_yaml::Value) -> Result<Manifest, AnkaiosError> {
         Self::new(manifest)
     }
 
+    /// Create a new `Manifest` object from a [String].
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `manifest` - A [String] object representing the manifest.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [Manifest] object if the manifest is valid.
+    /// 
+    /// ## Errors
+    /// 
+    /// Returns an [AnkaiosError]::[InvalidManifestError](AnkaiosError::InvalidManifestError) if the manifest is not valid.
     pub fn from_string<T: Into<String>>(manifest: T) -> Result<Manifest, AnkaiosError> {
         match serde_yaml::from_str(&manifest.into()) {
             Ok(manifest) => Self::from_dict(manifest),
@@ -51,6 +119,19 @@ impl Manifest {
         }
     }
 
+    /// Create a new `Manifest` object from a file's [Path].
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `path` - A [Path] object representing the manifest file.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [Manifest] object if the manifest is valid.
+    /// 
+    /// ## Errors
+    /// 
+    /// Returns an [AnkaiosError]::[InvalidManifestError](AnkaiosError::InvalidManifestError) if the manifest is not valid.
     pub fn from_file(path: &Path) -> Result<Manifest, AnkaiosError> {
         match read_file_to_string(path) {
             Ok(content) => Self::from_string(content),
@@ -58,6 +139,11 @@ impl Manifest {
         }
     }
 
+    /// Check if the manifest is valid.
+    /// 
+    /// ## Returns
+    /// 
+    /// Returns `true` if the manifest is valid, `false` otherwise.
     pub fn check(&self) -> bool {
         if self.manifest.get("apiVersion").is_none() {
             return false;
@@ -82,6 +168,11 @@ impl Manifest {
         true
     }
 
+    /// Calculate the masks for the manifest.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [vector](Vec) of [strings](String) representing the masks.
     pub fn calculate_masks(&self) -> Vec<String> {
         let mut masks = vec![];
         print!("{:?}", self.manifest);
@@ -94,6 +185,11 @@ impl Manifest {
         masks
     }
 
+    /// Convert the manifest to a [serde_yaml::Value].
+    /// 
+    /// ## Returns
+    /// 
+    /// A [serde_yaml::Value] object representing the manifest.
     pub fn to_dict(&self) -> serde_yaml::Value {
         self.manifest.clone()
     }
@@ -131,12 +227,12 @@ impl TryFrom<&Path> for Manifest {
 //                    ##     #######   #########      ##                    //
 //////////////////////////////////////////////////////////////////////////////
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 pub fn read_to_string_mock(_path: &Path) -> Result<String, std::io::Error> {
     Ok(_path.to_str().unwrap().to_string())
 }
 
-#[cfg(any(feature = "test_utils", test))]
+#[cfg(test)]
 static MANIFEST_CONTENT: &str = r#"apiVersion: v0.1
 workloads:
     nginx_test:
@@ -166,6 +262,21 @@ mod tests {
     use std::path::Path;
     use serde_yaml;
     use super::{Manifest, MANIFEST_CONTENT};
+
+    #[test]
+    fn test_doc_examples() {
+        // Load a manifest from a file
+        let _manifest = Manifest::from_file(Path::new("apiVersion: v0.1")).unwrap();
+
+        // Load a manifest from a string
+        let _manifest = Manifest::from_string("apiVersion: v0.1").unwrap();
+
+        // Load a manifest from a serde_yaml::Value
+        let mut map = serde_yaml::Mapping::new();
+        map.insert(serde_yaml::Value::String("apiVersion".to_string()), serde_yaml::Value::String("v0.1".to_string()));
+        let dict = serde_yaml::Value::Mapping(map);
+        let _manifest = Manifest::from_dict(dict).unwrap();
+    }
 
     #[test]
     fn utest_creation() {

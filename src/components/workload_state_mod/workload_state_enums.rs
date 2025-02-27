@@ -16,41 +16,80 @@ use std::fmt;
 
 use api::ank_base;
 
+/// Enum representing the state of a Workload.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum WorkloadStateEnum {
+    /// The agent is disconnected.
     AgentDisconnected = 0,
+    /// The workload is pending.
     Pending = 1,
+    /// The workload is running.
     Running = 2,
+    /// The workload is stopping.
     Stopping = 3,
+    /// The workload has succeeded.
     Succeeded = 4,
+    /// The workload has failed.
     Failed = 5,
+    /// The workload is not scheduled.
     NotScheduled = 6,
+    /// The workload has been removed.
     Removed = 7,
 }
 
+/// Enum representing the substate of a Workload.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum WorkloadSubStateEnum {
+    /// The agent is disconnected.
     AgentDisconnected = 0,
+    /// The workload is pending and in the initial state.
     PendingInitial = 1,
+    /// The workload is pending and waiting to start.
     PendingWaitingToStart = 2,
+    /// The workload is pending and starting.
     PendingStarting = 3,
+    /// The workload is pending and starting failed.
     PendingStartingFailed = 4,
+    /// The workload is running and ok.
     RunningOk = 5,
+    /// The workload is stopping.
     Stopping = 6,
+    /// The workload is stopping and waiting to stop.
     StoppingWaitingToStop = 7,
+    /// The workload is stopping, requested at runtime.
     StoppingRequestedAtRuntime = 8,
+    /// The workload is stopping, but the delete failed.
     StoppingDeleteFailed = 9,
+    /// The workload has succeeded.
     SucceededOk = 10,
+    /// The workload has failed, execution failed.
     FailedExecFailed = 11,
+    /// The workload has failed with unknown reason.
     FailedUnknown = 12,
+    /// The workload has failed and is lost.
     FailedLost = 13,
+    /// The workload is not scheduled.
     NotScheduled = 14,
+    /// The workload has been removed.
     Removed = 15,
 }
 
 impl WorkloadStateEnum {
+    /// Creates a new `WorkloadStateEnum`` from a [String] value.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `value` - A [String] that represents the state.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [WorkloadStateEnum] instance.
+    /// 
+    /// ## Panics
+    /// 
+    /// If the value is not a valid [WorkloadStateEnum].
     pub fn new_from_str<T: Into<String>>(value: T) -> WorkloadStateEnum {
         match value.into().as_str() {
             "AgentDisconnected" => WorkloadStateEnum::AgentDisconnected,
@@ -65,6 +104,11 @@ impl WorkloadStateEnum {
         }
     }
 
+    /// Converts the [WorkloadStateEnum] to an [i32].
+    /// 
+    /// ## Returns
+    /// 
+    /// An [i32] value representing the [WorkloadStateEnum].
     pub fn as_i32(&self) -> i32 {
         *self as i32
     }
@@ -105,6 +149,20 @@ impl std::str::FromStr for WorkloadStateEnum {
 }
 
 impl WorkloadSubStateEnum {
+    /// Creates a new `WorkloadSubStateEnum`` from a [WorkloadStateEnum] and an [i32] value.
+    /// 
+    /// ## Arguments
+    /// 
+    /// * `state` - A [WorkloadStateEnum] that represents the state;
+    /// * `value` - An [i32] value that represents the substate.
+    /// 
+    /// ## Returns
+    /// 
+    /// A [WorkloadSubStateEnum] instance.
+    /// 
+    /// ## Errors
+    /// 
+    /// If the value is not a valid substate for the given state.
     pub fn new(state: &WorkloadStateEnum, value: i32) -> Result<WorkloadSubStateEnum, String> {
         match state {
             WorkloadStateEnum::AgentDisconnected => match ank_base::AgentDisconnected::from_i32(value) {
@@ -150,6 +208,11 @@ impl WorkloadSubStateEnum {
         }
     }
 
+    /// Converts the `WorkloadSubStateEnum` to an [i32].
+    /// 
+    /// ## Returns
+    /// 
+    /// An [i32] value representing the [WorkloadSubStateEnum].
     pub fn to_i32(self) -> i32 {
         match self {
             WorkloadSubStateEnum::AgentDisconnected => ank_base::AgentDisconnected::AgentDisconnected as i32,
