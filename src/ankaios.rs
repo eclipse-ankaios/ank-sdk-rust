@@ -20,7 +20,7 @@
 use std::collections::HashMap;
 use std::vec;
 use tokio::sync::mpsc;
-use tokio::time::{timeout as tokio_timeout, Duration};
+use tokio::time::{timeout as tokio_timeout, Duration, sleep};
 
 use crate::components::request::{Request, RequestType};
 use crate::components::response::{Response, ResponseType, UpdateStateSuccess};
@@ -152,8 +152,11 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// A [Result] containing the [Ankaios] object if the connection was successful,
-    /// or an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if an error occurred.
+    /// A [Result] containing the [Ankaios] object if the connection was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if an error occurred when connecting.
     pub async fn new() -> Result<Self, AnkaiosError> {
         let (response_sender, response_receiver) = mpsc::channel::<Response>(100);
         let mut object = Self{
@@ -164,7 +167,7 @@ impl Ankaios {
         object.control_interface.connect().await?;
 
         // Test connection
-        object.get_state(Some(vec!["desiredState.apiVersion".to_string()]), None).await?;
+        object.get_state(Some(vec!["desiredState.apiVersion".to_owned()]), None).await?;
 
         Ok(object)
     }
@@ -173,8 +176,9 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// The [ControlInterfaceState] of the Control Interface.
-    pub async fn state(&mut self) -> ControlInterfaceState {
+    /// The [`ControlInterfaceState`] of the Control Interface.
+    #[inline]
+    pub fn state(&mut self) -> ControlInterfaceState {
         self.control_interface.state()
     }
 
@@ -182,15 +186,18 @@ impl Ankaios {
     /// 
     /// ## Arguments
     /// 
-    /// - `request`: The [Request] to be sent;
+    /// - `request`: The [`Request`] to be sent;
     /// - `timeout`: The maximum time to wait for the response. If `None`, the default timeout is used.
     /// 
     /// ## Returns
     /// 
-    /// - the [Response] if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - the [Response] if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     async fn send_request(&mut self, request: Request, timeout: Option<Duration>) -> Result<Response, AnkaiosError> {
         let request_id = request.get_id();
         self.control_interface.write_request(request).await?;
@@ -204,13 +211,12 @@ impl Ankaios {
                     }
                     if response.get_request_id() == request_id {
                         return Ok(response);
-                    } else {
-                        log::warn!("Received response with wrong id.");
                     }
+                    log::warn!("Received response with wrong id.");
                 },
                 Ok(None) => {
                     log::error!("Reading thread closed unexpectedly.");
-                    return Err(AnkaiosError::ControlInterfaceError("Reading thread closed.".to_string()));
+                    return Err(AnkaiosError::ControlInterfaceError("Reading thread closed.".to_owned()));
                 },
                 Err(err) => {
                     log::error!("Timeout while waiting for response.");
@@ -229,16 +235,21 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// - an [UpdateStateSuccess] containing the number of added and deleted workloads if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - an [`UpdateStateSuccess`] containing the number of added and deleted workloads if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn apply_manifest(&mut self, manifest: Manifest, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
         // Create request
-        let mut request: Request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(CompleteState::new_from_manifest(&manifest)).unwrap();
+        let mut request = Request::new(RequestType::UpdateState);
+        request.set_complete_state(&CompleteState::new_from_manifest(&manifest)).unwrap_or_else(|err| {
+            log::error!("Error while setting the complete state: {}", err);
+        });
         request.set_masks(manifest.calculate_masks());
 
         // Wait for the response
@@ -256,7 +267,7 @@ impl Ankaios {
             },
             _ => {
                 log::error!("Received wrong response type.");
-                Err(AnkaiosError::ResponseError("Received wrong response type.".to_string()))
+                Err(AnkaiosError::ResponseError("Received wrong response type.".to_owned()))
             }
         }
     }
@@ -270,16 +281,21 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// - an [UpdateStateSuccess] containing the number of added and deleted workloads if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - an [`UpdateStateSuccess`] containing the number of added and deleted workloads if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn delete_manifest(&mut self, manifest: Manifest, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
         // Create request
-        let mut request: Request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(CompleteState::default()).unwrap();
+        let mut request = Request::new(RequestType::UpdateState);
+        request.set_complete_state(&CompleteState::default()).unwrap_or_else(|err| {
+            log::error!("Error while setting the complete state: {}", err);
+        });
         request.set_masks(manifest.calculate_masks());
 
         // Wait for the response
@@ -297,7 +313,7 @@ impl Ankaios {
             },
             _ => {
                 log::error!("Received wrong response type.");
-                Err(AnkaiosError::ResponseError("Received wrong response type.".to_string()))
+                Err(AnkaiosError::ResponseError("Received wrong response type.".to_owned()))
             }
         }
     }
@@ -311,12 +327,15 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// - an [UpdateStateSuccess] containing the number of added and deleted workloads if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - an [`UpdateStateSuccess`] containing the number of added and deleted workloads if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn apply_workload(&mut self, workload: Workload, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
         let masks = workload.masks.clone();
 
@@ -325,8 +344,10 @@ impl Ankaios {
         complete_state.add_workload(workload);
 
         // Create request
-        let mut request: Request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(complete_state).unwrap();
+        let mut request = Request::new(RequestType::UpdateState);
+        request.set_complete_state(&complete_state).unwrap_or_else(|err| {
+            log::error!("Error while setting the complete state: {}", err);
+        });
         request.set_masks(masks);
 
         // Wait for the response
@@ -344,7 +365,7 @@ impl Ankaios {
             },
             _ => {
                 log::error!("Received wrong response type.");
-                Err(AnkaiosError::ResponseError("Received wrong response type.".to_string()))
+                Err(AnkaiosError::ResponseError("Received wrong response type.".to_owned()))
             }
         }
     }
@@ -359,12 +380,15 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// - a [Workload] object if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - a [Workload] object if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn get_workload(&mut self, workload_name: String, timeout: Option<Duration>) -> Result<Workload, AnkaiosError> {
         let complete_state = self.get_state(Some(vec![format!("{}.{}", WORKLOADS_PREFIX, workload_name)]), timeout).await?;
         Ok(complete_state.get_workloads()[0].clone())
@@ -379,17 +403,22 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// - a [Workload] object if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - a [Workload] object if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn delete_workload(&mut self, workload_name: String, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
         // Create request
-        let mut request: Request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(CompleteState::default()).unwrap();
-        request.add_mask(format!("{}.{}",WORKLOADS_PREFIX, workload_name));
+        let mut request = Request::new(RequestType::UpdateState);
+        request.set_complete_state(&CompleteState::default()).unwrap_or_else(|err| {
+            log::error!("Error while setting the complete state: {}", err);
+        });
+        request.add_mask(format!("{WORKLOADS_PREFIX}.{workload_name}"));
 
         // Wait for the response
         let response = self.send_request(request, timeout).await?;
@@ -406,7 +435,7 @@ impl Ankaios {
             },
             _ => {
                 log::error!("Received wrong response type.");
-                Err(AnkaiosError::ResponseError("Received wrong response type.".to_string()))
+                Err(AnkaiosError::ResponseError("Received wrong response type.".to_owned()))
             }
         }
     }
@@ -415,26 +444,31 @@ impl Ankaios {
     /// 
     /// ## Arguments
     /// 
-    /// - `configs`: A [HashMap] containing the configs to be updated;
+    /// - `configs`: A [`HashMap`] containing the configs to be updated;
     /// - `timeout`: The maximum time to wait for the response. If `None`, the default timeout is used.
     /// 
     /// ## Returns
     /// 
-    /// - an [UpdateStateSuccess] object if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - an [`UpdateStateSuccess`] object if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn update_configs(&mut self, configs: HashMap<String, serde_yaml::Value>, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
         // Create CompleteState
         let mut complete_state = CompleteState::default();
         complete_state.set_configs(configs);
 
         // Create request
-        let mut request: Request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(complete_state).unwrap();
-        request.add_mask(CONFIGS_PREFIX.to_string());
+        let mut request = Request::new(RequestType::UpdateState);
+        request.set_complete_state(&complete_state).unwrap_or_else(|err| {
+            log::error!("Error while setting the complete state: {}", err);
+        });
+        request.add_mask(CONFIGS_PREFIX.to_owned());
 
         // Wait for the response
         let response = self.send_request(request, timeout).await?;
@@ -451,7 +485,7 @@ impl Ankaios {
             },
             _ => {
                 log::error!("Received wrong response type.");
-                Err(AnkaiosError::ResponseError("Received wrong response type.".to_string()))
+                Err(AnkaiosError::ResponseError("Received wrong response type.".to_owned()))
             }
         }
     }
@@ -462,26 +496,31 @@ impl Ankaios {
     /// ## Arguments
     /// 
     /// - `name`: A [String] containing the name of the config to be added;
-    /// - `configs`: A [serde_yaml::Value] containing the configs to be added;
+    /// - `configs`: A [`serde_yaml::Value`] containing the configs to be added;
     /// - `timeout`: The maximum time to wait for the response. If `None`, the default timeout is used.
     /// 
     /// ## Returns
     /// 
-    /// - an [UpdateStateSuccess] object if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - an [`UpdateStateSuccess`] object if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn add_config(&mut self, name: String, configs: serde_yaml::Value, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
         // Create CompleteState
         let mut complete_state = CompleteState::default();
         complete_state.set_configs(HashMap::from([(name, configs)]));
 
         // Create request
-        let mut request: Request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(complete_state).unwrap();
-        request.add_mask(CONFIGS_PREFIX.to_string());
+        let mut request = Request::new(RequestType::UpdateState);
+        request.set_complete_state(&complete_state).unwrap_or_else(|err| {
+            log::error!("Error while setting the complete state: {}", err);
+        });
+        request.add_mask(CONFIGS_PREFIX.to_owned());
 
         // Wait for the response
         let response = self.send_request(request, timeout).await?;
@@ -498,7 +537,7 @@ impl Ankaios {
             },
             _ => {
                 log::error!("Received wrong response type.");
-                Err(AnkaiosError::ResponseError("Received wrong response type.".to_string()))
+                Err(AnkaiosError::ResponseError("Received wrong response type.".to_owned()))
             }
         }
     }
@@ -511,14 +550,17 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// - a [HashMap] containing the configs if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - a [`HashMap`] containing the configs if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn get_configs(&mut self, timeout: Option<Duration>) -> Result<HashMap<String, serde_yaml::Value>, AnkaiosError> {
-        let complete_state = self.get_state(Some(vec![WORKLOADS_PREFIX.to_string()]), timeout).await?;
+        let complete_state = self.get_state(Some(vec![WORKLOADS_PREFIX.to_owned()]), timeout).await?;
         Ok(complete_state.get_configs())
     }
 
@@ -531,12 +573,15 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// - a [HashMap] containing the config if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - a [`HashMap`] containing the config if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn get_config(&mut self, name: String, timeout: Option<Duration>) -> Result<HashMap<String, serde_yaml::Value>, AnkaiosError> {
         let complete_state = self.get_state(Some(vec![format!("{}.{}", CONFIGS_PREFIX, name)]), timeout).await?;
         Ok(complete_state.get_configs())
@@ -548,18 +593,20 @@ impl Ankaios {
     /// 
     /// - `timeout`: The maximum time to wait for the response. If `None`, the default timeout is used.
     /// 
-    /// ## Returns
+    /// ## Errors
     /// 
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn delete_all_configs(&mut self, timeout: Option<Duration>) -> Result<(), AnkaiosError> {
         // Create request
         let mut request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(CompleteState::default()).unwrap();
-        request.add_mask(CONFIGS_PREFIX.to_string());
+        request.set_complete_state(&CompleteState::default()).unwrap_or_else(|err| {
+            log::error!("Error while setting the complete state: {}", err);
+        });
+        request.add_mask(CONFIGS_PREFIX.to_owned());
 
         // Wait for the response
         let response = self.send_request(request, timeout).await?;
@@ -575,7 +622,7 @@ impl Ankaios {
             },
             _ => {
                 log::error!("Received wrong response type.");
-                Err(AnkaiosError::ResponseError("Received wrong response type.".to_string()))
+                Err(AnkaiosError::ResponseError("Received wrong response type.".to_owned()))
             }
         }
     }
@@ -587,18 +634,20 @@ impl Ankaios {
     /// - `name`: A [String] containing the name of the config;
     /// - `timeout`: The maximum time to wait for the response. If `None`, the default timeout is used.
     /// 
-    /// ## Returns
+    /// ## Errors
     /// 
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn delete_config(&mut self, name: String, timeout: Option<Duration>) -> Result<(), AnkaiosError> {
         // Create request
         let mut request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(CompleteState::default()).unwrap();
-        request.add_mask(format!("{}.{}", CONFIGS_PREFIX, name));
+        request.set_complete_state(&CompleteState::default()).unwrap_or_else(|err| {
+            log::error!("Error while setting the complete state: {}", err);
+        });
+        request.add_mask(format!("{CONFIGS_PREFIX}.{name}"));
 
         // Wait for the response
         let response = self.send_request(request, timeout).await?;
@@ -614,7 +663,7 @@ impl Ankaios {
             },
             _ => {
                 log::error!("Received wrong response type.");
-                Err(AnkaiosError::ResponseError("Received wrong response type.".to_string()))
+                Err(AnkaiosError::ResponseError("Received wrong response type.".to_owned()))
             }
         }
     }
@@ -628,15 +677,18 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// - an [UpdateStateSuccess] containing the number of added and deleted workloads if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - an [`UpdateStateSuccess`] containing the number of added and deleted workloads if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn get_state(&mut self, field_masks: Option<Vec<String>>, timeout: Option<Duration>) -> Result<CompleteState, AnkaiosError> {
         // Create request
-        let mut request: Request = Request::new(RequestType::GetState);
+        let mut request = Request::new(RequestType::GetState);
         if let Some(masks) = field_masks {
             request.set_masks(masks);
         }
@@ -654,7 +706,7 @@ impl Ankaios {
             },
             _ => {
                 log::error!("Received wrong response type.");
-                Err(AnkaiosError::ResponseError("Received wrong response type.".to_string()))
+                Err(AnkaiosError::ResponseError("Received wrong response type.".to_owned()))
             }
         }
     }
@@ -667,12 +719,15 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// - a [HashMap] containing the agents if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - a [`HashMap`] containing the agents if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn get_agents(&mut self, timeout: Option<Duration>) -> Result<HashMap<String, HashMap<String, String>>, AnkaiosError> {
         let complete_state = self.get_state(None, timeout).await?;
         Ok(complete_state.get_agents())
@@ -686,12 +741,15 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// - a [WorkloadStateCollection] containing the workload states if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - a [`WorkloadStateCollection`] containing the workload states if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn get_workload_states(&mut self, timeout: Option<Duration>) -> Result<WorkloadStateCollection, AnkaiosError> {
         let complete_state = self.get_state(None, timeout).await?;
         Ok(complete_state.get_workload_states().clone())
@@ -701,24 +759,27 @@ impl Ankaios {
     /// 
     /// ## Arguments
     /// 
-    /// - `instance_name`: The [WorkloadInstanceName] to get the execution state for;
+    /// - `instance_name`: The [`WorkloadInstanceName`] to get the execution state for;
     /// - `timeout`: The maximum time to wait for the response. If `None`, the default timeout is used.
     /// 
     /// ## Returns
     /// 
-    /// - the requested [WorkloadState] for the provided instance name.
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - the requested [`WorkloadState`] for the provided instance name.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn get_execution_state_for_instance_name(&mut self, instance_name: WorkloadInstanceName, timeout: Option<Duration>) -> Result<WorkloadState, AnkaiosError> {
         let complete_state = self.get_state(Some(vec![instance_name.get_filter_mask()]), timeout).await?;
         let workload_states = complete_state.get_workload_states().get_as_list();
-        if workload_states.is_empty() {
-            return Err(AnkaiosError::AnkaiosError("No workload states found.".to_string()));
+        match workload_states.first() {
+            Some(workload_state) => Ok(workload_state.clone()),
+            None => Err(AnkaiosError::AnkaiosError("No workload states found.".to_owned()))
         }
-        Ok(workload_states[0].clone())
     }
 
     /// Send a request to get the workload states for the workloads running on a specific agent.
@@ -730,12 +791,15 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// - a [WorkloadStateCollection] containing the workload states if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - a [`WorkloadStateCollection`] containing the workload states if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn get_workload_states_on_agent(&mut self, agent_name: String, timeout: Option<Duration>) -> Result<WorkloadStateCollection, AnkaiosError> {
         let complete_state = self.get_state(Some(vec![format!("workloadStates.{}", agent_name)]), timeout).await?;
         Ok(complete_state.get_workload_states().clone())
@@ -750,14 +814,17 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// - a [WorkloadStateCollection] containing the workload states if the request was successful;
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - a [`WorkloadStateCollection`] containing the workload states if the request was successful.
+    /// 
+    /// ## Errors
+    /// 
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn get_workload_states_for_name(&mut self, workload_name: String, timeout: Option<Duration>) -> Result<WorkloadStateCollection, AnkaiosError> {
-        let complete_state = self.get_state(Some(vec!["workloadStates".to_string()]), timeout).await?;
+        let complete_state = self.get_state(Some(vec!["workloadStates".to_owned()]), timeout).await?;
         let mut workload_states_for_name = WorkloadStateCollection::new();
         for workload_state in complete_state.get_workload_states().get_as_list() {
             if workload_state.workload_instance_name.workload_name == workload_name {
@@ -771,17 +838,17 @@ impl Ankaios {
     /// 
     /// ## Arguments
     /// 
-    /// - `instance_name`: The [WorkloadInstanceName] to wait for;
-    /// - `state`: The [WorkloadStateEnum] to wait for;
+    /// - `instance_name`: The [`WorkloadInstanceName`] to wait for;
+    /// - `state`: The [`WorkloadStateEnum`] to wait for;
     /// - `timeout`: The maximum time to wait for the response. If `None`, the default timeout is used.
     /// 
-    /// ## Returns
+    /// ## Errors
     /// 
-    /// - an [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected;
-    /// - an [AnkaiosError]::[TimeoutError](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response or waiting for the state to be reached.
-    /// - an [AnkaiosError]::[AnkaiosError](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
-    /// - an [AnkaiosError]::[ResponseError](AnkaiosError::ResponseError) if the response has the wrong type;
-    /// - an [AnkaiosError]::[ConnectionClosedError](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response or waiting for the state to be reached.
+    /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn wait_for_workload_to_reach_state(&mut self, instance_name: WorkloadInstanceName, state: WorkloadStateEnum, timeout: Option<Duration>) -> Result<(), AnkaiosError> {
         let timeout_duration = timeout.unwrap_or(Duration::from_secs(DEFAULT_TIMEOUT));
 
@@ -792,7 +859,7 @@ impl Ankaios {
                     return Ok(());
                 }
 
-                tokio::time::sleep(Duration::from_millis(100)).await;
+                sleep(Duration::from_millis(100)).await;
             }
         };
 

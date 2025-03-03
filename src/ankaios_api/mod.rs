@@ -12,6 +12,16 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#![allow(
+    clippy::doc_markdown,
+    clippy::trivially_copy_pass_by_ref,
+    clippy::enum_variant_names,
+    clippy::needless_pass_by_value,
+    clippy::str_to_string,
+    clippy::absolute_paths,
+    clippy::shadow_reuse,
+)]
+
 pub mod ank_base {
     tonic::include_proto!("ank_base");
 }

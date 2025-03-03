@@ -12,9 +12,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt;
-use std::{collections::HashMap, path::Path, vec};
-use serde_yaml;
+use std::{
+    fmt,
+    collections::HashMap,
+    path::Path,
+    vec,
+    convert::Into,
+};
+use serde_yaml::Value;
 use crate::ankaios_api;
 use ankaios_api::ank_base;
 use crate::AnkaiosError;
@@ -23,8 +28,11 @@ use crate::WorkloadBuilder;
 // Disable this from coverage
 // https://github.com/rust-lang/rust/issues/84605
 #[cfg(not(test))]
-fn read_file_to_string(path: &Path) -> Result<String, std::io::Error> {
-    std::fs::read_to_string(path)
+use std::{fs, io};
+/// Helper function to read a file to a string.
+#[cfg(not(test))]
+fn read_file_to_string(path: &Path) -> Result<String, io::Error> {
+    fs::read_to_string(path)
 }
 
 #[cfg(test)]
@@ -40,7 +48,7 @@ use crate::components::workload_mod::test_helpers::read_to_string_mock as read_f
 ///
 /// # Examples
 ///
-/// ## Create a workload using the [WorkloadBuilder]:
+/// ## Create a workload using the [`WorkloadBuilder`]:
 /// 
 /// ```rust
 /// use ankaios_sdk::Workload;
@@ -69,7 +77,7 @@ use crate::components::workload_mod::test_helpers::read_to_string_mock as read_f
 /// ```rust
 /// let mut deps = workload.get_dependencies();
 /// if let Some(value) = deps.get_mut("other_workload") {
-///    *value = "ADD_COND_SUCCEEDED".to_string();
+///    *value = "ADD_COND_SUCCEEDED".to_owned();
 /// }
 /// workload.update_dependencies(deps).unwrap();
 /// ```
@@ -78,7 +86,7 @@ use crate::components::workload_mod::test_helpers::read_to_string_mock as read_f
 /// 
 /// ```rust
 /// let mut tags = workload.get_tags();
-/// tags.push(vec!["key3".to_string(), "value3".to_string()]);
+/// tags.push(vec!["key3".to_owned(), "value3".to_owned()]);
 /// workload.update_tags(&tags);
 /// ```
 /// 
@@ -108,7 +116,7 @@ impl Workload {
     ///
     /// ## Arguments
     ///
-    /// * `name` - A [String] that represents the name of the workload.
+    /// - `name` - A [String] that represents the name of the workload.
     ///
     /// ## Returns
     ///
@@ -117,8 +125,8 @@ impl Workload {
         let name_str = name.into();
         Self{
             workload: ank_base::Workload::default(),
-            main_mask: format!("desiredState.workloads.{}", name_str),
-            masks: vec![format!("desiredState.workloads.{}", name_str)],
+            main_mask: format!("desiredState.workloads.{name_str}"),
+            masks: vec![format!("desiredState.workloads.{name_str}")],
             name: name_str,
         }
     }
@@ -128,8 +136,8 @@ impl Workload {
     ///
     /// ## Arguments
     ///
-    /// * `name` - A [String] that represents the name of the workload;
-    /// * `proto` - A proto instance of [ank_base::Workload].
+    /// - `name` - A [String] that represents the name of the workload;
+    /// - `proto` - A proto instance of [`ank_base::Workload`].
     ///
     /// ## Returns
     ///
@@ -138,7 +146,7 @@ impl Workload {
         let name_str = name.into();
         Self{
             workload: proto,
-            main_mask: format!("desiredState.workloads.{}", name_str),
+            main_mask: format!("desiredState.workloads.{name_str}"),
             masks: vec![],
             name: name_str,
         }
@@ -149,8 +157,8 @@ impl Workload {
     ///
     /// ## Arguments
     ///
-    /// * `name` - A [String] that represents the name of the workload;
-    /// * `dict_workload` - An instance of [serde_yaml::Mapping] that represents the workload.
+    /// - `name` - A [String] that represents the name of the workload;
+    /// - `dict_workload` - An instance of [`serde_yaml::Mapping`] that represents the workload.
     ///
     /// ## Returns
     ///
@@ -158,22 +166,22 @@ impl Workload {
     ///
     /// ## Errors
     ///
-    /// * [AnkaiosError]::[WorkloadBuilderError](AnkaiosError::WorkloadBuilderError) - If the builder fails.
-    pub(crate) fn new_from_dict<T: Into<String>>(name: T, dict_workload: serde_yaml::Mapping) -> Result<Self, AnkaiosError> {
+    /// - [`AnkaiosError`]::[`WorkloadBuilderError`](AnkaiosError::WorkloadBuilderError) - If the builder fails.
+    pub(crate) fn new_from_dict<T: Into<String>>(name: T, dict_workload: &serde_yaml::Mapping) -> Result<Self, AnkaiosError> {
         let mut wl_builder = Self::builder();
         wl_builder = wl_builder.workload_name(name);
 
         if let Some(agent) = dict_workload.get("agent") {
-            wl_builder = wl_builder.agent_name(agent.as_str().unwrap())
+            wl_builder = wl_builder.agent_name(agent.as_str().unwrap());
         }
         if let Some(runtime) = dict_workload.get("runtime") {
-            wl_builder = wl_builder.runtime(runtime.as_str().unwrap())
+            wl_builder = wl_builder.runtime(runtime.as_str().unwrap());
         }
         if let Some(runtime_config) = dict_workload.get("runtimeConfig") {
-            wl_builder = wl_builder.runtime_config(runtime_config.as_str().unwrap())
+            wl_builder = wl_builder.runtime_config(runtime_config.as_str().unwrap());
         }
         if let Some(restart_policy) = dict_workload.get("restartPolicy") {
-            wl_builder = wl_builder.restart_policy(restart_policy.as_str().unwrap())
+            wl_builder = wl_builder.restart_policy(restart_policy.as_str().unwrap());
         }
         if let Some(dependencies) = dict_workload.get("dependencies") {
             for (key, value) in dependencies.as_mapping().unwrap() {
@@ -194,7 +202,7 @@ impl Workload {
                 for rule in allow_rules.as_sequence().unwrap() {
                     let operation = rule.get("operation").unwrap().as_str().unwrap();
                     let filter_masks = rule.get("filterMask")
-                        .unwrap().as_sequence().unwrap().iter().map(|x| x.as_str().unwrap().to_string()).collect();
+                        .unwrap().as_sequence().unwrap().iter().map(|x| x.as_str().unwrap().to_owned()).collect();
                     wl_builder = wl_builder.add_allow_rule(operation, filter_masks);
                 }
             }
@@ -202,16 +210,16 @@ impl Workload {
                 for rule in deny_rules.as_sequence().unwrap() {
                     let operation = rule.get("operation").unwrap().as_str().unwrap();
                     let filter_masks = rule.get("filterMask")
-                        .unwrap().as_sequence().unwrap().iter().map(|x| x.as_str().unwrap().to_string()).collect();
+                        .unwrap().as_sequence().unwrap().iter().map(|x| x.as_str().unwrap().to_owned()).collect();
                     wl_builder = wl_builder.add_deny_rule(operation, filter_masks);
                 }
             }
         }
         if let Some(configs) = dict_workload.get("configs") {
-            for (alias, name) in configs.as_mapping().unwrap() {
+            for (alias, config_name) in configs.as_mapping().unwrap() {
                 wl_builder = wl_builder.add_config(
                     alias.as_str().unwrap(), 
-                    name.as_str().unwrap());
+                    config_name.as_str().unwrap());
             }
         }
 
@@ -222,156 +230,165 @@ impl Workload {
     /// 
     /// ## Returns
     /// 
-    /// A [ank_base::Workload] instance.
+    /// A [`ank_base::Workload`] instance.
+    #[must_use]
+    #[inline]
     pub fn to_proto(&self) -> ank_base::Workload {
         self.workload.clone()
     }
 
-    /// Converts the `Workload` instance to a [serde_yaml::Mapping].
+    /// Converts the `Workload` instance to a [`serde_yaml::Mapping`].
     /// 
     /// ## Returns
     /// 
-    /// A [serde_yaml::Mapping] instance.
+    /// A [`serde_yaml::Mapping`] instance.
+    #[allow(clippy::too_many_lines)]
     pub fn to_dict(&self) -> serde_yaml::Mapping {
         let mut dict = serde_yaml::Mapping::new();
-        if self.workload.agent.is_some() {
+        if let Some(agent) = self.workload.agent.clone() {
             dict.insert(
-                serde_yaml::Value::String("agent".to_string()),
-                serde_yaml::Value::String(self.workload.agent.clone().unwrap()));
+                Value::String("agent".to_owned()),
+                Value::String(agent));
         }
-        if self.workload.runtime.is_some() {
+        if let Some(runtime) = self.workload.runtime.clone() {
             dict.insert(
-                serde_yaml::Value::String("runtime".to_string()),
-                serde_yaml::Value::String(self.workload.runtime.clone().unwrap()));
+                Value::String("runtime".to_owned()),
+                Value::String(runtime));
         }
-        if self.workload.runtime_config.is_some() {
+        if let Some(runtime_config) = self.workload.runtime_config.clone() {
             dict.insert(
-                serde_yaml::Value::String("runtimeConfig".to_string()),
-                serde_yaml::Value::String(self.workload.runtime_config.clone().unwrap()));
+                Value::String("runtimeConfig".to_owned()),
+                Value::String(runtime_config));
         }
-        if self.workload.restart_policy.is_some() {
-            dict.insert(
-                serde_yaml::Value::String("restartPolicy".to_string()),
-                serde_yaml::Value::String(ank_base::RestartPolicy::from_i32(self.workload.restart_policy.unwrap()).unwrap().as_str_name().to_string()));
+        if let Some(restart_policy) = self.workload.restart_policy {
+            if let Some(ank_restart_policy) = ank_base::RestartPolicy::from_i32(restart_policy) {
+                dict.insert(
+                    Value::String("restartPolicy".to_owned()),
+                    Value::String(ank_restart_policy.as_str_name().to_owned()));
+            }
         }
-        if self.workload.dependencies.is_some() {
+        if let Some(dependencies) = self.workload.dependencies.clone() {
             let mut deps = serde_yaml::Mapping::new();
             dict.insert(
-                serde_yaml::Value::String("dependencies".to_string()),
-                serde_yaml::Value::Mapping(serde_yaml::Mapping::new()));
-            for (key, value) in &self.workload.dependencies.clone().unwrap().dependencies {
-                deps.insert(
-                    serde_yaml::Value::String(key.clone()),
-                    serde_yaml::Value::String(ank_base::AddCondition::from_i32(*value).unwrap().as_str_name().to_string()));
+                Value::String("dependencies".to_owned()),
+                Value::Mapping(serde_yaml::Mapping::new()));
+            for (key, value) in &dependencies.dependencies {
+                if let Some(cond) = ank_base::AddCondition::from_i32(*value) {
+                    deps.insert(
+                        Value::String(key.clone()),
+                        Value::String(cond.as_str_name().to_owned())
+                    );
+                }
             }
             dict.insert(
-                serde_yaml::Value::String("dependencies".to_string()),
-                serde_yaml::Value::Mapping(deps));
+                Value::String("dependencies".to_owned()),
+                Value::Mapping(deps));
         }
-        if self.workload.tags.is_some() {
+        if let Some(wl_tags) = self.workload.tags.clone() {
             let mut tags = serde_yaml::Sequence::new();
-            for tag in &self.workload.tags.clone().unwrap().tags {
+            for tag in &wl_tags.tags {
                 let mut tag_dict = serde_yaml::Mapping::new();
                 tag_dict.insert(
-                    serde_yaml::Value::String("key".to_string()),
-                    serde_yaml::Value::String(tag.key.clone()));
+                    Value::String("key".to_owned()),
+                    Value::String(tag.key.clone()));
                 tag_dict.insert(
-                    serde_yaml::Value::String("value".to_string()),
-                    serde_yaml::Value::String(tag.value.clone()));
-                tags.push(serde_yaml::Value::Mapping(tag_dict));
+                    Value::String("value".to_owned()),
+                    Value::String(tag.value.clone()));
+                tags.push(Value::Mapping(tag_dict));
             }
             dict.insert(
-                serde_yaml::Value::String("tags".to_string()),
-                serde_yaml::Value::Sequence(tags));
+                Value::String("tags".to_owned()),
+                Value::Sequence(tags));
         }
-        if self.workload.control_interface_access.is_some() {
+        if let Some(ci_access) = self.workload.control_interface_access.clone() {
             let mut control_interface_access = serde_yaml::Mapping::new();
 
             let mut allow_rules = serde_yaml::Sequence::new();
-            for rule in &self.workload.control_interface_access.clone().unwrap().allow_rules {
+            for rule in &ci_access.allow_rules {
                 let mut rule_dict = serde_yaml::Mapping::new();
                 rule_dict.insert(
-                    serde_yaml::Value::String("type".to_string()),
-                    serde_yaml::Value::String("StateRule".to_string()));
+                    Value::String("type".to_owned()),
+                    Value::String("StateRule".to_owned()));
                 if let ank_base::AccessRightsRule {
                     access_rights_rule_enum: Some(
-                        ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(rule)
+                        ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(inner_rule)
                     ),
                 } = rule {
-                    match self.access_right_rule_to_str(rule) {
-                        Ok(rule) => {
+                    match Self::access_right_rule_to_str(inner_rule) {
+                        Ok(rule_ok) => {
                             rule_dict.insert(
-                                serde_yaml::Value::String("operation".to_string()),
-                                serde_yaml::Value::String(rule.0));
+                                Value::String("operation".to_owned()),
+                                Value::String(rule_ok.0));
                             rule_dict.insert(
-                                serde_yaml::Value::String("filterMask".to_string()),
-                                serde_yaml::Value::Sequence(rule.1.into_iter().map(serde_yaml::Value::String).collect()));
+                                Value::String("filterMask".to_owned()),
+                                Value::Sequence(rule_ok.1.into_iter().map(Value::String).collect()));
                         },
                         Err(_) => continue,
                     };
                 }
-                allow_rules.push(serde_yaml::Value::Mapping(rule_dict));
+                allow_rules.push(Value::Mapping(rule_dict));
             }
             if !allow_rules.is_empty() {
                 control_interface_access.insert(
-                    serde_yaml::Value::String("allowRules".to_string()),
-                    serde_yaml::Value::Sequence(allow_rules));
+                    Value::String("allowRules".to_owned()),
+                    Value::Sequence(allow_rules));
             }
 
             let mut deny_rules = serde_yaml::Sequence::new();
-            for rule in &self.workload.control_interface_access.clone().unwrap().deny_rules {
+            for rule in &ci_access.deny_rules {
                 let mut rule_dict = serde_yaml::Mapping::new();
                 rule_dict.insert(
-                    serde_yaml::Value::String("type".to_string()),
-                    serde_yaml::Value::String("StateRule".to_string()));
+                    Value::String("type".to_owned()),
+                    Value::String("StateRule".to_owned()));
                 if let ank_base::AccessRightsRule {
                     access_rights_rule_enum: Some(
-                        ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(rule)
+                        ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(inner_rule)
                     ),
                 } = rule {
-                    match self.access_right_rule_to_str(rule) {
-                        Ok(rule) => {
+                    match Self::access_right_rule_to_str(inner_rule) {
+                        Ok(rule_ok) => {
                             rule_dict.insert(
-                                serde_yaml::Value::String("operation".to_string()),
-                                serde_yaml::Value::String(rule.0));
+                                Value::String("operation".to_owned()),
+                                Value::String(rule_ok.0));
                             rule_dict.insert(
-                                serde_yaml::Value::String("filterMask".to_string()),
-                                serde_yaml::Value::Sequence(rule.1.into_iter().map(serde_yaml::Value::String).collect()));
+                                Value::String("filterMask".to_owned()),
+                                Value::Sequence(rule_ok.1.into_iter().map(Value::String).collect()));
                         },
                         Err(_) => continue,
                     };
                 }
-                deny_rules.push(serde_yaml::Value::Mapping(rule_dict));
+                deny_rules.push(Value::Mapping(rule_dict));
             }
             if !deny_rules.is_empty() {
                 control_interface_access.insert(
-                    serde_yaml::Value::String("denyRules".to_string()),
-                    serde_yaml::Value::Sequence(deny_rules));
+                    Value::String("denyRules".to_owned()),
+                    Value::Sequence(deny_rules));
             }
 
             dict.insert(
-                serde_yaml::Value::String("controlInterfaceAccess".to_string()),
-                serde_yaml::Value::Mapping(control_interface_access));
+                Value::String("controlInterfaceAccess".to_owned()),
+                Value::Mapping(control_interface_access));
         }
-        if self.workload.configs.is_some() {
+        if let Some(wl_configs) = self.workload.configs.clone() {
             let mut configs = serde_yaml::Mapping::new();
-            for (alias, name) in &self.workload.configs.clone().unwrap().configs {
+            for (alias, name) in &wl_configs.configs {
                 configs.insert(
-                    serde_yaml::Value::String(alias.clone()),
-                    serde_yaml::Value::String(name.clone()));
+                    Value::String(alias.clone()),
+                    Value::String(name.clone()));
             }
             dict.insert(
-                serde_yaml::Value::String("configs".to_string()),
-                serde_yaml::Value::Mapping(configs));
+                Value::String("configs".to_owned()),
+                Value::Mapping(configs));
         }
         dict
     }
 
-    /// Creates a new [WorkloadBuilder] instance.
+    /// Creates a new [`WorkloadBuilder`] instance.
     /// 
     /// ## Returns
     /// 
-    /// A new [WorkloadBuilder] instance.
+    /// A new [`WorkloadBuilder`] instance.
+    #[inline]
     pub fn builder() -> WorkloadBuilder {
         WorkloadBuilder::new()
     }
@@ -380,7 +397,7 @@ impl Workload {
     /// 
     /// ## Arguments
     /// 
-    /// * `new_name` - A [String] that represents the new name of the workload.
+    /// - `new_name` - A [String] that represents the new name of the workload.
     pub fn update_workload_name<T: Into<String>>(&mut self, new_name: T) {
         self.name = new_name.into();
         self.main_mask = format!("desiredState.workloads.{}", self.name);
@@ -391,7 +408,7 @@ impl Workload {
     /// 
     /// ## Arguments
     /// 
-    /// * `agent_name` - A [String] that represents the new [agent name](ank_base::Workload).
+    /// - `agent_name` - A [String] that represents the new [agent name](ank_base::Workload).
     pub fn update_agent_name<T: Into<String>>(&mut self, agent_name: T) {
         self.workload.agent = Some(agent_name.into());
         self.add_mask(format!("{}.agent", self.main_mask));
@@ -401,7 +418,7 @@ impl Workload {
     /// 
     /// ## Arguments
     /// 
-    /// * `runtime` - A [String] that represents the new [runtime](ank_base::Workload).
+    /// - `runtime` - A [String] that represents the new [runtime](ank_base::Workload).
     pub fn update_runtime<T: Into<String>>(&mut self, runtime: T) {
         self.workload.runtime = Some(runtime.into());
         self.add_mask(format!("{}.runtime", self.main_mask));
@@ -411,7 +428,7 @@ impl Workload {
     /// 
     /// ## Arguments
     /// 
-    /// * `runtime_config` - A [String] that represents the new [runtime config](ank_base::Workload).
+    /// - `runtime_config` - A [String] that represents the new [runtime config](ank_base::Workload).
     pub fn update_runtime_config<T: Into<String>>(&mut self, runtime_config: T) {
         self.workload.runtime_config = Some(runtime_config.into());
         self.add_mask(format!("{}.runtimeConfig", self.main_mask));
@@ -421,11 +438,11 @@ impl Workload {
     /// 
     /// ## Arguments
     /// 
-    /// * `file_path` - A [Path] towards the [runtime config](ank_base::Workload) file.
+    /// - `file_path` - A [Path] towards the [runtime config](ank_base::Workload) file.
     /// 
-    /// ## Returns
+    /// ## Errors
     /// 
-    /// An [AnkaiosError]::[IoError](AnkaiosError::IoError) if the file cannot be read.
+    /// An [`AnkaiosError`]::[`IoError`](AnkaiosError::IoError) if the file cannot be read.
     pub fn update_runtime_config_from_file(&mut self, file_path: &Path) -> Result<(), AnkaiosError> {
         let runtime_config = read_file_to_string(file_path)?;
         self.update_runtime_config(runtime_config);
@@ -433,22 +450,22 @@ impl Workload {
     }
 
     /// Updates the restart policy of the workload.
-    /// Allowed values are "NEVER", "ON_FAILURE" and "ALWAYS".
+    /// Allowed values are "`NEVER`", "`ON_FAILURE`" and "`ALWAYS`".
     /// 
     /// ## Arguments
     /// 
-    /// * `restart_policy` - A [String] that represents the new [restart policy](ank_base::Workload).
+    /// - `restart_policy` - A [String] that represents the new [restart policy](ank_base::Workload).
     /// 
-    /// ## Returns
+    /// ## Errors
     /// 
-    /// An [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) if the value is not a valid restart policy.
+    /// An [`AnkaiosError`]::[`WorkloadFieldError`](AnkaiosError::WorkloadFieldError) if the value is not a valid restart policy.
     pub fn update_restart_policy<T: Into<String>>(&mut self, restart_policy: T) -> Result<(), AnkaiosError> {
-        let restart_policy = restart_policy.into();
-        self.workload.restart_policy = match ank_base::RestartPolicy::from_str_name(&restart_policy.clone()) {
+        let restart_policy_str = restart_policy.into();
+        self.workload.restart_policy = match ank_base::RestartPolicy::from_str_name(&restart_policy_str.clone()) {
             Some(policy) => Some(policy as i32),
             _ => return Err(AnkaiosError::WorkloadFieldError(
-                "restartPolicy".to_string(), 
-                restart_policy
+                "restartPolicy".to_owned(), 
+                restart_policy_str
             ))
         };
         self.add_mask(format!("{}.restartPolicy", self.main_mask));
@@ -459,39 +476,44 @@ impl Workload {
     /// 
     /// ## Returns
     /// 
-    /// A [HashMap] containing the [dependencies](ank_base::Workload) of the workload.
+    /// A [`HashMap`] containing the [dependencies](ank_base::Workload) of the workload.
+    #[must_use]
     pub fn get_dependencies(&self) -> HashMap<String, String> {
         let mut dependencies = HashMap::new();
         if let Some(deps) = &self.workload.dependencies {
             for (key, value) in &deps.dependencies {
-                dependencies.insert(key.clone(), ank_base::AddCondition::from_i32(*value).unwrap().as_str_name().to_string());
+                if let Some(add_cond) = ank_base::AddCondition::from_i32(*value) {
+                    dependencies.insert(key.clone(), add_cond.as_str_name().to_owned());
+                }
             }
         }
         dependencies
     }
 
     /// Updates the dependencies of the workload.
-    /// Allowed values for the conditions are "ADD_COND_RUNNING", "ADD_COND_SUCCEEDED" and "ADD_COND_FAILED".
+    /// Allowed values for the conditions are "`ADD_COND_RUNNING`", "`ADD_COND_SUCCEEDED`" and "`ADD_COND_FAILED`".
     /// 
     /// ## Arguments
     /// 
-    /// * `dependencies` - A [HashMap] containing the [dependencies](ank_base::Workload) of the workload.
+    /// - `dependencies` - A [`HashMap`] containing the [dependencies](ank_base::Workload) of the workload.
     /// 
-    /// ## Returns
+    /// ## Errors
     /// 
-    /// An [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) if the values are not valid dependency conditions.
+    /// An [`AnkaiosError`]::[`WorkloadFieldError`](AnkaiosError::WorkloadFieldError) if the values are not valid dependency conditions.
     pub fn update_dependencies<T: Into<String>>(&mut self, dependencies: HashMap<T, T>) -> Result<(), AnkaiosError> {
         self.workload.dependencies = Some(ank_base::Dependencies::default());
         for (workload_name, condition) in dependencies {
             let cond = condition.into();
             let add_condition = match ank_base::AddCondition::from_str_name(&cond.clone()) {
-                Some(cond) => cond as i32,
+                Some(add_cond) => add_cond as i32,
                 _ => return Err(AnkaiosError::WorkloadFieldError(
-                    "dependency condition".to_string(), 
+                    "dependency condition".to_owned(), 
                     cond
                 )),
             };
-            self.workload.dependencies.as_mut().unwrap().dependencies.insert(workload_name.into(), add_condition);
+            if let Some(deps) = self.workload.dependencies.as_mut() {
+                deps.dependencies.insert(workload_name.into(), add_condition);
+            }
         }
         self.add_mask(format!("{}.dependencies", self.main_mask));
         Ok(())
@@ -501,16 +523,19 @@ impl Workload {
     /// 
     /// ## Arguments
     /// 
-    /// * `key` - A [String] containing the [tag](ank_base::Workload) key;
-    /// * `value` - A [String] containing the [tag](ank_base::Workload) value.
+    /// - `key` - A [String] containing the [tag](ank_base::Workload) key;
+    /// - `value` - A [String] containing the [tag](ank_base::Workload) value.
     pub fn add_tag<T: Into<String>>(&mut self, key: T, value: T) {
         if self.workload.tags.is_none() {
             self.workload.tags = Some(ank_base::Tags::default());
         }
-        let key = key.into();
-        self.workload.tags.as_mut().unwrap().tags.push(ank_base::Tag{key: key.clone(), value: value.into()});
+        let key_str = key.into();
+        if let Some(tags) = self.workload.tags.as_mut() {
+            tags.tags.push(ank_base::Tag{key: key_str.clone(), value: value.into()});
+        }
+
         if !self.masks.contains(&format!("{}.tags", self.main_mask)) {
-            self.add_mask(format!("{}.tags.{}", self.main_mask, key));
+            self.add_mask(format!("{}.tags.{}", self.main_mask, key_str));
         }
     }
 
@@ -519,6 +544,7 @@ impl Workload {
     /// ## Returns
     /// 
     /// A [Vec] containing the [tags](ank_base::Workload) of the workload.
+    #[must_use]
     pub fn get_tags(&self) -> Vec<Vec<String>> {
         let mut tags = vec![];
         if let Some(tags_list) = &self.workload.tags {
@@ -533,31 +559,34 @@ impl Workload {
     /// 
     /// ## Arguments
     /// 
-    /// * `tags` - A [Vec] containing the [tags](ank_base::Workload) of the workload.
+    /// - `tags` - A [Vec] containing the [tags](ank_base::Workload) of the workload.
     pub fn update_tags(&mut self, tags: &Vec<Vec<String>>) {
-        self.workload.tags = Some(ank_base::Tags::default());
-        for tag in tags {
-            self.workload.tags.as_mut().unwrap().tags.push(ank_base::Tag{key: tag[0].clone(), value: tag[1].clone()});
-        }
+        self.workload.tags = Some({
+            let mut ank_tags = ank_base::Tags::default();
+            for tag in tags {
+                ank_tags.tags.push(ank_base::Tag{key: tag[0].clone(), value: tag[1].clone()});
+            }
+            ank_tags
+        });
         self.masks.retain(|mask| !mask.starts_with(&format!("{}.tags", self.main_mask)));
         self.add_mask(format!("{}.tags", self.main_mask));
     }
 
-    /// Given an operation and a list of filter masks, generates an [AccessRightsRule](ank_base::AccessRightsRule).
+    /// Given an operation and a list of filter masks, generates an [`AccessRightsRule`](ank_base::AccessRightsRule).
     /// 
     /// ## Arguments
     /// 
-    /// * `operation` - A [String] containing the operation;
-    /// * `filter_masks` - A [Vec] containing the filter masks.
+    /// - `operation` - A [String] containing the operation;
+    /// - `filter_masks` - A [Vec] containing the filter masks.
     ///
     /// ## Returns
     /// 
-    /// An [AccessRightsRule](ank_base::AccessRightsRule) instance.
+    /// An [`AccessRightsRule`](ank_base::AccessRightsRule) instance.
     ///
     /// ## Errors
     /// 
-    /// * [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
-    fn generate_access_right_rule(&self, operation: &str, filter_masks: Vec<String>) -> Result<ank_base::AccessRightsRule, AnkaiosError> {
+    /// - [`AnkaiosError`]::[`WorkloadFieldError`](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
+    fn generate_access_right_rule(operation: &str, filter_masks: Vec<String>) -> Result<ank_base::AccessRightsRule, AnkaiosError> {
         Ok(ank_base::AccessRightsRule {
             access_rights_rule_enum: Some(ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(
                 ank_base::StateRule {
@@ -567,8 +596,8 @@ impl Workload {
                         "Read" => ank_base::ReadWriteEnum::RwRead as i32,
                         "ReadWrite" => ank_base::ReadWriteEnum::RwReadWrite as i32,
                         _ => return Err(AnkaiosError::WorkloadFieldError(
-                            "operation".to_string(), 
-                            operation.to_string(),
+                            "operation".to_owned(), 
+                            operation.to_owned(),
                         )),
                     },
                     filter_masks,
@@ -577,11 +606,11 @@ impl Workload {
         })
     }
 
-    /// Converts an [AccessRightsRule](ank_base::AccessRightsRule) to a tuple of [Strings](String).
+    /// Converts an [`AccessRightsRule`](ank_base::AccessRightsRule) to a tuple of [Strings](String).
     ///     
     /// ## Arguments
     /// 
-    /// * `rule` - An [AccessRightsRule](ank_base::AccessRightsRule) instance.
+    /// - `rule` - An [`AccessRightsRule`](ank_base::AccessRightsRule) instance.
     /// 
     /// ## Returns
     /// 
@@ -589,21 +618,21 @@ impl Workload {
     /// 
     /// ## Errors
     /// 
-    /// * [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
-    fn access_right_rule_to_str(&self, rule: &ank_base::StateRule) -> Result<(String, Vec<String>), AnkaiosError> {
+    /// - [`AnkaiosError`]::[`WorkloadFieldError`](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
+    fn access_right_rule_to_str(rule: &ank_base::StateRule) -> Result<(String, Vec<String>), AnkaiosError> {
         Ok((match ank_base::ReadWriteEnum::from_i32(rule.operation) {
             Some(op) => match op.as_str_name() {
-                "RW_NOTHING" => "Nothing".to_string(),
-                "RW_WRITE" => "Write".to_string(),
-                "RW_READ" => "Read".to_string(),
-                "RW_READ_WRITE" => "ReadWrite".to_string(),
+                "RW_NOTHING" => "Nothing".to_owned(),
+                "RW_WRITE" => "Write".to_owned(),
+                "RW_READ" => "Read".to_owned(),
+                "RW_READ_WRITE" => "ReadWrite".to_owned(),
                 _ => return Err(AnkaiosError::WorkloadFieldError(
-                    "operation".to_string(), 
+                    "operation".to_owned(), 
                     rule.operation.to_string(),
                 ))
             },
             _ => return Err(AnkaiosError::WorkloadFieldError(
-                "operation".to_string(), 
+                "operation".to_owned(), 
                 rule.operation.to_string(),
             )),
         }, rule.filter_masks.clone()))
@@ -617,18 +646,18 @@ impl Workload {
     /// 
     /// ## Errors
     /// 
-    /// * [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
+    /// - [`AnkaiosError`]::[`WorkloadFieldError`](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
     pub fn get_allow_rules(&self) -> Result<Vec<(String, Vec<String>)>, AnkaiosError> {
         let mut rules = vec![];
         if let Some(access) = &self.workload.control_interface_access {
             for rule in &access.allow_rules {
                 if let ank_base::AccessRightsRule {
                     access_rights_rule_enum: Some(
-                        ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(rule)
+                        ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(inner_rule)
                     ),
                 } = rule {
-                    rules.push(match self.access_right_rule_to_str(rule) {
-                        Ok(rule) => rule,
+                    rules.push(match Self::access_right_rule_to_str(inner_rule) {
+                        Ok(rule_ok) => rule_ok,
                         Err(err) => return Err(err),
                     });
                 }
@@ -641,25 +670,29 @@ impl Workload {
     /// 
     /// ## Arguments
     /// 
-    /// * `rules` - A [Vec] containing the allow rules of the workload.
+    /// - `rules` - A [Vec] containing the allow rules of the workload.
     /// 
-    /// ## Returns
+    /// ## Errors
     /// 
-    /// * [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
+    /// - [`AnkaiosError`]::[`WorkloadFieldError`](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
     pub fn update_allow_rules<T: Into<String>>(&mut self, rules: Vec<(T, Vec<T>)>) -> Result<(), AnkaiosError> {
         if self.workload.control_interface_access.is_none() {
             self.workload.control_interface_access = Some(ank_base::ControlInterfaceAccess::default());
         }
-        self.workload.control_interface_access.as_mut().unwrap().allow_rules = vec![];
+        if let Some(access) = &mut self.workload.control_interface_access {
+            access.allow_rules = vec![];
+        }
         for rule in rules {
-            let rule = match self.generate_access_right_rule(
+            let access_rule = match Self::generate_access_right_rule(
                 rule.0.into().as_str(), 
-                rule.1.into_iter().map(|x| x.into()).collect()
+                rule.1.into_iter().map(Into::into).collect()
             ) {
-                Ok(rule) => rule,
+                Ok(access_rule) => access_rule,
                 Err(err) => return Err(err),
             };
-            self.workload.control_interface_access.as_mut().unwrap().allow_rules.push(rule);
+            if let Some(access) = &mut self.workload.control_interface_access {
+                access.allow_rules.push(access_rule);
+            }
         }
         self.add_mask(format!("{}.controlInterfaceAccess.allowRules", self.main_mask));
         Ok(())
@@ -673,16 +706,16 @@ impl Workload {
     /// 
     /// ## Errors
     /// 
-    /// * [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
+    /// - [`AnkaiosError`]::[`WorkloadFieldError`](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
     pub fn get_deny_rules(&self) -> Result<Vec<(String, Vec<String>)>, AnkaiosError> {
         let mut rules = vec![];
         if let Some(access) = &self.workload.control_interface_access {
             for rule in &access.deny_rules {
                 if let ank_base::AccessRightsRule {
-                    access_rights_rule_enum: Some(ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(rule)),
+                    access_rights_rule_enum: Some(ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(inner_rule)),
                 } = rule {
-                    rules.push(match self.access_right_rule_to_str(rule) {
-                        Ok(rule) => rule,
+                    rules.push(match Self::access_right_rule_to_str(inner_rule) {
+                        Ok(rule_ok) => rule_ok,
                         Err(err) => return Err(err),
                     });
                 }
@@ -695,25 +728,29 @@ impl Workload {
     /// 
     /// ## Arguments
     /// 
-    /// * `rules` - A [Vec] containing the deny rules of the workload.
+    /// - `rules` - A [Vec] containing the deny rules of the workload.
     /// 
-    /// ## Returns
+    /// ## Errors
     /// 
-    /// * [AnkaiosError]::[WorkloadFieldError](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
+    /// - [`AnkaiosError`]::[`WorkloadFieldError`](AnkaiosError::WorkloadFieldError) - If the operation is not a valid operation.
     pub fn update_deny_rules<T: Into<String>>(&mut self, rules: Vec<(T, Vec<T>)>) -> Result<(), AnkaiosError> {
         if self.workload.control_interface_access.is_none() {
             self.workload.control_interface_access = Some(ank_base::ControlInterfaceAccess::default());
         }
-        self.workload.control_interface_access.as_mut().unwrap().deny_rules = vec![];
+        if let Some(access) = self.workload.control_interface_access.as_mut() {
+            access.deny_rules = vec![];
+        }
         for rule in rules {
-            let rule = match self.generate_access_right_rule(
+            let access_rule = match Self::generate_access_right_rule(
                 rule.0.into().as_str(), 
-                rule.1.into_iter().map(|x| x.into()).collect()
+                rule.1.into_iter().map(Into::into).collect()
             ){
-                Ok(rule) => rule,
+                Ok(access_rule) => access_rule,
                 Err(err) => return Err(err),
             };
-            self.workload.control_interface_access.as_mut().unwrap().deny_rules.push(rule);
+            if let Some(access) = &mut self.workload.control_interface_access {
+                access.deny_rules.push(access_rule);
+            }
         }
         self.add_mask(format!("{}.controlInterfaceAccess.denyRules", self.main_mask));
         Ok(())
@@ -723,18 +760,18 @@ impl Workload {
     /// 
     /// ## Arguments
     /// 
-    /// * `alias` - A [String] containing the alias of the config;
-    /// * `name` - A [String] containing the name of the config it refers to.
+    /// - `alias` - A [String] containing the alias of the config;
+    /// - `name` - A [String] containing the name of the config it refers to.
     pub fn add_config<T: Into<String>>(&mut self, alias: T, name: T) {
-        if self.workload.configs.is_none() {
-            self.workload.configs = Some(ank_base::ConfigMappings{
-                configs: [
-                    (alias.into(), name.into()),
-                ].into(),
-            });
-        }
-        else {
-            self.workload.configs.as_mut().unwrap().configs.insert(alias.into(), name.into());
+        match self.workload.configs {
+            Some(ref mut configs_map) => {
+                configs_map.configs.insert(alias.into(), name.into());
+            },
+            None => {
+                self.workload.configs = Some(ank_base::ConfigMappings{
+                    configs: [(alias.into(), name.into())].iter().cloned().collect(),
+                });
+            },
         }
         self.add_mask(format!("{}.configs", self.main_mask));
     }
@@ -743,7 +780,8 @@ impl Workload {
     /// 
     /// ## Returns
     /// 
-    /// A [HashMap] containing the configs of the workload.
+    /// A [`HashMap`] containing the configs of the workload.
+    #[must_use]
     pub fn get_configs(&self) -> HashMap<String, String> {
         let mut configs = HashMap::new();
         if let Some(configs_map) = &self.workload.configs {
@@ -758,7 +796,7 @@ impl Workload {
     /// 
     /// ## Arguments
     /// 
-    /// * `configs` - A [HashMap] containing the configs of the workload.
+    /// - `configs` - A [`HashMap`] containing the configs of the workload.
     pub fn update_configs(&mut self, configs: HashMap<String, String>) {
         self.workload.configs = Some(ank_base::ConfigMappings{
             configs: configs.into_iter().collect(),
@@ -769,7 +807,7 @@ impl Workload {
     /// 
     /// ## Arguments
     /// 
-    /// * `mask` - A [String] containing the mask to be added.
+    /// - `mask` - A [String] containing the mask to be added.
     fn add_mask(&mut self, mask: String) {
         if !self.masks.contains(&mask) && !self.masks.contains(&self.main_mask) {
             self.masks.push(mask);
@@ -778,6 +816,7 @@ impl Workload {
 }
 
 impl fmt::Display for Workload {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Workload {}: {:?}", self.name, self.to_proto())
     }
@@ -822,32 +861,32 @@ mod tests {
         // Update dependencies
         let mut deps = workload.get_dependencies();
         if let Some(value) = deps.get_mut("other_workload") {
-            *value = "ADD_COND_SUCCEEDED".to_string();
+            "ADD_COND_SUCCEEDED".clone_into(value);
         }
         workload.update_dependencies(deps).unwrap();
 
         // Update tags
         let mut tags = workload.get_tags();
-        tags.push(vec!["key3".to_string(), "value3".to_string()]);
+        tags.push(vec!["key3".to_owned(), "value3".to_owned()]);
         workload.update_tags(&tags);
 
         // Print the updated workload
-        println!("{}", workload);
+        println!("{workload}");
     }
 
     #[test]
     fn utest_workload() {
-        let wl_test = generate_test_workload("agent_A".to_string(), "Test".to_string(), "podman".to_string());
-        let wl_proto = generate_test_workload_proto("agent_A".to_string(), "podman".to_string());
+        let wl_test = generate_test_workload("agent_A".to_owned(), "Test".to_owned(), "podman".to_owned());
+        let wl_proto = generate_test_workload_proto("agent_A".to_owned(), "podman".to_owned());
         assert_eq!(wl_test.name, "Test");
         assert_eq!(wl_test.main_mask, "desiredState.workloads.Test");
-        assert_eq!(wl_test.masks, vec!["desiredState.workloads.Test".to_string()]);
+        assert_eq!(wl_test.masks, vec!["desiredState.workloads.Test".to_owned()]);
         assert_eq!(wl_test.workload, wl_proto);
     }
 
     #[test]
     fn utest_workload_proto() {
-        let workload_proto = generate_test_workload_proto("agent_A".to_string(), "podman".to_string());
+        let workload_proto = generate_test_workload_proto("agent_A".to_owned(), "podman".to_owned());
         let wl = Workload::new_from_proto("Test", workload_proto.clone());
         let new_proto = wl.to_proto();
         assert_eq!(workload_proto, new_proto);
@@ -857,7 +896,7 @@ mod tests {
     fn utest_workload_dict(){
         let workload = generate_test_workload("agent_A", "nginx", "podman");
         let workload_dict = workload.to_dict();
-        let workload_new = Workload::new_from_dict("nginx", workload_dict);
+        let workload_new = Workload::new_from_dict("nginx", &workload_dict);
         assert!(workload_new.is_ok());
         assert_eq!(workload.to_proto(), workload_new.unwrap().to_proto());
     }
@@ -865,34 +904,34 @@ mod tests {
     #[test]
     fn utest_update_fields() {
         let mut wl = generate_test_workload("Agent_A", "Test", "podman");
-        assert_eq!(wl.masks, vec!["desiredState.workloads.Test".to_string()]);
+        assert_eq!(wl.masks, vec!["desiredState.workloads.Test".to_owned()]);
 
         wl.update_workload_name("TestNew");
         assert_eq!(wl.name, "TestNew");
 
         wl.update_agent_name("agent_B");
-        assert_eq!(wl.workload.agent, Some("agent_B".to_string()));
+        assert_eq!(wl.workload.agent, Some("agent_B".to_owned()));
 
         wl.update_runtime("podman-kube");
-        assert_eq!(wl.workload.runtime, Some("podman-kube".to_string()));
+        assert_eq!(wl.workload.runtime, Some("podman-kube".to_owned()));
 
         wl.update_runtime_config("config_test");
-        assert_eq!(wl.workload.runtime_config, Some("config_test".to_string()));
+        assert_eq!(wl.workload.runtime_config, Some("config_test".to_owned()));
 
         assert!(wl.update_restart_policy("NEVER").is_ok());
         assert_eq!(wl.workload.restart_policy, Some(0));
 
         assert!(wl.update_restart_policy("Dance").is_err());
 
-        let tags = vec![vec!["key_test".to_string(), "val_test".to_string()]];
+        let tags = vec![vec!["key_test".to_owned(), "val_test".to_owned()]];
         wl.update_tags(&tags);
         assert_eq!(wl.get_tags(), tags);
 
-        let allow_rules = vec![("Read".to_string(), vec!["desiredState.workloads.workload_A".to_string()])];
+        let allow_rules = vec![("Read".to_owned(), vec!["desiredState.workloads.workload_A".to_owned()])];
         assert!(wl.update_allow_rules(allow_rules.clone()).is_ok());
         assert_eq!(wl.get_allow_rules().unwrap(), allow_rules);
 
-        let deny_rules = vec![("Write".to_string(), vec!["desiredState.workloads.workload_B".to_string()])];
+        let deny_rules = vec![("Write".to_owned(), vec!["desiredState.workloads.workload_B".to_owned()])];
         assert!(wl.update_deny_rules(deny_rules.clone()).is_ok());
         assert_eq!(wl.get_deny_rules().unwrap(), deny_rules);
     }
@@ -923,7 +962,7 @@ mod tests {
         assert_eq!(tags.len(), 1);
 
         wl.add_tag("key_test_2", "val_test_2");
-        tags.push(vec!["key_test_2".to_string(), "val_test_2".to_string()]);
+        tags.push(vec!["key_test_2".to_owned(), "val_test_2".to_owned()]);
         assert_eq!(wl.get_tags().len(), 2);
         assert_eq!(wl.get_tags(), tags);
 
@@ -938,20 +977,20 @@ mod tests {
         let mut allow_rules = wl.get_allow_rules().unwrap();
         assert_eq!(allow_rules.len(), 1);
 
-        allow_rules.push(("Write".to_string(), vec!["desiredState.workloads.workload_B".to_string()]));
+        allow_rules.push(("Write".to_owned(), vec!["desiredState.workloads.workload_B".to_owned()]));
         assert!(wl.update_allow_rules(allow_rules).is_ok());
         assert_eq!(wl.get_allow_rules().unwrap().len(), 2);
 
-        assert!(wl.update_allow_rules(vec![("Dance".to_string(), vec!["desiredState.workloads.workload_A".to_string()])]).is_err());
+        assert!(wl.update_allow_rules(vec![("Dance".to_owned(), vec!["desiredState.workloads.workload_A".to_owned()])]).is_err());
 
         let mut deny_rules = wl.get_deny_rules().unwrap();
         assert_eq!(deny_rules.len(), 1);
 
-        deny_rules.push(("Read".to_string(), vec!["desiredState.workloads.workload_A".to_string()]));
+        deny_rules.push(("Read".to_owned(), vec!["desiredState.workloads.workload_A".to_owned()]));
         assert!(wl.update_deny_rules(deny_rules).is_ok());
         assert_eq!(wl.get_deny_rules().unwrap().len(), 2);
 
-        assert!(wl.update_deny_rules(vec![("Dance".to_string(), vec!["desiredState.workloads.workload_A".to_string()])]).is_err());
+        assert!(wl.update_deny_rules(vec![("Dance".to_owned(), vec!["desiredState.workloads.workload_A".to_owned()])]).is_err());
     }
 
     #[test]
@@ -970,7 +1009,7 @@ mod tests {
         configs = wl.get_configs();
         assert_eq!(configs.len(), 2);
 
-        configs.insert("alias_test_3".to_string(), "config_test_3".to_string());
+        configs.insert("alias_test_3".to_owned(), "config_test_3".to_owned());
         wl.update_configs(configs.clone());
         assert_eq!(wl.get_configs().len(), 3);
     }
@@ -980,10 +1019,10 @@ mod tests {
             #[test]
             fn $test_name() {
                 let mut obj = Workload {
-                    workload: generate_test_workload_proto("Agent_A".to_string(), "podman".to_string()),
+                    workload: generate_test_workload_proto("Agent_A".to_owned(), "podman".to_owned()),
                     main_mask: format!("desiredState.workloads.Test"),
                     masks: vec![],
-                    name: "Test".to_string(),
+                    name: "Test".to_owned(),
                 };
                 // Call function and assert the mask has been added
                 let _ = obj.$method_name($($args),*);
@@ -1014,11 +1053,11 @@ mod tests {
     generate_test_for_mask_generation!(utest_add_tag, add_tag,
         vec![String::from("desiredState.workloads.Test.tags.key_test")], "key_test", "val_test");
         generate_test_for_mask_generation!(utest_update_tags, update_tags,
-            vec![String::from("desiredState.workloads.Test.tags")], &vec![vec!["key_test".to_string(), "val_test".to_string()]]);
+            vec![String::from("desiredState.workloads.Test.tags")], &vec![vec!["key_test".to_owned(), "val_test".to_owned()]]);
     generate_test_for_mask_generation!(utest_update_allow_rule, update_allow_rules,
-        vec![String::from("desiredState.workloads.Test.controlInterfaceAccess.allowRules")], vec![("Read".to_string(), vec!["desiredState.workloads.workload_A".to_string()])]);
+        vec![String::from("desiredState.workloads.Test.controlInterfaceAccess.allowRules")], vec![("Read".to_owned(), vec!["desiredState.workloads.workload_A".to_owned()])]);
     generate_test_for_mask_generation!(utest_update_deny_rule, update_deny_rules,
-        vec![String::from("desiredState.workloads.Test.controlInterfaceAccess.denyRules")], vec![("Write".to_string(), vec!["desiredState.workloads.workload_B".to_string()])]);
+        vec![String::from("desiredState.workloads.Test.controlInterfaceAccess.denyRules")], vec![("Write".to_owned(), vec!["desiredState.workloads.workload_B".to_owned()])]);
     generate_test_for_mask_generation!(utest_add_config, add_config,
         vec![String::from("desiredState.workloads.Test.configs")], "alias_test", "config_test");
 
@@ -1033,12 +1072,12 @@ mod tests {
             .add_dependency("workload_A", "ADD_COND_SUCCEEDED")
             .add_dependency("workload_C", "ADD_COND_RUNNING")
             .add_tag("key_test", "val_test")
-            .add_allow_rule("Read", vec!["desiredState.workloads.workload_A".to_string()])
-            .add_deny_rule("Write", vec!["desiredState.workloads.workload_B".to_string()])
+            .add_allow_rule("Read", vec!["desiredState.workloads.workload_A".to_owned()])
+            .add_deny_rule("Write", vec!["desiredState.workloads.workload_B".to_owned()])
             .add_config("alias_test", "config_1")
             .build();
         assert!(wl.is_ok());
-        assert_eq!(wl.unwrap().to_proto(), generate_test_workload_proto("agent_A".to_string(), "podman".to_string()));
+        assert_eq!(wl.unwrap().to_proto(), generate_test_workload_proto("agent_A".to_owned(), "podman".to_owned()));
     }
 
     #[test]
@@ -1088,6 +1127,6 @@ mod tests {
             .runtime("podman")
             .runtime_config("config")
             .build().unwrap();
-        assert_eq!(format!("{}", wl), "Workload Test: Workload { agent: Some(\"agent_A\"), restart_policy: None, dependencies: None, tags: None, runtime: Some(\"podman\"), runtime_config: Some(\"config\"), control_interface_access: None, configs: None }");
+        assert_eq!(format!("{wl}"), "Workload Test: Workload { agent: Some(\"agent_A\"), restart_policy: None, dependencies: None, tags: None, runtime: Some(\"podman\"), runtime_config: Some(\"config\"), control_interface_access: None, configs: None }");
     }
 }

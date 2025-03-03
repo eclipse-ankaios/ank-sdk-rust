@@ -66,6 +66,10 @@ mod tests {
     use super::{WorkloadState, WorkloadStateCollection};
     use super::workload_state::generate_test_workload_state;
 
+    #[allow(
+        clippy::no_effect_underscore_binding,
+        clippy::redundant_type_annotations
+    )]
     #[test]
     fn test_doc_examples() {
         // Get all workload states

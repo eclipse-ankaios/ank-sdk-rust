@@ -15,14 +15,17 @@
 //! This module contains the [Manifest] struct.
 
 use std::path::Path;
-use serde_yaml;
+use serde_yaml::Value;
 use crate::AnkaiosError;
 
 // Disable this from coverage
 // https://github.com/rust-lang/rust/issues/84605
 #[cfg(not(test))]
-fn read_file_to_string(path: &Path) -> Result<String, std::io::Error> {
-    std::fs::read_to_string(path)
+use std::{fs, io};
+/// Helper function to read a file to a string.
+#[cfg(not(test))]
+fn read_file_to_string(path: &Path) -> Result<String, io::Error> {
+    fs::read_to_string(path)
 }
 
 #[cfg(test)]
@@ -47,7 +50,7 @@ use self::read_to_string_mock as read_file_to_string;
 /// let manifest = Manifest::from_string("apiVersion: v0.1").unwrap();
 /// ```
 /// 
-/// ## Load a manifest from a [serde_yaml::Value]:
+/// ## Load a manifest from a [`serde_yaml::Value`]:
 /// 
 /// ```rust
 /// let dict = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
@@ -57,6 +60,7 @@ use self::read_to_string_mock as read_file_to_string;
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 #[derive(Debug, Clone)]
 pub struct Manifest{
+    /// The manifest object
     manifest: serde_yaml::Value
 }
 
@@ -65,7 +69,7 @@ impl Manifest {
     /// 
     /// ## Arguments
     /// 
-    /// * `manifest` - A [serde_yaml::Value] object representing the manifest.
+    /// * `manifest` - A [`serde_yaml::Value`] object representing the manifest.
     /// 
     /// ## Returns
     /// 
@@ -73,20 +77,20 @@ impl Manifest {
     /// 
     /// ## Errors
     /// 
-    /// Returns an [AnkaiosError]::[InvalidManifestError](AnkaiosError::InvalidManifestError) if the manifest is not valid.
+    /// Returns an [`AnkaiosError`]::[`InvalidManifestError`](AnkaiosError::InvalidManifestError) if the manifest is not valid.
     pub fn new(manifest: serde_yaml::Value) -> Result<Manifest, AnkaiosError> {
         let obj = Self{manifest};
         if !obj.check() {
-            return Err(AnkaiosError::InvalidManifestError("Manifest is not valid".to_string()));
+            return Err(AnkaiosError::InvalidManifestError("Manifest is not valid".to_owned()));
         }
         Ok(obj)
     }
 
-    /// Create a new `Manifest` object from a [serde_yaml::Value].
+    /// Create a new `Manifest` object from a [`serde_yaml::Value`].
     /// 
     /// ## Arguments
     /// 
-    /// * `manifest` - A [serde_yaml::Value] object representing the manifest.
+    /// * `manifest` - A [`serde_yaml::Value`] object representing the manifest.
     /// 
     /// ## Returns
     /// 
@@ -94,7 +98,7 @@ impl Manifest {
     /// 
     /// ## Errors
     /// 
-    /// Returns an [AnkaiosError]::[InvalidManifestError](AnkaiosError::InvalidManifestError) if the manifest is not valid.
+    /// Returns an [`AnkaiosError`]::[`InvalidManifestError`](AnkaiosError::InvalidManifestError) if the manifest is not valid.
     pub fn from_dict(manifest: serde_yaml::Value) -> Result<Manifest, AnkaiosError> {
         Self::new(manifest)
     }
@@ -111,10 +115,10 @@ impl Manifest {
     /// 
     /// ## Errors
     /// 
-    /// Returns an [AnkaiosError]::[InvalidManifestError](AnkaiosError::InvalidManifestError) if the manifest is not valid.
+    /// Returns an [`AnkaiosError`]::[`InvalidManifestError`](AnkaiosError::InvalidManifestError) if the manifest is not valid.
     pub fn from_string<T: Into<String>>(manifest: T) -> Result<Manifest, AnkaiosError> {
         match serde_yaml::from_str(&manifest.into()) {
-            Ok(manifest) => Self::from_dict(manifest),
+            Ok(man) => Self::from_dict(man),
             Err(e) => Err(AnkaiosError::InvalidManifestError(e.to_string()))
         }
     }
@@ -131,7 +135,7 @@ impl Manifest {
     /// 
     /// ## Errors
     /// 
-    /// Returns an [AnkaiosError]::[InvalidManifestError](AnkaiosError::InvalidManifestError) if the manifest is not valid.
+    /// Returns an [`AnkaiosError`]::[`InvalidManifestError`](AnkaiosError::InvalidManifestError) if the manifest is not valid.
     pub fn from_file(path: &Path) -> Result<Manifest, AnkaiosError> {
         match read_file_to_string(path) {
             Ok(content) => Self::from_string(content),
@@ -144,8 +148,10 @@ impl Manifest {
     /// ## Returns
     /// 
     /// Returns `true` if the manifest is valid, `false` otherwise.
+    #[must_use]
     pub fn check(&self) -> bool {
         if self.manifest.get("apiVersion").is_none() {
+            log::trace!("Manifest not valid: apiVersion not found");
             return false;
         }
         let allowed_fields = [
@@ -155,11 +161,18 @@ impl Manifest {
         let mandatory_fields = ["runtime", "runtimeConfig", "agent"];
         for wl_name in self.manifest["workloads"].as_mapping().unwrap_or(&serde_yaml::Mapping::default()).keys() {
             for field in self.manifest["workloads"][wl_name].as_mapping().unwrap_or(&serde_yaml::Mapping::default()).keys() {
-                if !allowed_fields.contains(&field.as_str().unwrap()) {
-                    return false;
+                if let Value::String(str_field) = field {
+                    if !allowed_fields.contains(&str_field.as_str()) {
+                        log::trace!("Manifest not valid: field {str_field} not allowed");
+                        return false;
+                    }
+                }
+                else {
+                    log::trace!("Manifest not valid: workload field is not a string.");
+                    return false
                 }
             }
-            for field in mandatory_fields.iter() {
+            for field in &mandatory_fields {
                 if self.manifest["workloads"][wl_name].get(field).is_none() {
                     return false;
                 }
@@ -173,23 +186,28 @@ impl Manifest {
     /// ## Returns
     /// 
     /// A [vector](Vec) of [strings](String) representing the masks.
+    #[must_use]
     pub fn calculate_masks(&self) -> Vec<String> {
         let mut masks = vec![];
-        print!("{:?}", self.manifest);
         for wl_name in self.manifest["workloads"].as_mapping().unwrap_or(&serde_yaml::Mapping::default()).keys() {
-            masks.push(format!("desiredState.workloads.{}", wl_name.as_str().unwrap()));
+            if let Some(name) = wl_name.as_str() {
+                masks.push(format!("desiredState.workloads.{name}"));
+            }
         }
         for config_name in self.manifest["configs"].as_mapping().unwrap_or(&serde_yaml::Mapping::default()).keys() {
-            masks.push(format!("desiredState.configs.{}", config_name.as_str().unwrap()));
+            if let Some(name) = config_name.as_str() {
+                masks.push(format!("desiredState.configs.{name}"));
+            }
         }
         masks
     }
 
-    /// Convert the manifest to a [serde_yaml::Value].
+    /// Convert the manifest to a [`serde_yaml::Value`].
     /// 
     /// ## Returns
     /// 
-    /// A [serde_yaml::Value] object representing the manifest.
+    /// A [`serde_yaml::Value`] object representing the manifest.
+    #[must_use]
     pub fn to_dict(&self) -> serde_yaml::Value {
         self.manifest.clone()
     }
@@ -227,9 +245,11 @@ impl TryFrom<&Path> for Manifest {
 //                    ##     #######   #########      ##                    //
 //////////////////////////////////////////////////////////////////////////////
 
+/// Helper function to read a file to a string.
+#[allow(clippy::unnecessary_wraps)]
 #[cfg(test)]
-pub fn read_to_string_mock(_path: &Path) -> Result<String, std::io::Error> {
-    Ok(_path.to_str().unwrap().to_string())
+pub fn read_to_string_mock(path: &Path) -> Result<String, std::io::Error> {
+    Ok(path.to_str().unwrap().to_owned())
 }
 
 #[cfg(test)]
@@ -273,7 +293,7 @@ mod tests {
 
         // Load a manifest from a serde_yaml::Value
         let mut map = serde_yaml::Mapping::new();
-        map.insert(serde_yaml::Value::String("apiVersion".to_string()), serde_yaml::Value::String("v0.1".to_string()));
+        map.insert(serde_yaml::Value::String("apiVersion".to_owned()), serde_yaml::Value::String("v0.1".to_owned()));
         let dict = serde_yaml::Value::Mapping(map);
         let _manifest = Manifest::from_dict(dict).unwrap();
     }
@@ -285,7 +305,7 @@ mod tests {
         assert_eq!(manifest.calculate_masks(), vec!["desiredState.workloads.nginx_test", "desiredState.configs.config1", "desiredState.configs.config2", "desiredState.configs.config3"]);
 
         let _ = Manifest::try_from(Path::new("path"));
-        let _ = Manifest::try_from(MANIFEST_CONTENT.to_string());
+        let _ = Manifest::try_from(MANIFEST_CONTENT.to_owned());
         let _ = Manifest::try_from(serde_yaml::Value::default());
     }
 

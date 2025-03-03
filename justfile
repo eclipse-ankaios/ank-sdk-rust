@@ -18,8 +18,8 @@ clean:
     rm -rf build
 
 # Run clippy code checks
-clippy:
-    cargo clippy --all-targets --no-deps --all-features -- -D warnings
+clippy: # --all-targets
+    cargo clippy --tests --no-deps --all-features -- -Dclippy::all -Dclippy::pedantic
 
 # Run unit tests
 utest:
@@ -43,7 +43,7 @@ doc:
 
 # Open documentation
 doc-open:
-    python3 -m http.server -d target/x86_64-unknown-linux-musl/doc/ 8001
+    python3 -m http.server -d target/x86_64-unknown-linux-musl/doc 8001
 
 # Open code coverage HTML as a server, depending on the method
 # cov-open method="server":

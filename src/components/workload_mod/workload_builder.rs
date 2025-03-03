@@ -19,8 +19,11 @@ use crate::Workload;
 // Disable this from coverage
 // https://github.com/rust-lang/rust/issues/84605
 #[cfg(not(test))]
-fn read_file_to_string(path: &Path) -> Result<String, std::io::Error> {
-    std::fs::read_to_string(path)
+use std::{fs, io};
+/// Helper function to read a file to a string.
+#[cfg(not(test))]
+fn read_file_to_string(path: &Path) -> Result<String, io::Error> {
+    fs::read_to_string(path)
 }
 
 #[cfg(test)]
@@ -30,7 +33,7 @@ use crate::components::workload_mod::test_helpers::read_to_string_mock as read_f
 /// 
 /// # Example
 ///
-/// ## Create a workload using the [WorkloadBuilder]:
+/// ## Create a workload using the [`WorkloadBuilder`]:
 /// 
 /// ```rust
 /// use ankaios_sdk::{Workload, WorkloadBuilder};
@@ -47,6 +50,7 @@ use crate::components::workload_mod::test_helpers::read_to_string_mock as read_f
 ///     .add_tag("key2", "value2")
 ///     .build().unwrap();
 /// ```
+#[must_use] // Added to ensure that the returned Self from the methods is used.
 #[derive(Debug, Default)]
 pub struct WorkloadBuilder {
     /// The name of the workload.
@@ -72,11 +76,12 @@ pub struct WorkloadBuilder {
 }
 
 impl WorkloadBuilder{
-    /// Creates a new [WorkloadBuilder] instance.
+    /// Creates a new [`WorkloadBuilder`] instance.
     /// 
     /// ## Returns
     /// 
-    /// A new [WorkloadBuilder] instance.
+    /// A new [`WorkloadBuilder`] instance.
+    #[inline]
     pub fn new() -> Self {
         Self::default()
     }
@@ -89,7 +94,7 @@ impl WorkloadBuilder{
     /// 
     /// ## Returns
     /// 
-    /// The [WorkloadBuilder] instance.
+    /// The [`WorkloadBuilder`] instance.
     pub fn workload_name<T: Into<String>>(mut self, name: T) -> Self {
         self.wl_name = name.into();
         self
@@ -103,7 +108,7 @@ impl WorkloadBuilder{
     /// 
     /// ## Returns
     /// 
-    /// The [WorkloadBuilder] instance.
+    /// The [`WorkloadBuilder`] instance.
     pub fn agent_name<T: Into<String>>(mut self, name: T) -> Self {
         self.wl_agent_name = name.into();
         self
@@ -117,7 +122,7 @@ impl WorkloadBuilder{
     /// 
     /// ## Returns
     /// 
-    /// The [WorkloadBuilder] instance.
+    /// The [`WorkloadBuilder`] instance.
     pub fn runtime<T: Into<String>>(mut self, runtime: T) -> Self {
         self.wl_runtime = runtime.into();
         self
@@ -131,7 +136,7 @@ impl WorkloadBuilder{
     /// 
     /// ## Returns
     /// 
-    /// The [WorkloadBuilder] instance.
+    /// The [`WorkloadBuilder`] instance.
     pub fn runtime_config<T: Into<String>>(mut self, runtime_config: T) -> Self {
         self.wl_runtime_config = runtime_config.into();
         self
@@ -145,7 +150,11 @@ impl WorkloadBuilder{
     /// 
     /// ## Returns
     /// 
-    /// The [WorkloadBuilder] instance.
+    /// The [`WorkloadBuilder`] instance.
+    /// 
+    /// ## Errors
+    /// 
+    /// Returns an [`AnkaiosError`]::[`IoError`](AnkaiosError::IoError) if the file can not be read.
     pub fn runtime_config_from_file(self, file_path: &Path) -> Result<Self, AnkaiosError> {
         let runtime_config = read_file_to_string(file_path)?;
         Ok(self.runtime_config(runtime_config))
@@ -159,7 +168,7 @@ impl WorkloadBuilder{
     /// 
     /// ## Returns
     /// 
-    /// The [WorkloadBuilder] instance.
+    /// The [`WorkloadBuilder`] instance.
     pub fn restart_policy<T: Into<String>>(mut self, restart_policy: T) -> Self {
         self.wl_restart_policy = Some(restart_policy.into());
         self
@@ -174,7 +183,7 @@ impl WorkloadBuilder{
     /// 
     /// ## Returns
     /// 
-    /// The [WorkloadBuilder] instance.
+    /// The [`WorkloadBuilder`] instance.
     pub fn add_dependency<T: Into<String>>(mut self, workload_name: T, condition: T) -> Self {
         self.dependencies.insert(workload_name.into(), condition.into());
         self
@@ -189,7 +198,7 @@ impl WorkloadBuilder{
     ///
     /// ## Returns
     ///
-    /// The [WorkloadBuilder] instance.
+    /// The [`WorkloadBuilder`] instance.
     pub fn add_tag<T: Into<String>>(mut self, key: T, value: T) -> Self {
         self.tags.push(vec![key.into(), value.into()]);
         self
@@ -204,7 +213,7 @@ impl WorkloadBuilder{
     ///
     /// ## Returns
     ///
-    /// The [WorkloadBuilder] instance.
+    /// The [`WorkloadBuilder`] instance.
     pub fn add_allow_rule<T: Into<String>>(mut self, operation: T, filter_masks: Vec<String>) -> Self {
         self.allow_rules.push((operation.into(), filter_masks));
         self
@@ -219,7 +228,7 @@ impl WorkloadBuilder{
     ///
     /// ## Returns
     ///
-    /// The [WorkloadBuilder] instance.
+    /// The [`WorkloadBuilder`] instance.
     pub fn add_deny_rule<T: Into<String>>(mut self, operation: T, filter_masks: Vec<String>) -> Self {
         self.deny_rules.push((operation.into(), filter_masks));
         self
@@ -234,7 +243,7 @@ impl WorkloadBuilder{
     ///
     /// ## Returns
     ///
-    /// The [WorkloadBuilder] instance.
+    /// The [`WorkloadBuilder`] instance.
     pub fn add_config<T: Into<String>>(mut self, alias: T, name: T) -> Self {
         self.configs.insert(alias.into(), name.into());
         self
@@ -245,7 +254,7 @@ impl WorkloadBuilder{
     /// # Arguments
     ///
     /// * `name` - A [String] that represents the name of the workload;
-    /// * `dict_workload` - An instance of [serde_yaml::Mapping] that represents the workload.
+    /// * `dict_workload` - An instance of [`serde_yaml::Mapping`] that represents the workload.
     ///
     /// # Returns
     ///
@@ -253,7 +262,7 @@ impl WorkloadBuilder{
     ///
     /// # Errors
     ///
-    /// Returns an [AnkaiosError]::[WorkloadBuilderError](AnkaiosError::WorkloadBuilderError) if the builder fails to build the workload.
+    /// Returns an [`AnkaiosError`]::[`WorkloadBuilderError`](AnkaiosError::WorkloadBuilderError) if the builder fails to build the workload.
     pub fn build(self) -> Result<Workload, AnkaiosError> {
         if self.wl_name.is_empty() {
             return Err(AnkaiosError::WorkloadBuilderError("Workload can not be built without a name."));
@@ -326,12 +335,12 @@ mod tests {
             .add_dependency("workload_A", "ADD_COND_SUCCEEDED")
             .add_dependency("workload_C", "ADD_COND_RUNNING")
             .add_tag("key_test", "val_test")
-            .add_allow_rule("Read", vec!["desiredState.workloads.workload_A".to_string()])
-            .add_deny_rule("Write", vec!["desiredState.workloads.workload_B".to_string()])
+            .add_allow_rule("Read", vec!["desiredState.workloads.workload_A".to_owned()])
+            .add_deny_rule("Write", vec!["desiredState.workloads.workload_B".to_owned()])
             .add_config("alias_test", "config_1")
             .build();
         assert!(wl.is_ok());
-        assert_eq!(wl.unwrap().to_proto(), generate_test_workload_proto("agent_A".to_string(), "podman".to_string()));
+        assert_eq!(wl.unwrap().to_proto(), generate_test_workload_proto("agent_A".to_owned(), "podman".to_owned()));
     }
 
     #[test]

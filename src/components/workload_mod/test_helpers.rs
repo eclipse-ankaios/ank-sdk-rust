@@ -18,9 +18,10 @@ use crate::ankaios_api;
 use ankaios_api::ank_base;
 use crate::Workload;
 
+#[allow(clippy::unnecessary_wraps)]
 #[cfg(test)]
-pub fn read_to_string_mock(_path: &Path) -> Result<String, std::io::Error> {
-    Ok(_path.to_str().unwrap().to_string())
+pub fn read_to_string_mock(path: &Path) -> Result<String, std::io::Error> {
+    Ok(path.to_str().unwrap().to_owned())
 }
 
 #[cfg(test)]

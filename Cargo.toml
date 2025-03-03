@@ -1,5 +1,5 @@
 [package]
-name = "ankaios-sdk"
+name = "ankaios_sdk"
 version = "0.5.0-rc1"
 edition = "2021"
 license = "Apache-2.0"

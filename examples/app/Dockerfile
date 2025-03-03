@@ -20,8 +20,6 @@ WORKDIR ${WORKSPACE_DIR}
 ENV ANKAIOS_VERSION=0.5.0
 RUN --mount=type=cache,target=${WORKSPACE_DIR}/target/release cargo build --release \
     && cp ${WORKSPACE_DIR}/target/release/app /usr/local/bin/
-# RUN target=${WORKSPACE_DIR}/target/release cargo build --release \
-#     && cp ${WORKSPACE_DIR}/target/release/app /usr/local/bin/
 
 ENV RUST_BACKTRACE=full
 ENV RUST_LOG=trace

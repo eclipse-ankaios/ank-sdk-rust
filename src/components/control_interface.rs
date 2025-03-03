@@ -12,16 +12,26 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the [ControlInterface] struct and the [ControlInterfaceState] enum.
+//! This module contains the [`ControlInterface`] struct and the [`ControlInterfaceState`] enum.
 
 use std::{
     sync::{Arc, Mutex},
-    path::Path
+    path::Path,
+    fs::metadata,
+    fmt,
 };
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt, BufReader, BufWriter, Error, ErrorKind}, net::unix::pipe, spawn, sync::mpsc, time::{sleep, Duration}
+    io::{AsyncReadExt, AsyncWriteExt, BufReader, BufWriter, Error, ErrorKind},
+    task::JoinHandle,
+    net::unix::pipe,
+    spawn,
+    sync::mpsc,
+    time::{sleep, Duration}
 };
-use prost::Message;
+use prost::{
+    encoding::decode_varint,
+    Message,
+};
 
 use crate::ankaios_api;
 use ankaios_api::control_api::{
@@ -38,7 +48,7 @@ use mockall::automock;
 /// Base path for the control interface FIFO pipes.
 const ANKAIOS_CONTROL_INTERFACE_BASE_PATH: &str = "/run/ankaios/control_interface";
 /// Version of [Ankaios](https://eclipse-ankaios.github.io/ankaios) that is compatible
-/// with the [ControlInterface] implementation.
+/// with the [`ControlInterface`] implementation.
 const ANKAIOS_VERSION: &str = "0.5.0";
 /// Maximum size of a varint in bytes.
 const MAX_VARINT_SIZE: usize = 19;
@@ -68,9 +78,9 @@ pub struct ControlInterface{
     /// Output file for writing to the control interface.
     output_file: Option<pipe::Sender>,
     /// Handler for the read thread.
-    read_thread_handler: Option<tokio::task::JoinHandle<Result<(), AnkaiosError>>>,
+    read_thread_handler: Option<JoinHandle<Result<(), AnkaiosError>>>,
     /// Handler for the write thread.
-    writer_thread_handler: Option<tokio::task::JoinHandle<Result<(), AnkaiosError>>>,
+    writer_thread_handler: Option<JoinHandle<Result<(), AnkaiosError>>>,
     /// State of the control interface.
     state: Arc<Mutex<ControlInterfaceState>>,
     /// Sender for the response channel.
@@ -90,9 +100,9 @@ pub struct ControlInterface{
 /// A result containing the varint data as a byte array or an [Error].
 async fn read_varint_data(file: &mut BufReader<pipe::Receiver>) -> Result<[u8; MAX_VARINT_SIZE], Error> {
     let mut res = [0u8; MAX_VARINT_SIZE];
-    for item in res.iter_mut() {
+    for item in &mut res {
         *item = file.read_u8().await?;
-        if *item & 0b10000000 == 0 {
+        if *item & 0b1000_0000 == 0 {
             break;
         }
     }
@@ -110,24 +120,24 @@ async fn read_varint_data(file: &mut BufReader<pipe::Receiver>) -> Result<[u8; M
 /// A result containing the protobuf data as a byte array or an [Error].
 async fn read_protobuf_data(file: &mut BufReader<pipe::Receiver>) -> Result<Vec<u8>, Error> {
     let varint_data = read_varint_data(file).await?;
-    let mut varint_data = Box::new(&varint_data[..]);
+    let mut boxed_varint_data = Box::new(&varint_data[..]);
 
-    let size = prost::encoding::decode_varint(&mut varint_data)? as usize;
+    let size = usize::try_from(decode_varint(&mut boxed_varint_data)?).unwrap();
 
     let mut buf = vec![0; size];
-    file.read_exact(&mut buf[..]).await?;
+    file.read_exact(&mut buf).await?;
     Ok(buf)
 }
 
-impl std::fmt::Display for ControlInterfaceState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let res_str = match self {
+impl fmt::Display for ControlInterfaceState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let res_str = match *self {
             ControlInterfaceState::Initialized => "Initialized",
             ControlInterfaceState::Terminated => "Terminated",
             ControlInterfaceState::AgentDisconnected => "AgentDisconnected",
             ControlInterfaceState::ConnectionClosed => "ConnectionClosed",
         };
-        write!(f, "{}", res_str)
+        write!(f, "{res_str}")
     }
 }
 
@@ -141,10 +151,10 @@ impl ControlInterface {
     /// 
     /// ## Returns
     /// 
-    /// A new [ControlInterface] instance.
+    /// A new [`ControlInterface`] instance.
     pub fn new(response_sender: mpsc::Sender<Response>) -> Self {
         Self{
-            path: ANKAIOS_CONTROL_INTERFACE_BASE_PATH.to_string(),
+            path: ANKAIOS_CONTROL_INTERFACE_BASE_PATH.to_owned(),
             output_file: None,
             read_thread_handler: None,
             writer_thread_handler: None,
@@ -168,21 +178,21 @@ impl ControlInterface {
     /// 
     /// ## Returns
     /// 
-    /// An [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if the connection fails.
+    /// An [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if the connection fails.
     pub async fn connect(&mut self) -> Result<(), AnkaiosError> {
         if *self.state.lock().unwrap() == ControlInterfaceState::Initialized {
-            return Err(AnkaiosError::ControlInterfaceError("Already connected.".to_string()));
+            return Err(AnkaiosError::ControlInterfaceError("Already connected.".to_owned()));
         }
-        if std::fs::metadata(&(self.path.clone() + "/input")).is_err() {
-            return Err(AnkaiosError::ControlInterfaceError("Control interface input fifo does not exist.".to_string()));
+        if metadata(&(self.path.clone() + "/input")).is_err() {
+            return Err(AnkaiosError::ControlInterfaceError("Control interface input fifo does not exist.".to_owned()));
         }
-        if std::fs::metadata(&(self.path.clone() + "/output")).is_err() {
-            return Err(AnkaiosError::ControlInterfaceError("Control interface output fifo does not exist.".to_string()));
+        if metadata(&(self.path.clone() + "/output")).is_err() {
+            return Err(AnkaiosError::ControlInterfaceError("Control interface output fifo does not exist.".to_owned()));
         }
 
         self.prepare_writer();
         self.read_from_control_interface();
-        ControlInterface::change_state(&self.state, ControlInterfaceState::Initialized).await;
+        ControlInterface::change_state(&self.state, ControlInterfaceState::Initialized);
         ControlInterface::send_initial_hello(self.writer_ch_sender.as_ref().unwrap()).await;
 
         log::trace!("Connected to the control interface.");
@@ -193,10 +203,10 @@ impl ControlInterface {
     /// 
     /// ## Returns
     /// 
-    /// An [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if the disconnection fails.
+    /// An [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if the disconnection fails.
     pub fn disconnect(&mut self) -> Result<(), AnkaiosError> {
         if *self.state.lock().unwrap() != ControlInterfaceState::Initialized {
-            return Err(AnkaiosError::ControlInterfaceError("Already disconnected.".to_string()));
+            return Err(AnkaiosError::ControlInterfaceError("Already disconnected.".to_owned()));
         }
         if let Some(handler) = self.read_thread_handler.take() {
             handler.abort();
@@ -213,7 +223,7 @@ impl ControlInterface {
     /// 
     /// * `state` - A reference to the current state;
     /// * `new_state` - The new state to be set.
-    async fn change_state(state: &Arc<Mutex<ControlInterfaceState>>, new_state: ControlInterfaceState) {
+    fn change_state(state: &Arc<Mutex<ControlInterfaceState>>, new_state: ControlInterfaceState) {
         if *state.lock().unwrap() == new_state {
             return;
         }
@@ -227,7 +237,7 @@ impl ControlInterface {
         let (writer_ch_sender, mut writer_ch_receiver) = mpsc::channel::<ToAnkaios>(5);
         self.writer_ch_sender = Some(writer_ch_sender.clone());
         let output_path = Path::new(&self.path).to_path_buf().join("output");
-        let state_clone = self.state.clone();
+        let state_clone = Arc::<Mutex<ControlInterfaceState>>::clone(&self.state);
         self.writer_thread_handler = Some(spawn(async move {
             const AGENT_RECONNECT_INTERVAL: u64 = 1;
             let mut output_file = BufWriter::new(
@@ -239,10 +249,11 @@ impl ControlInterface {
                     log::error!("Error while writing to output fifo: '{}'", err);
                     // let _ = self.disconnect();
                 });
+                #[allow(clippy::else_if_without_else)]
                 if let Err(err) = output_file.flush().await {
                     if err.kind() == ErrorKind::BrokenPipe {
                         if *state_clone.lock().unwrap() == ControlInterfaceState::Initialized {
-                            ControlInterface::change_state(&state_clone, ControlInterfaceState::AgentDisconnected).await;
+                            ControlInterface::change_state(&state_clone, ControlInterfaceState::AgentDisconnected);
                         }
                         log::warn!("Waiting for the agent..");
                         sleep(Duration::from_secs(AGENT_RECONNECT_INTERVAL)).await;
@@ -252,7 +263,7 @@ impl ControlInterface {
                         // let _ = self.disconnect();
                     }
                 } else if *state_clone.lock().unwrap() == ControlInterfaceState::AgentDisconnected {
-                    ControlInterface::change_state(&state_clone, ControlInterfaceState::Initialized).await;
+                    ControlInterface::change_state(&state_clone, ControlInterfaceState::Initialized);
                 }
             }
             Ok(())
@@ -265,7 +276,7 @@ impl ControlInterface {
         let input_path = Path::new(&self.path).to_path_buf().join("input");
         let response_sender_clone = self.response_sender.clone();
         let writer_ch_sender_clone = self.writer_ch_sender.as_ref().unwrap().clone();
-        let state_clone = self.state.clone();
+        let state_clone = Arc::<Mutex<ControlInterfaceState>>::clone(&self.state);
         self.read_thread_handler = Some(spawn(async move {
             let mut input_file = BufReader::new(
                 pipe::OpenOptions::new().open_receiver(input_path).unwrap()
@@ -276,7 +287,7 @@ impl ControlInterface {
                     Ok(binary) => {
                         if *state_clone.lock().unwrap() == ControlInterfaceState::AgentDisconnected {
                             log::info!("Agent reconnected successfully.");
-                            ControlInterface::change_state(&state_clone, ControlInterfaceState::Initialized).await;
+                            ControlInterface::change_state(&state_clone, ControlInterfaceState::Initialized);
                         }
 
                         match FromAnkaios::decode(&mut Box::new(binary.as_ref())) {
@@ -296,14 +307,14 @@ impl ControlInterface {
                     },
                     Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
                         if *state_clone.lock().unwrap() == ControlInterfaceState::Initialized {
-                            ControlInterface::change_state(&state_clone, ControlInterfaceState::AgentDisconnected).await;
+                            ControlInterface::change_state(&state_clone, ControlInterfaceState::AgentDisconnected);
                             ControlInterface::send_initial_hello(&writer_ch_sender_clone).await;
                         }
                         sleep(Duration::from_millis(500)).await;
                     }
                     Err(err) => {
                         log::error!("Error while reading from input fifo: '{}'", err);
-                        ControlInterface::change_state(&state_clone, ControlInterfaceState::Terminated).await;
+                        ControlInterface::change_state(&state_clone, ControlInterfaceState::Terminated);
                         break;
                     }
                 }
@@ -317,20 +328,24 @@ impl ControlInterface {
     /// 
     /// ## Arguments
     /// 
-    /// * `request` - A [Request] object to be sent.
+    /// * `request` - A [`Request`] object to be sent.
     /// 
     /// ## Returns
     /// 
-    /// An [AnkaiosError]::[ControlInterfaceError](AnkaiosError::ControlInterfaceError) if not connected.
+    /// An [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected.
     pub async fn write_request(&mut self, request: Request) -> Result<(), AnkaiosError> {
         if *self.state.lock().unwrap() != ControlInterfaceState::Initialized {
             log::error!("Could not write to pipe, not connected.");
-            return Err(AnkaiosError::ControlInterfaceError("Could not write to pipe, not connected.".to_string()));
+            return Err(AnkaiosError::ControlInterfaceError("Could not write to pipe, not connected.".to_owned()));
         }
         let message = ToAnkaios {
             to_ankaios_enum: Some(ToAnkaiosEnum::Request(request.to_proto())),
         };
-        self.writer_ch_sender.as_ref().unwrap().send(message).await.unwrap();
+        if let Some(sender) = self.writer_ch_sender.as_ref() {
+            sender.send(message).await.unwrap_or_else(|err| {
+                log::error!("Error while sending request: '{}'", err);
+            });
+        }
         Ok(())
     }
 
@@ -343,10 +358,12 @@ impl ControlInterface {
         log::trace!("Sending initial hello message to the control interface.");
         let hello_msg = ToAnkaios {
             to_ankaios_enum: Some(ToAnkaiosEnum::Hello(Hello {
-                protocol_version: ANKAIOS_VERSION.to_string(),
+                protocol_version: ANKAIOS_VERSION.to_owned(),
             })),
         };
-        writer_ch_sender.send(hello_msg).await.unwrap();
+        writer_ch_sender.send(hello_msg).await.unwrap_or_else(|err| {
+            log::error!("Error while sending initial hello message: '{}'", err);
+        });
     }
 }
 
@@ -366,7 +383,8 @@ mod tests {
     };
     use tokio::{
         sync::{mpsc, Barrier},
-        io::AsyncWriteExt,
+        io::{AsyncWriteExt, BufReader, BufWriter},
+        fs::OpenOptions,
         net::unix::pipe,
         time::{sleep, timeout as tokio_timeout},
         spawn,
@@ -395,7 +413,7 @@ mod tests {
         mkfifo(&fifo, Mode::S_IRWXU).unwrap();
 
         let barrier1 = Arc::new(Barrier::new(2));
-        let barrier2 = barrier1.clone();
+        let barrier2 = Arc::<Barrier>::clone(&barrier1);
         let fifo_clone = fifo.clone();
         let jh = spawn(async move {
             let mut file = tokio::io::BufReader::new(
@@ -440,7 +458,7 @@ mod tests {
 
         // Create control interface
         let mut ci = ControlInterface::new(response_sender);
-        ci.path = tmpdir.path().to_str().unwrap().to_string();
+        tmpdir.path().to_str().unwrap().clone_into(&mut ci.path);
         assert_eq!(ci.state(), ControlInterfaceState::Terminated);
 
         // Try to connect - should fail because the input fifo is not yet created
@@ -461,11 +479,12 @@ mod tests {
         assert_eq!(ci.state(), ControlInterfaceState::Initialized);
 
         // Check that the initial hello was received
+        #[allow(clippy::match_wild_err_arm)]
         match tokio_timeout(Duration::from_secs(1), read_protobuf_data(&mut file_output)).await {
             Ok(Ok(binary)) => {
                 let to_ankaios = ToAnkaios::decode(&mut Box::new(binary.as_ref())).unwrap();
                 assert_eq!(to_ankaios.to_ankaios_enum, Some(ToAnkaiosEnum::Hello(Hello {
-                    protocol_version: ANKAIOS_VERSION.to_string(),
+                    protocol_version: ANKAIOS_VERSION.to_owned(),
                 })));
             },
             Err(_) => panic!("Hello message was not sent"),
@@ -506,7 +525,7 @@ mod tests {
 
         // Create control interface
         let mut ci = ControlInterface::new(response_sender);
-        ci.path = tmpdir.path().to_str().unwrap().to_string();
+        tmpdir.path().to_str().unwrap().clone_into(&mut ci.path);
         assert_eq!(ci.state(), ControlInterfaceState::Terminated);
 
         // Send dummy request - should fail
@@ -521,7 +540,7 @@ mod tests {
 
         // Create sender to the input pipe
         sleep(Duration::from_millis(20)).await; // the receiver should be available first
-        let mut file_input = tokio::io::BufWriter::new(
+        let mut file_input = BufWriter::new(
             pipe::OpenOptions::new().open_sender(&fifo_input).unwrap()
         );
 
@@ -532,6 +551,7 @@ mod tests {
         ci.write_request(req).await.unwrap();
 
         // Check that the request was sent
+        #[allow(clippy::match_wild_err_arm)]
         match tokio_timeout(Duration::from_secs(1), read_protobuf_data(&mut file_output)).await {
             Ok(Ok(binary)) => {
                 let to_ankaios = ToAnkaios::decode(&mut Box::new(binary.as_ref())).unwrap();
@@ -576,14 +596,14 @@ mod tests {
         let barrier = Arc::new(Barrier::new(2));
 
         // Open the output file for reading
-        let file_output = tokio::io::BufReader::new(
+        let file_output = BufReader::new(
             pipe::OpenOptions::new().open_receiver(&fifo_output).unwrap()
         );
 
         // Spawn a writer task for the input file
-        let writer_barrier = barrier.clone();
+        let writer_barrier = Arc::<Barrier>::clone(&barrier);
         tokio::spawn(async move {
-            let writer = tokio::fs::OpenOptions::new()
+            let writer = OpenOptions::new()
                 .write(true)
                 .open(fifo_input)
                 .await
@@ -595,21 +615,21 @@ mod tests {
 
         // Create control interface
         let mut ci = ControlInterface::new(response_sender);
-        ci.path = tmpdir.path().to_str().unwrap().to_string();
+        tmpdir.path().to_str().unwrap().clone_into(&mut ci.path);
         assert_eq!(ci.state(), ControlInterfaceState::Terminated);
 
         // Connect to the control interface
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        sleep(Duration::from_millis(10)).await;
         ci.connect().await.unwrap();
         assert_eq!(ci.state(), ControlInterfaceState::Initialized);
 
         // Wait to ensure the reader gets to open the input pipe
-        tokio::time::sleep(Duration::from_millis(20)).await;
+        sleep(Duration::from_millis(20)).await;
         drop(file_output);
         barrier.wait().await;
 
         // Wait for the state to change
-        tokio::time::sleep(Duration::from_millis(20)).await;
+        sleep(Duration::from_millis(20)).await;
         assert_eq!(ci.state(), ControlInterfaceState::AgentDisconnected);
 
         // // Recreate the output file for reading

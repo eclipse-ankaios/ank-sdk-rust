@@ -52,7 +52,7 @@ enum AddCondition {
 
 /**
 * A message containing a request for the complete/partial state of the Ankaios system.
-* This is usually answered with a [CompleteState](#completestate) message.
+* This is usually answered with a [`CompleteState`](#completestate) message.
 */
 message CompleteStateRequest {
     repeated string fieldMask = 1; /// A list of symbolic field paths within the State message structure e.g. 'desiredState.workloads.nginx'.

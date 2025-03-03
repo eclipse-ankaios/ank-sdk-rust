@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt;
+use std::{str::FromStr, fmt};
 
 use crate::ankaios_api;
 use ankaios_api::ank_base;
@@ -78,7 +78,7 @@ pub enum WorkloadSubStateEnum {
 }
 
 impl WorkloadStateEnum {
-    /// Creates a new `WorkloadStateEnum`` from a [String] value.
+    /// Creates a new `WorkloadStateEnum` from a [String] value.
     /// 
     /// ## Arguments
     /// 
@@ -86,37 +86,39 @@ impl WorkloadStateEnum {
     /// 
     /// ## Returns
     /// 
-    /// A [WorkloadStateEnum] instance.
+    /// A [`WorkloadStateEnum`] instance.
     /// 
-    /// ## Panics
+    /// ## Errors
     /// 
-    /// If the value is not a valid [WorkloadStateEnum].
-    pub fn new_from_str<T: Into<String>>(value: T) -> WorkloadStateEnum {
+    /// If the value is not a valid state.
+    pub fn new_from_str<T: Into<String>>(value: T) -> Result<WorkloadStateEnum, String> {
         match value.into().as_str() {
-            "AgentDisconnected" => WorkloadStateEnum::AgentDisconnected,
-            "Pending" => WorkloadStateEnum::Pending,
-            "Running" => WorkloadStateEnum::Running,
-            "Stopping" => WorkloadStateEnum::Stopping,
-            "Succeeded" => WorkloadStateEnum::Succeeded,
-            "Failed" => WorkloadStateEnum::Failed,
-            "NotScheduled" => WorkloadStateEnum::NotScheduled,
-            "Removed" => WorkloadStateEnum::Removed,
-            _ => panic!("Invalid value for WorkloadStateEnum"),
+            "AgentDisconnected" => Ok(WorkloadStateEnum::AgentDisconnected),
+            "Pending" => Ok(WorkloadStateEnum::Pending),
+            "Running" => Ok(WorkloadStateEnum::Running),
+            "Stopping" => Ok(WorkloadStateEnum::Stopping),
+            "Succeeded" => Ok(WorkloadStateEnum::Succeeded),
+            "Failed" => Ok(WorkloadStateEnum::Failed),
+            "NotScheduled" => Ok(WorkloadStateEnum::NotScheduled),
+            "Removed" =>Ok( WorkloadStateEnum::Removed),
+            _ => Err("Invalid value for WorkloadStateEnum".to_owned()),
         }
     }
 
-    /// Converts the [WorkloadStateEnum] to an [i32].
+    /// Converts the [`WorkloadStateEnum`] to an [i32].
     /// 
     /// ## Returns
     /// 
-    /// An [i32] value representing the [WorkloadStateEnum].
+    /// An [i32] value representing the [`WorkloadStateEnum`].
+    #[must_use]
     pub fn as_i32(&self) -> i32 {
         *self as i32
     }
 }
 
-impl std::fmt::Display for WorkloadStateEnum {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for WorkloadStateEnum {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let state_str = match self {
             WorkloadStateEnum::AgentDisconnected => "AgentDisconnected",
             WorkloadStateEnum::Pending => "Pending",
@@ -127,11 +129,11 @@ impl std::fmt::Display for WorkloadStateEnum {
             WorkloadStateEnum::NotScheduled => "NotScheduled",
             WorkloadStateEnum::Removed => "Removed",
         };
-        write!(f, "{}", state_str)
+        write!(f, "{state_str}")
     }
 }
 
-impl std::str::FromStr for WorkloadStateEnum {
+impl FromStr for WorkloadStateEnum {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -150,61 +152,61 @@ impl std::str::FromStr for WorkloadStateEnum {
 }
 
 impl WorkloadSubStateEnum {
-    /// Creates a new `WorkloadSubStateEnum`` from a [WorkloadStateEnum] and an [i32] value.
+    /// Creates a new `WorkloadSubStateEnum` from a [`WorkloadStateEnum`] and an [i32] value.
     /// 
     /// ## Arguments
     /// 
-    /// * `state` - A [WorkloadStateEnum] that represents the state;
+    /// * `state` - A [`WorkloadStateEnum`] that represents the state;
     /// * `value` - An [i32] value that represents the substate.
     /// 
     /// ## Returns
     /// 
-    /// A [WorkloadSubStateEnum] instance.
+    /// A [`WorkloadSubStateEnum`] instance.
     /// 
     /// ## Errors
     /// 
     /// If the value is not a valid substate for the given state.
-    pub fn new(state: &WorkloadStateEnum, value: i32) -> Result<WorkloadSubStateEnum, String> {
+    pub fn new(state: WorkloadStateEnum, value: i32) -> Result<WorkloadSubStateEnum, String> {
         match state {
             WorkloadStateEnum::AgentDisconnected => match ank_base::AgentDisconnected::from_i32(value) {
                 Some(ank_base::AgentDisconnected::AgentDisconnected) => Ok(WorkloadSubStateEnum::AgentDisconnected),
-                None => Err("Invalid value for state AgentDisconnected".to_string()),
+                None => Err("Invalid value for state AgentDisconnected".to_owned()),
             },
             WorkloadStateEnum::Pending => match ank_base::Pending::from_i32(value) {
                 Some(ank_base::Pending::Initial) => Ok(WorkloadSubStateEnum::PendingInitial),
                 Some(ank_base::Pending::WaitingToStart) => Ok(WorkloadSubStateEnum::PendingWaitingToStart),
                 Some(ank_base::Pending::Starting) => Ok(WorkloadSubStateEnum::PendingStarting),
                 Some(ank_base::Pending::StartingFailed) => Ok(WorkloadSubStateEnum::PendingStartingFailed),
-                None => Err("Invalid value for state Pending".to_string()),
+                None => Err("Invalid value for state Pending".to_owned()),
             },
             WorkloadStateEnum::Running => match ank_base::Running::from_i32(value) {
                 Some(ank_base::Running::Ok) => Ok(WorkloadSubStateEnum::RunningOk),
-                None => Err("Invalid value for state Running".to_string()),
+                None => Err("Invalid value for state Running".to_owned()),
             },
             WorkloadStateEnum::Stopping => match ank_base::Stopping::from_i32(value) {
                 Some(ank_base::Stopping::Stopping) => Ok(WorkloadSubStateEnum::Stopping),
                 Some(ank_base::Stopping::WaitingToStop) => Ok(WorkloadSubStateEnum::StoppingWaitingToStop),
                 Some(ank_base::Stopping::RequestedAtRuntime) => Ok(WorkloadSubStateEnum::StoppingRequestedAtRuntime),
                 Some(ank_base::Stopping::DeleteFailed) => Ok(WorkloadSubStateEnum::StoppingDeleteFailed),
-                None => Err("Invalid value for state Stopping".to_string()),
+                None => Err("Invalid value for state Stopping".to_owned()),
             },
             WorkloadStateEnum::Succeeded => match ank_base::Succeeded::from_i32(value) {
                 Some(ank_base::Succeeded::Ok) => Ok(WorkloadSubStateEnum::SucceededOk),
-                None => Err("Invalid value for state Succeeded".to_string()),
+                None => Err("Invalid value for state Succeeded".to_owned()),
             },
             WorkloadStateEnum::Failed => match ank_base::Failed::from_i32(value) {
                 Some(ank_base::Failed::ExecFailed) => Ok(WorkloadSubStateEnum::FailedExecFailed),
                 Some(ank_base::Failed::Unknown) => Ok(WorkloadSubStateEnum::FailedUnknown),
                 Some(ank_base::Failed::Lost) => Ok(WorkloadSubStateEnum::FailedLost),
-                None => Err("Invalid value for state Failed".to_string()),
+                None => Err("Invalid value for state Failed".to_owned()),
             },
             WorkloadStateEnum::NotScheduled => match ank_base::NotScheduled::from_i32(value) {
                 Some(ank_base::NotScheduled::NotScheduled) => Ok(WorkloadSubStateEnum::NotScheduled),
-                None => Err("Invalid value for state NotScheduled".to_string()),
+                None => Err("Invalid value for state NotScheduled".to_owned()),
             },
             WorkloadStateEnum::Removed => match ank_base::Removed::from_i32(value) {
                 Some(ank_base::Removed::Removed) => Ok(WorkloadSubStateEnum::Removed),
-                None => Err("Invalid value for state Removed".to_string()),
+                None => Err("Invalid value for state Removed".to_owned()),
             },
         }
     }
@@ -213,7 +215,7 @@ impl WorkloadSubStateEnum {
     /// 
     /// ## Returns
     /// 
-    /// An [i32] value representing the [WorkloadSubStateEnum].
+    /// An [i32] value representing the [`WorkloadSubStateEnum`].
     pub fn to_i32(self) -> i32 {
         match self {
             WorkloadSubStateEnum::AgentDisconnected => ank_base::AgentDisconnected::AgentDisconnected as i32,
@@ -256,11 +258,11 @@ impl fmt::Display for WorkloadSubStateEnum {
             WorkloadSubStateEnum::NotScheduled => "NotScheduled",
             WorkloadSubStateEnum::Removed => "Removed",
         };
-        write!(f, "{}", substate_str)
+        write!(f, "{substate_str}")
     }
 }
 
-impl std::str::FromStr for WorkloadSubStateEnum {
+impl FromStr for WorkloadSubStateEnum {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -317,7 +319,7 @@ mod tests {
                 let state = WorkloadStateEnum::$enum_val;
                 assert_eq!(state.as_i32(), $idx);
                 assert_eq!(state.to_string(), stringify!($enum_val));
-                assert_eq!(state, WorkloadStateEnum::new_from_str(stringify!($enum_val)));
+                assert_eq!(state, WorkloadStateEnum::new_from_str(stringify!($enum_val)).unwrap());
                 assert_eq!(state, stringify!($enum_val).parse().unwrap());
             }
         };
@@ -333,16 +335,15 @@ mod tests {
     generate_test_for_workload_state_enum!(utest_workload_state_enum_removed, Removed, 7);
 
     #[test]
-    #[should_panic]
     fn utest_workload_state_str_invalid() {
         assert!(WorkloadStateEnum::from_str(stringify!(Invalid)).is_err());
-        WorkloadStateEnum::new_from_str("Invalid");
+        assert!(WorkloadStateEnum::new_from_str("Invalid").is_err());
     }
 
     #[test]
     fn utest_workload_sub_state_enum_helpers() {
         let substate = WorkloadSubStateEnum::default();
-        assert_eq!(substate.to_i32(), 0);
+        assert_eq!(substate.to_i32(), 0i32);
         assert_eq!(WorkloadSubStateEnum::from_i32(0).unwrap(), substate);
     }
 
@@ -350,7 +351,7 @@ mod tests {
         ($test_name:ident, $enum_val:ident, $state_val:ident, $idx:expr) => {
             #[test]
             fn $test_name() {
-                let substate = WorkloadSubStateEnum::new(&WorkloadStateEnum::$state_val, $idx).unwrap();
+                let substate = WorkloadSubStateEnum::new(WorkloadStateEnum::$state_val, $idx).unwrap();
                 assert_eq!(substate.to_i32(), $idx);
                 assert_eq!(substate.to_string(), stringify!($enum_val));
                 assert_eq!(substate, stringify!($enum_val).parse().unwrap());
@@ -393,14 +394,14 @@ mod tests {
 
     #[test]
     fn utest_workload_substate_enum_err() {
-        assert!(WorkloadSubStateEnum::new(&WorkloadStateEnum::AgentDisconnected, 20).is_err());
-        assert!(WorkloadSubStateEnum::new(&WorkloadStateEnum::Pending, 20).is_err());
-        assert!(WorkloadSubStateEnum::new(&WorkloadStateEnum::Running, 20).is_err());
-        assert!(WorkloadSubStateEnum::new(&WorkloadStateEnum::Stopping, 20).is_err());
-        assert!(WorkloadSubStateEnum::new(&WorkloadStateEnum::Succeeded, 20).is_err());
-        assert!(WorkloadSubStateEnum::new(&WorkloadStateEnum::Failed, 20).is_err());
-        assert!(WorkloadSubStateEnum::new(&WorkloadStateEnum::NotScheduled, 20).is_err());
-        assert!(WorkloadSubStateEnum::new(&WorkloadStateEnum::Removed, 20).is_err());
+        assert!(WorkloadSubStateEnum::new(WorkloadStateEnum::AgentDisconnected, 20).is_err());
+        assert!(WorkloadSubStateEnum::new(WorkloadStateEnum::Pending, 20).is_err());
+        assert!(WorkloadSubStateEnum::new(WorkloadStateEnum::Running, 20).is_err());
+        assert!(WorkloadSubStateEnum::new(WorkloadStateEnum::Stopping, 20).is_err());
+        assert!(WorkloadSubStateEnum::new(WorkloadStateEnum::Succeeded, 20).is_err());
+        assert!(WorkloadSubStateEnum::new(WorkloadStateEnum::Failed, 20).is_err());
+        assert!(WorkloadSubStateEnum::new(WorkloadStateEnum::NotScheduled, 20).is_err());
+        assert!(WorkloadSubStateEnum::new(WorkloadStateEnum::Removed, 20).is_err());
     }
 
     #[test]

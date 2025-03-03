@@ -19,15 +19,15 @@ use tokio::time::Duration;
 
 async fn get_workloads(ank: &mut Ankaios) {
     // Request the state of the system, filtered with the workloadStates
-    let complete_state = ank.get_state(Some(vec!["workloadStates".to_string()]), Some(Duration::from_secs(5))).await.unwrap();
+    let complete_state = ank.get_state(Some(vec!["workloadStates".to_owned()]), Some(Duration::from_secs(5))).await.unwrap();
 
     // Get the workload states present in the complete state
     let workload_states_dict = complete_state.get_workload_states().get_as_dict();
 
     // Print the states of the workloads
-    for (agent_name, workload_states) in workload_states_dict.iter() {
-        for (workload_name, workload_states) in workload_states.as_mapping().unwrap().iter() {
-            for (_workload_id, workload_state) in workload_states.as_mapping().unwrap().iter() {
+    for (agent_name, workload_states) in workload_states_dict {
+        for (workload_name, workload_states) in workload_states.as_mapping().unwrap() {
+            for (_workload_id, workload_state) in workload_states.as_mapping().unwrap() {
                 println!("Workload {} on agent {} has the state {:?}", 
                     workload_name.as_str().unwrap(), agent_name.as_str().unwrap(), workload_state.get("state").unwrap().as_str().unwrap().to_string());
             }
@@ -60,10 +60,10 @@ configs:
 
     match ank.apply_manifest(manifest.clone(), None).await {
         Ok(result) => {
-            println!("Manifest applied successfully: {:?}", result);
+            println!("Manifest applied successfully: {result:?}");
         }
         Err(err) => {
-            println!("Error while applying manifest: {:?}", err);
+            println!("Error while applying manifest: {err:?}");
         }
     }
 
@@ -73,10 +73,10 @@ configs:
 
     match ank.delete_manifest(manifest, None).await {
         Ok(result) => {
-            println!("Manifest deleted successfully: {:?}", result);
+            println!("Manifest deleted successfully: {result:?}");
         }
         Err(err) => {
-            println!("Error while deleting manifest: {:?}", err);
+            println!("Error while deleting manifest: {err:?}");
         }
     }
 

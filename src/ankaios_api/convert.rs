@@ -40,9 +40,9 @@ impl TryFrom<serde_yaml::Value> for ConfigItem {
                 config_item: Some(config_item::ConfigItem::Object(ConfigObject {
                     fields: object
                         .into_iter()
-                        .map(|(key, value)| {
+                        .map(|(key, val)| {
                             if let serde_yaml::Value::String(key) = key {
-                                Ok((key, value.try_into()?))
+                                Ok((key, val.try_into()?))
                             } else {
                                 Err("Key is not a string".into())
                             }
@@ -68,10 +68,10 @@ impl From<ConfigItem> for serde_yaml::Value {
                 serde_yaml::Value::Mapping(
                     fields
                         .into_iter()
-                        .map(|(key, value)| {
+                        .map(|(key, val)| {
                             let key = serde_yaml::Value::String(key);
-                            let value = serde_yaml::Value::from(value);
-                            (key, value)
+                            let val = serde_yaml::Value::from(val);
+                            (key, val)
                         })
                         .collect(),
                 )
@@ -95,7 +95,7 @@ mod tests {
     use crate::ankaios_api;
     use ankaios_api::ank_base::{config_item, ConfigArray, ConfigItem, ConfigObject};
 
-    const YAML_CONFIG_EXAMPLE: &str = r#"
+    const YAML_CONFIG_EXAMPLE: &str = r"
 - string_value
 - key_1: object_value_1
   key_2:
@@ -105,7 +105,7 @@ mod tests {
   - array_value_1
   - array_value_2
   - array_value_3
-"#;
+";
 
     fn config_example() -> ConfigItem {
         array([
@@ -150,7 +150,7 @@ mod tests {
             config_item: Some(config_item::ConfigItem::Object(ConfigObject {
                 fields: object
                     .into_iter()
-                    .map(|(key, value)| (key.to_string(), value))
+                    .map(|(key, value)| (key.to_owned(), value))
                     .collect(),
             })),
         }

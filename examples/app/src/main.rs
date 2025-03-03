@@ -18,7 +18,7 @@ use ankaios_sdk::{Ankaios, AnkaiosError, Workload, WorkloadStateEnum};
 use tokio::time::Duration;
 
 async fn get_workloads(ank: &mut Ankaios) {
-    if let Ok(complete_state) = ank.get_state(Some(vec!["workloadStates".to_string()]), Some(Duration::from_secs(5))).await {
+    if let Ok(complete_state) = ank.get_state(Some(vec!["workloadStates".to_owned()]), Some(Duration::from_secs(5))).await {
         // Get the workload states present in the complete state
         let workload_states_dict = complete_state.get_workload_states().get_as_dict();
 

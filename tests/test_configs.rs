@@ -19,15 +19,15 @@ use tokio::time::Duration;
 
 async fn get_workloads(ank: &mut Ankaios) {
     // Request the state of the system, filtered with the workloadStates
-    let complete_state = ank.get_state(Some(vec!["workloadStates".to_string()]), Some(Duration::from_secs(5))).await.unwrap();
+    let complete_state = ank.get_state(Some(vec!["workloadStates".to_owned()]), Some(Duration::from_secs(5))).await.unwrap();
 
     // Get the workload states present in the complete state
     let workload_states_dict = complete_state.get_workload_states().get_as_dict();
 
     // Print the states of the workloads
-    for (agent_name, workload_states) in workload_states_dict.iter() {
-        for (workload_name, workload_states) in workload_states.as_mapping().unwrap().iter() {
-            for (_workload_id, workload_state) in workload_states.as_mapping().unwrap().iter() {
+    for (agent_name, workload_states) in workload_states_dict {
+        for (workload_name, workload_states) in workload_states.as_mapping().unwrap() {
+            for (_workload_id, workload_state) in workload_states.as_mapping().unwrap() {
                 println!("Workload {} on agent {} has the state {:?}", 
                     workload_name.as_str().unwrap(), agent_name.as_str().unwrap(), workload_state.get("state").unwrap().as_str().unwrap().to_string());
             }
@@ -54,8 +54,8 @@ async fn main() {
     
     // Create configuration
     let mut port_map = serde_yaml::Mapping::new();
-    port_map.insert(serde_yaml::Value::String("port".to_string()), serde_yaml::Value::String("80".to_string()));
-    let mut configs = HashMap::from([("configuration".to_string(), serde_yaml::Value::Mapping(port_map))]);
+    port_map.insert(serde_yaml::Value::String("port".to_owned()), serde_yaml::Value::String("80".to_owned()));
+    let mut configs = HashMap::from([("configuration".to_owned(), serde_yaml::Value::Mapping(port_map))]);
     
     // Send configuration to Ankaios
     ank.update_configs(configs.clone(), None).await.unwrap();
@@ -68,7 +68,7 @@ async fn main() {
     get_workloads(&mut ank).await;
 
     // Modify config
-    configs.get_mut("configuration").unwrap().as_mapping_mut().unwrap().insert(serde_yaml::Value::String("port".to_string()), serde_yaml::Value::String("81".to_string()));
+    configs.get_mut("configuration").unwrap().as_mapping_mut().unwrap().insert(serde_yaml::Value::String("port".to_owned()), serde_yaml::Value::String("81".to_owned()));
 
     // Send updated configuration to Ankaios
     ank.update_configs(configs, None).await.unwrap();
@@ -78,7 +78,7 @@ async fn main() {
     get_workloads(&mut ank).await;
 
     // Delete workload
-    ank.delete_workload("dynamic_nginx".to_string(), None).await.unwrap();
+    ank.delete_workload("dynamic_nginx".to_owned(), None).await.unwrap();
 
     // Get workloads
     sleep(Duration::from_secs(5));

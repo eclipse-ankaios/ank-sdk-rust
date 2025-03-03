@@ -18,6 +18,7 @@
 //! 
 //! [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 
+use std::io;
 use thiserror::Error;
 use tokio::time::error::Elapsed;
 
@@ -31,7 +32,7 @@ use tokio::time::error::Elapsed;
 pub enum AnkaiosError{
     /// Represents an I/O error, wrapping a `std::io::Error`.
     #[error("IO Error: {0}")]
-    IoError(#[from] std::io::Error),
+    IoError(#[from] io::Error),
     /// Represents a timeout error, wrapping a `tokio::time::error::Elapsed`.
     #[error("Timeout error: {0}")]
     TimeoutError(#[from] Elapsed),

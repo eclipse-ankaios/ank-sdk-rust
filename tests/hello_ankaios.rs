@@ -44,33 +44,33 @@ async fn main() {
             println!("State: {:?}, substate: {:?}, info: {:?}", exec_state.state, exec_state.substate, exec_state.additional_info);
         }
         Err(err) => {
-            println!("Error while getting workload state: {:?}", err); // ##########
+            println!("Error while getting workload state: {err:?}"); // ##########
         }
     }
 
     // Wait until the workload reaches the running state
     match ank.wait_for_workload_to_reach_state(workload_instance_name, WorkloadStateEnum::Running, None).await {
-        Ok(_) => {
+        Ok(()) => {
             println!("Workload reached the RUNNING state.");
         }
         Err(err) => match err {
             AnkaiosError::TimeoutError(_) => {
                 println!("Workload didn't reach the required state in time.");
             }
-            _ => println!("Error while waiting for workload to reach state: {:?}", err),
+            _ => println!("Error while waiting for workload to reach state: {err:?}"),
         }
     }
 
     // Request the state of the system, filtered with the workloadStates
-    let complete_state = ank.get_state(Some(vec!["workloadStates".to_string()]), Some(Duration::from_secs(5))).await.unwrap();
+    let complete_state = ank.get_state(Some(vec!["workloadStates".to_owned()]), Some(Duration::from_secs(5))).await.unwrap();
 
     // Get the workload states present in the complete state
     let workload_states_dict = complete_state.get_workload_states().get_as_dict();
 
     // Print the states of the workloads
-    for (agent_name, workload_states) in workload_states_dict.iter() {
-        for (workload_name, workload_states) in workload_states.as_mapping().unwrap().iter() {
-            for (_workload_id, workload_state) in workload_states.as_mapping().unwrap().iter() {
+    for (agent_name, workload_states) in workload_states_dict {
+        for (workload_name, workload_states) in workload_states.as_mapping().unwrap() {
+            for (_workload_id, workload_state) in workload_states.as_mapping().unwrap() {
                 println!("Workload {} on agent {} has the state {:?}", 
                     workload_name.as_str().unwrap(), agent_name.as_str().unwrap(), workload_state.get("state").unwrap().as_str().unwrap().to_string());
             }

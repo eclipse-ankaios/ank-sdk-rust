@@ -116,7 +116,7 @@ async fn main() {
     }
 
     // Request the state of the system, filtered with the workloadStates
-    let complete_state = ank.get_state(Some(vec!["workloadStates".to_string()]), Some(Duration::from_secs(5))).await.unwrap();
+    let complete_state = ank.get_state(Some(vec!["workloadStates".to_owned()]), Some(Duration::from_secs(5))).await.unwrap();
 
     // Get the workload states present in the complete state
     let workload_states_dict = complete_state.get_workload_states().get_as_dict();

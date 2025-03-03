@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the [Workload] and [WorkloadBuilder] structs, which are used to
+//! This module contains the [Workload] and [`WorkloadBuilder`] structs, which are used to
 //! define and build workloads for the [Ankaios] application.
 //! 
 //! [Ankaios]: https://eclipse-ankaios.github.io/ankaios

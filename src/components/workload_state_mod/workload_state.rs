@@ -13,6 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt;
+use serde_yaml::Value;
 use std::collections::HashMap;
 
 use crate::ankaios_api;
@@ -35,10 +36,10 @@ pub struct WorkloadState {
     pub workload_instance_name: WorkloadInstanceName,
 }
 
-/// Helper struct that specializes in managing a collection of [WorkloadStates](WorkloadState).
+/// Helper struct that specializes in managing a collection of [`WorkloadStates`](WorkloadState).
 #[derive(Debug, Default, Clone)]
 pub struct WorkloadStateCollection {
-    /// The collection of [WorkloadStates](WorkloadState).
+    /// The collection of [`WorkloadStates`](WorkloadState).
     workload_states: WorkloadStatesMap,
 }
 
@@ -51,11 +52,11 @@ impl WorkloadState {
     /// * `agent_name` - The name of the agent;
     /// * `workload_name` - The name of the workload;
     /// * `workload_id` - The id of the workload;
-    /// * `state` - The [ExecutionState](ank_base::ExecutionState) to create the [WorkloadState] from.
+    /// * `state` - The [ExecutionState](ank_base::ExecutionState) to create the [`WorkloadState`] from.
     /// 
     /// ## Returns
     /// 
-    /// A new [WorkloadState] instance.
+    /// A new [`WorkloadState`] instance.
     pub(crate) fn new_from_ank_base(agent_name: String, workload_name: String, workload_id: String, state: ank_base::ExecutionState) -> WorkloadState {
         WorkloadState {
             execution_state: WorkloadExecutionState::new(state),
@@ -63,18 +64,18 @@ impl WorkloadState {
         }
     }
 
-    /// Creates a new `WorkloadState` from a [WorkloadExecutionState] instance.
+    /// Creates a new `WorkloadState` from a [`WorkloadExecutionState`] instance.
     /// 
     /// ## Arguments
     /// 
     /// * `agent_name` - The name of the agent;
     /// * `workload_name` - The name of the workload;
     /// * `workload_id` - The id of the workload;
-    /// * `exec_state` - The [WorkloadExecutionState] to create the [WorkloadState] from.
+    /// * `exec_state` - The [`WorkloadExecutionState`] to create the [`WorkloadState`] from.
     /// 
     /// ## Returns
     /// 
-    /// A new [WorkloadState] instance.
+    /// A new [`WorkloadState`] instance.
     pub fn new_from_exec_state(agent_name: String, workload_name: String, workload_id: String, exec_state: WorkloadExecutionState) -> WorkloadState {
         WorkloadState {
             execution_state: exec_state,
@@ -94,7 +95,8 @@ impl WorkloadStateCollection {
     /// 
     /// ## Returns
     /// 
-    /// A new [WorkloadStateCollection] instance.
+    /// A new [`WorkloadStateCollection`] instance.
+    #[must_use]
     pub fn new() -> WorkloadStateCollection {
         WorkloadStateCollection {
             workload_states: HashMap::new(),
@@ -106,16 +108,16 @@ impl WorkloadStateCollection {
     /// 
     /// ## Arguments
     /// 
-    /// * `workload_states_map` - The [WorkloadStatesMap](ank_base::WorkloadStatesMap) to create the [WorkloadStateCollection] from.
+    /// * `workload_states_map` - The [WorkloadStatesMap](ank_base::WorkloadStatesMap) to create the [`WorkloadStateCollection`] from.
     /// 
     /// ## Returns
     /// 
-    /// A new [WorkloadStateCollection] instance.
+    /// A new [`WorkloadStateCollection`] instance.
     pub(crate) fn new_from_proto(workload_states_map: &ank_base::WorkloadStatesMap) -> WorkloadStateCollection {
         let mut workload_states = WorkloadStateCollection::new();
-        for (agent_name, workloads) in workload_states_map.agent_state_map.iter() {
-            for (workload_name, workload_states_for_id) in workloads.wl_name_state_map.iter() {
-                for (workload_id, state) in workload_states_for_id.id_state_map.iter() {
+        for (agent_name, workloads) in &workload_states_map.agent_state_map {
+            for (workload_name, workload_states_for_id) in &workloads.wl_name_state_map {
+                for (workload_id, state) in &workload_states_for_id.id_state_map {
                     let workload_state = WorkloadState::new_from_ank_base(agent_name.clone(), workload_name.clone(), workload_id.clone(), state.clone());
                     workload_states.add_workload_state(workload_state);
                 }
@@ -124,11 +126,11 @@ impl WorkloadStateCollection {
         workload_states
     }
 
-    /// Adds a [WorkloadState] to the collection.
+    /// Adds a [`WorkloadState`] to the collection.
     /// 
     /// ## Arguments
     /// 
-    /// * `workload_state` - The [WorkloadState] to add to the collection.
+    /// * `workload_state` - The [`WorkloadState`] to add to the collection.
     pub fn add_workload_state(&mut self, workload_state: WorkloadState) {
         let agent_name = workload_state.workload_instance_name.agent_name.clone();
         let workload_name = workload_state.workload_instance_name.workload_name.clone();
@@ -138,44 +140,52 @@ impl WorkloadStateCollection {
             self.workload_states.insert(agent_name.clone(), ExecutionsStatesOfWorkload::new());
         }
 
-        if !self.workload_states.get(&agent_name).unwrap().contains_key(&workload_name) {
-            self.workload_states.get_mut(&agent_name).unwrap().insert(workload_name.clone(), ExecutionsStatesForId::new());
+        if let Some(workloads) = self.workload_states.get_mut(&agent_name) {
+            if !workloads.contains_key(&workload_name) {
+                workloads.insert(workload_name.clone(), ExecutionsStatesForId::new());
+            }
         }
 
-        self.workload_states.get_mut(&agent_name).unwrap().get_mut(&workload_name).unwrap().insert(workload_id, workload_state.execution_state);
+        if let Some(agent_map) = self.workload_states.get_mut(&agent_name) {
+            if let Some(workload_map) = agent_map.get_mut(&workload_name) {
+                workload_map.insert(workload_id, workload_state.execution_state);
+            }
+        }
     }
 
     /// Converts the `WorkloadStateCollection` to a [Mapping](serde_yaml::Mapping).
     /// 
     /// ## Returns
     /// 
-    /// A [Mapping](serde_yaml::Mapping) containing the [WorkloadStateCollection] information.
+    /// A [Mapping](serde_yaml::Mapping) containing the [`WorkloadStateCollection`] information.
+    #[must_use]
     pub fn get_as_dict(&self) -> serde_yaml::Mapping {
         let mut map = serde_yaml::Mapping::new();
-        for (agent_name, workload_states) in self.workload_states.iter() {
+        for (agent_name, workload_states) in &self.workload_states {
             let mut agent_map = serde_yaml::Mapping::new();
-            for (workload_name, workload_states_for_id) in workload_states.iter() {
+            for (workload_name, workload_states_for_id) in workload_states {
                 let mut workload_map = serde_yaml::Mapping::new();
-                for (workload_id, workload_state) in workload_states_for_id.iter() {
-                    workload_map.insert(serde_yaml::Value::String(workload_id.clone()), serde_yaml::Value::Mapping(workload_state.to_dict()));
+                for (workload_id, workload_state) in workload_states_for_id {
+                    workload_map.insert(Value::String(workload_id.clone()), Value::Mapping(workload_state.to_dict()));
                 }
-                agent_map.insert(serde_yaml::Value::String(workload_name.clone()), serde_yaml::Value::Mapping(workload_map));
+                agent_map.insert(Value::String(workload_name.clone()), Value::Mapping(workload_map));
             }
-            map.insert(serde_yaml::Value::String(agent_name.clone()), serde_yaml::Value::Mapping(agent_map));
+            map.insert(Value::String(agent_name.clone()), Value::Mapping(agent_map));
         }
         map
     }
 
-    /// Converts the `WorkloadStateCollection` to a [Vec] of [WorkloadState].
+    /// Converts the `WorkloadStateCollection` to a [Vec] of [`WorkloadState`].
     /// 
     /// ## Returns
     /// 
-    /// A [Vec] of [WorkloadStates](WorkloadState) containing the [WorkloadStateCollection] information.
+    /// A [Vec] of [`WorkloadStates`](WorkloadState) containing the [`WorkloadStateCollection`] information.
+    #[must_use]
     pub fn get_as_list(&self) -> Vec<WorkloadState> {
         let mut list = Vec::new();
-        for (agent_name, workload_states_for_agent) in self.workload_states.iter() {
-            for (workload_name, workload_states_for_id) in workload_states_for_agent.iter() {
-                for (workload_id, workload_state) in workload_states_for_id.iter() {
+        for (agent_name, workload_states_for_agent) in &self.workload_states {
+            for (workload_name, workload_states_for_id) in workload_states_for_agent {
+                for (workload_id, workload_state) in workload_states_for_id {
                     let workload_instance_name = WorkloadInstanceName::new(
                         agent_name.clone(),
                         workload_name.clone(),
@@ -191,16 +201,17 @@ impl WorkloadStateCollection {
         list
     }
 
-    /// Returns the [WorkloadState] for a given [WorkloadInstanceName].
+    /// Returns the [`WorkloadState`] for a given [`WorkloadInstanceName`].
     /// 
     /// ## Arguments
     /// 
-    /// * `instance_name` - The [WorkloadInstanceName] to get the [WorkloadState] for.
+    /// * `instance_name` - The [`WorkloadInstanceName`] to get the [`WorkloadState`] for.
     /// 
     /// ## Returns
     /// 
-    /// The [WorkloadState] for the given [WorkloadInstanceName].
-    /// If the [WorkloadState] is not found, `None` is returned.
+    /// The [`WorkloadState`] for the given [`WorkloadInstanceName`].
+    /// If the [`WorkloadState`] is not found, `None` is returned.
+    #[must_use]
     pub fn get_for_instance_name(&self, instance_name: &WorkloadInstanceName) -> Option<&WorkloadExecutionState> {
         self.workload_states.get(&instance_name.agent_name)
             .and_then(|workloads| workloads.get(&instance_name.workload_name))
@@ -227,33 +238,33 @@ impl TryFrom<ank_base::WorkloadStatesMap> for WorkloadStateCollection {
 #[cfg(test)]
 pub fn generate_test_workload_states_proto() -> ank_base::WorkloadStatesMap {
     ank_base::WorkloadStatesMap { agent_state_map: HashMap::from([
-        ("agent_A".to_string(), ank_base::ExecutionsStatesOfWorkload{
+        ("agent_A".to_owned(), ank_base::ExecutionsStatesOfWorkload{
             wl_name_state_map: HashMap::from([
-                ("nginx".to_string(), ank_base::ExecutionsStatesForId{
+                ("nginx".to_owned(), ank_base::ExecutionsStatesForId{
                     id_state_map: HashMap::from([
-                        ("1234".to_string(), ank_base::ExecutionState{
+                        ("1234".to_owned(), ank_base::ExecutionState{
                             execution_state_enum: Some(ank_base::execution_state::ExecutionStateEnum::Succeeded(ank_base::Succeeded::Ok as i32)),
-                            additional_info: "Random info".to_string(),
+                            additional_info: "Random info".to_owned(),
                         }),
                     ])
                 }),
             ])
         },),
-        ("agent_B".to_string(), ank_base::ExecutionsStatesOfWorkload{
+        ("agent_B".to_owned(), ank_base::ExecutionsStatesOfWorkload{
             wl_name_state_map: HashMap::from([
-                ("nginx".to_string(), ank_base::ExecutionsStatesForId{
+                ("nginx".to_owned(), ank_base::ExecutionsStatesForId{
                     id_state_map: HashMap::from([
-                        ("5678".to_string(), ank_base::ExecutionState{
+                        ("5678".to_owned(), ank_base::ExecutionState{
                             execution_state_enum: Some(ank_base::execution_state::ExecutionStateEnum::Pending(ank_base::Pending::WaitingToStart as i32)),
-                            additional_info: "Random info".to_string(),
+                            additional_info: "Random info".to_owned(),
                         }),
                     ])
                 }),
-                ("dyn_nginx".to_string(), ank_base::ExecutionsStatesForId{
+                ("dyn_nginx".to_owned(), ank_base::ExecutionsStatesForId{
                     id_state_map: HashMap::from([
-                        ("9012".to_string(), ank_base::ExecutionState{
+                        ("9012".to_owned(), ank_base::ExecutionState{
                             execution_state_enum: Some(ank_base::execution_state::ExecutionStateEnum::Stopping(ank_base::Stopping::WaitingToStop as i32)),
-                            additional_info: "Random info".to_string(),
+                            additional_info: "Random info".to_owned(),
                         }),
                     ])
                 }),
@@ -265,13 +276,13 @@ pub fn generate_test_workload_states_proto() -> ank_base::WorkloadStatesMap {
 #[cfg(test)]
 pub fn generate_test_workload_state() -> WorkloadState {
     WorkloadState::new_from_exec_state(
-        "agent_name".to_string(),
-        "workload_name".to_string(),
-        "1234".to_string(),
+        "agent_name".to_owned(),
+        "workload_name".to_owned(),
+        "1234".to_owned(),
         WorkloadExecutionState::new(
             ank_base::ExecutionState {
                 execution_state_enum: Some(ank_base::execution_state::ExecutionStateEnum::Pending(ank_base::Pending::WaitingToStart as i32)),
-                additional_info: "additional_info".to_string(),
+                additional_info: "additional_info".to_owned(),
             }
         )
     )
@@ -286,12 +297,12 @@ mod tests {
 
     #[test]
     fn utest_workload_state() {
-        let agent_name = "agent_name".to_string();
-        let workload_name = "workload_name".to_string();
-        let workload_id = "workload_id".to_string();
+        let agent_name = "agent_name".to_owned();
+        let workload_name = "workload_name".to_owned();
+        let workload_id = "workload_id".to_owned();
         let state = ank_base::ExecutionState {
             execution_state_enum: Some(ank_base::execution_state::ExecutionStateEnum::Pending(ank_base::Pending::WaitingToStart as i32)),
-            additional_info: "additional_info".to_string(),
+            additional_info: "additional_info".to_owned(),
         };
         let exec_state = WorkloadExecutionState::new(state.clone());
 
@@ -323,10 +334,10 @@ mod tests {
 
         let state_dict = state_collection.get_as_dict();
         assert_eq!(state_dict.len(), 2);
-        assert_eq!(state_dict.get("agent_A".to_string()).unwrap().as_mapping().unwrap().len(), 1);
-        assert_eq!(state_dict.get("agent_B".to_string()).unwrap().as_mapping().unwrap().len(), 2);
+        assert_eq!(state_dict.get("agent_A".to_owned()).unwrap().as_mapping().unwrap().len(), 1);
+        assert_eq!(state_dict.get("agent_B".to_owned()).unwrap().as_mapping().unwrap().len(), 2);
 
-        let workload_instance_name = WorkloadInstanceName::new("agent_B".to_string(), "nginx".to_string(), "5678".to_string());
+        let workload_instance_name = WorkloadInstanceName::new("agent_B".to_owned(), "nginx".to_owned(), "5678".to_owned());
         let workload_state = state_collection.get_for_instance_name(&workload_instance_name).unwrap();
         assert_eq!(workload_state.state, WorkloadStateEnum::Pending);
         assert_eq!(workload_state.substate, WorkloadSubStateEnum::PendingWaitingToStart);

@@ -13,6 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt;
+use serde_yaml::Value;
 
 /// Helper struct that contains information about a Workload instance.
 /// 
@@ -22,15 +23,18 @@ use std::fmt;
 /// 
 /// ```rust
 /// let workload_instance_name = WorkloadInstanceName::new(
-///     "agent_Test".to_string(),
-///     "workload_Test".to_string(),
-///     "1234".to_string()
+///     "agent_Test".to_owned(),
+///     "workload_Test".to_owned(),
+///     "1234".to_owned()
 /// );
 /// ```
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct WorkloadInstanceName{
+    /// The name of the agent.
     pub agent_name: String,
+    /// The name of the workload.
     pub workload_name: String,
+    /// The id of the workload.
     pub workload_id: String,
 }
 
@@ -45,7 +49,7 @@ impl WorkloadInstanceName {
     /// 
     /// ## Returns
     /// 
-    /// A new [WorkloadInstanceName] object.
+    /// A new [`WorkloadInstanceName`] object.
     pub fn new(agent_name: String, workload_name: String, workload_id: String) -> WorkloadInstanceName {
         WorkloadInstanceName {
             agent_name,
@@ -61,9 +65,9 @@ impl WorkloadInstanceName {
     /// A [Mapping](serde_yaml::Mapping) containing the `WorkloadInstanceName` information.
     pub fn to_dict(&self) -> serde_yaml::Mapping {
         let mut map = serde_yaml::Mapping::new();
-        map.insert(serde_yaml::Value::String("agent_name".to_string()), serde_yaml::Value::String(self.agent_name.clone()));
-        map.insert(serde_yaml::Value::String("workload_name".to_string()), serde_yaml::Value::String(self.workload_name.clone()));
-        map.insert(serde_yaml::Value::String("workload_id".to_string()), serde_yaml::Value::String(self.workload_id.clone()));
+        map.insert(Value::String("agent_name".to_owned()), Value::String(self.agent_name.clone()));
+        map.insert(Value::String("workload_name".to_owned()), Value::String(self.workload_name.clone()));
+        map.insert(Value::String("workload_id".to_owned()), Value::String(self.workload_id.clone()));
         map
     }
 
@@ -93,12 +97,13 @@ impl fmt::Display for WorkloadInstanceName {
 
 #[cfg(test)]
 mod tests {
+    use serde_yaml::Value;
     use super::WorkloadInstanceName;
 
     #[test]
     fn utest_instance_name() {
         let instance_name = WorkloadInstanceName::new(
-            "agent_Test".to_string(), "workload_Test".to_string(), "1234".to_string()
+            "agent_Test".to_owned(), "workload_Test".to_owned(), "1234".to_owned()
         );
         assert_eq!(instance_name.agent_name, "agent_Test");
         assert_eq!(instance_name.workload_name, "workload_Test");
@@ -107,16 +112,16 @@ mod tests {
         assert_eq!(instance_name.to_string(), "workload_Test.1234.agent_Test");
         assert_eq!(instance_name.get_filter_mask(), "workloadStates.agent_Test.workload_Test.1234");
         assert_eq!(instance_name.to_dict(), serde_yaml::Mapping::from_iter([
-            (serde_yaml::Value::String("agent_name".to_string()), serde_yaml::Value::String("agent_Test".to_string())),
-            (serde_yaml::Value::String("workload_name".to_string()), serde_yaml::Value::String("workload_Test".to_string())),
-            (serde_yaml::Value::String("workload_id".to_string()), serde_yaml::Value::String("1234".to_string())),
+            (Value::String("agent_name".to_owned()), Value::String("agent_Test".to_owned())),
+            (Value::String("workload_name".to_owned()), Value::String("workload_Test".to_owned())),
+            (Value::String("workload_id".to_owned()), Value::String("1234".to_owned())),
         ]));
 
         let mut another_instance_name = WorkloadInstanceName::new(
-            "agent_Test".to_string(), "workload_Test".to_string(), "1234".to_string()
+            "agent_Test".to_owned(), "workload_Test".to_owned(), "1234".to_owned()
         );
         assert_eq!(instance_name, another_instance_name);
-        another_instance_name.agent_name = "agent_Test2".to_string();
+        "agent_Test2".clone_into(&mut another_instance_name.agent_name);
         assert_ne!(instance_name, another_instance_name);
     }
 }

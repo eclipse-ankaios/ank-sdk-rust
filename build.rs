@@ -12,20 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use std::process::Command;
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Prepare docs files
-    let prepare_docs_path = "tools/prepare_docs.sh";
-    let status = Command::new("sh")
-        .arg(prepare_docs_path)
-        .status()
-        .expect("Failed to execute shell script");
-
-    if !status.success() {
-        eprintln!("Shell script failed with status: {}", status);
-    }
-
+fn main() {
     // Prepare proto files
     tonic_build::configure()
         .build_server(true)
@@ -66,5 +53,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .field_attribute("ControlInterfaceAccess.denyRules", "#[serde(default)]")
         .compile(&["proto/control_api.proto"], &["proto"])
         .unwrap();
-    Ok(())
 }

@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the [Request] struct and the [RequestType] enum.
+//! This module contains the [`Request`] struct and the [`RequestType`] enum.
 //! 
 //! # Examples
 //! 
@@ -39,7 +39,7 @@
 //! ## Add a mask to the request:
 //!
 //! ```rust
-//! request.add_mask("desiredState.workloads".to_string());
+//! request.add_mask("desiredState.workloads".to_owned());
 //! ```
 
 use std::fmt;
@@ -66,20 +66,23 @@ pub enum RequestType {
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 pub struct Request{
     /// The request proto message that will be sent to the cluster.
+    #[allow(clippy::struct_field_names)]
     request: AnkaiosRequest,
     /// The unique identifier of the request.
+    #[allow(clippy::struct_field_names)]
     request_id: String,
     /// The type of request.
+    #[allow(clippy::struct_field_names)]
     request_type: RequestType,
 }
 
-impl std::fmt::Display for RequestType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let req_str = match self {
+impl fmt::Display for RequestType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let req_str = match *self {
             RequestType::UpdateState => "UpdateState",
             RequestType::GetState => "GetState",
         };
-        write!(f, "{}", req_str)
+        write!(f, "{req_str}")
     }
 }
 
@@ -92,7 +95,7 @@ impl Request {
     /// 
     /// ## Returns
     /// 
-    /// A new [Request] object.
+    /// A new [`Request`] object.
     pub fn new(request_type: RequestType) -> Self {
         let request_id = Uuid::new_v4().to_string();
         log::debug!("Creating new request of type {} with id {}", request_type, request_id);
@@ -104,7 +107,7 @@ impl Request {
                         request_content: Some(RequestContent::UpdateStateRequest(
                             Box::new(UpdateStateRequest{
                                 new_state: None,
-                                update_mask: Default::default(),
+                                update_mask: Vec::default(),
                             })
                         )),
                     },
@@ -127,11 +130,11 @@ impl Request {
         }
     }
 
-    /// Returns the underlying [AnkaiosRequest] proto message.
+    /// Returns the underlying [`AnkaiosRequest`] proto message.
     /// 
     /// ## Returns
     /// 
-    /// The [AnkaiosRequest] proto message.
+    /// The [`AnkaiosRequest`] proto message.
     pub fn to_proto(&self) -> AnkaiosRequest {
         self.request.clone()
     }
@@ -153,11 +156,11 @@ impl Request {
     /// 
     /// ## Returns
     /// 
-    /// An [AnkaiosError]::[RequestError](AnkaiosError::RequestError) if the
-    /// request type is not [RequestType::UpdateState].
-    pub fn set_complete_state(&mut self, complete_state: CompleteState) -> Result<(), AnkaiosError> {
+    /// An [`AnkaiosError`]::[`RequestError`](AnkaiosError::RequestError) if the
+    /// request type is not [`RequestType::UpdateState`].
+    pub fn set_complete_state(&mut self, complete_state: &CompleteState) -> Result<(), AnkaiosError> {
         if self.request_type != RequestType::UpdateState {
-            return Err(AnkaiosError::RequestError("Complete state can only be set for an update state request.".to_string()));
+            return Err(AnkaiosError::RequestError("Complete state can only be set for an update state request.".to_owned()));
         }
 
         if let Some(RequestContent::UpdateStateRequest(ref mut update_state_request)) = self.request.request_content {
@@ -224,7 +227,7 @@ impl fmt::Display for Request {
 #[cfg(test)]
 pub fn generate_test_request() -> Request {
     let mut req = Request::new(RequestType::UpdateState);
-    req.add_mask("test_mask".to_string());
+    req.add_mask("test_mask".to_owned());
     req
 }
 
@@ -235,12 +238,13 @@ mod tests {
 
     use super::{RequestType, Request, CompleteState};
 
+    #[allow(clippy::shadow_unrelated)]
     #[test]
     fn test_doc_examples() {
         // Create a `Request` for updating the state
         let complete_state = CompleteState::new();
         let mut request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(complete_state).unwrap();
+        request.set_complete_state(&complete_state).unwrap();
 
         // Create a `Request` for getting the state
         let mut request = Request::new(RequestType::GetState);
@@ -249,31 +253,31 @@ mod tests {
         let _request_id = request.get_id();
 
         // Add a mask to the request
-        request.add_mask("desiredState.workloads".to_string());
+        request.add_mask("desiredState.workloads".to_owned());
     }
 
     #[test]
     fn utest_request_type() {
         let mut request_type = RequestType::UpdateState;
-        assert_eq!(format!("{}", request_type), "UpdateState");
+        assert_eq!(format!("{request_type}"), "UpdateState");
         request_type = RequestType::GetState;
-        assert_eq!(format!("{}", request_type), "GetState");
+        assert_eq!(format!("{request_type}"), "GetState");
     }
 
     #[test]
     fn utest_request_update_state() {
         let mut request = Request::new(RequestType::UpdateState);
         let id = request.get_id();
-        assert!(request.set_complete_state(Default::default()).is_ok());
+        assert!(request.set_complete_state(&CompleteState::default()).is_ok());
 
-        request.set_masks(vec!["mask1".to_string()]);
-        request.add_mask("mask2".to_string());
+        request.set_masks(vec!["mask1".to_owned()]);
+        request.add_mask("mask2".to_owned());
         assert_eq!(request.to_proto(), AnkaiosRequest{
             request_id: id,
             request_content: Some(ankaios_api::ank_base::request::RequestContent::UpdateStateRequest(
                 Box::new(ankaios_api::ank_base::UpdateStateRequest{
                     new_state: Some(CompleteState::default().to_proto()),
-                    update_mask: vec!["mask1".to_string(), "mask2".to_string()],
+                    update_mask: vec!["mask1".to_owned(), "mask2".to_owned()],
                 })
             ))
         });
@@ -283,19 +287,19 @@ mod tests {
     fn utest_request_get_state() {
         let mut request = Request::new(RequestType::GetState);
         let id = request.get_id();
-        assert!(request.set_complete_state(Default::default()).is_err());
+        assert!(request.set_complete_state(&CompleteState::default()).is_err());
 
-        request.set_masks(vec!["mask1".to_string()]);
-        request.add_mask("mask2".to_string());
+        request.set_masks(vec!["mask1".to_owned()]);
+        request.add_mask("mask2".to_owned());
         assert_eq!(request.to_proto(), AnkaiosRequest{
             request_id: id,
             request_content: Some(ankaios_api::ank_base::request::RequestContent::CompleteStateRequest(
                 ankaios_api::ank_base::CompleteStateRequest{
-                    field_mask: vec!["mask1".to_string(), "mask2".to_string()],
+                    field_mask: vec!["mask1".to_owned(), "mask2".to_owned()],
                 }
             ))
         });
 
-        assert_eq!(format!("{}", request), format!("{:?}", request.to_proto()));
+        assert_eq!(format!("{request}"), format!("{:?}", request.to_proto()));
     }
 }
