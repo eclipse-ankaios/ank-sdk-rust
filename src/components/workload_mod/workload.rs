@@ -751,6 +751,7 @@ impl Workload {
     /// - `alias` - A [String] containing the alias of the config;
     /// - `name` - A [String] containing the name of the config it refers to.
     pub fn add_config<T: Into<String>>(&mut self, alias: T, name: T) {
+        #[allow(non_snake_case)] // False positive: None is an optional, not a variable, so it's ok to not be snake_case.
         match self.workload.configs {
             Some(ref mut configs_map) => {
                 configs_map.configs.insert(alias.into(), name.into());
