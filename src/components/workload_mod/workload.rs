@@ -656,10 +656,7 @@ impl Workload {
                         ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(inner_rule)
                     ),
                 } = rule {
-                    rules.push(match Self::access_right_rule_to_str(inner_rule) {
-                        Ok(rule_ok) => rule_ok,
-                        Err(err) => return Err(err),
-                    });
+                    rules.push(Self::access_right_rule_to_str(inner_rule)?);
                 }
             }
         }
@@ -683,13 +680,10 @@ impl Workload {
             access.allow_rules = vec![];
         }
         for rule in rules {
-            let access_rule = match Self::generate_access_right_rule(
+            let access_rule = Self::generate_access_right_rule(
                 rule.0.into().as_str(), 
                 rule.1.into_iter().map(Into::into).collect()
-            ) {
-                Ok(access_rule) => access_rule,
-                Err(err) => return Err(err),
-            };
+            )?;
             if let Some(access) = &mut self.workload.control_interface_access {
                 access.allow_rules.push(access_rule);
             }
@@ -714,10 +708,7 @@ impl Workload {
                 if let ank_base::AccessRightsRule {
                     access_rights_rule_enum: Some(ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(inner_rule)),
                 } = rule {
-                    rules.push(match Self::access_right_rule_to_str(inner_rule) {
-                        Ok(rule_ok) => rule_ok,
-                        Err(err) => return Err(err),
-                    });
+                    rules.push(Self::access_right_rule_to_str(inner_rule)?);
                 }
             }
         }
@@ -741,13 +732,10 @@ impl Workload {
             access.deny_rules = vec![];
         }
         for rule in rules {
-            let access_rule = match Self::generate_access_right_rule(
+            let access_rule = Self::generate_access_right_rule(
                 rule.0.into().as_str(), 
                 rule.1.into_iter().map(Into::into).collect()
-            ){
-                Ok(access_rule) => access_rule,
-                Err(err) => return Err(err),
-            };
+            )?;
             if let Some(access) = &mut self.workload.control_interface_access {
                 access.deny_rules.push(access_rule);
             }
