@@ -159,6 +159,7 @@ impl CompleteState {
     /// A new [`CompleteState`] instance.
     pub(crate) fn new_from_proto(proto: &ank_base::CompleteState) -> Self {
         fn from_config_item(config_item: &ank_base::ConfigItem) -> Value {
+            #[allow(non_snake_case)] // False positive: None is an optional, not a variable, so it's ok to not be snake_case.
             match &config_item.config_item {
                 Some(ank_base::config_item::ConfigItem::String(val)) => Value::String(
                     val.clone()
@@ -250,6 +251,7 @@ impl CompleteState {
     /// 
     /// * `api_version` - A [String] containing the API version.
     fn set_api_version<T: Into<String>>(&mut self, api_version: T) {
+        #[allow(non_snake_case)] // False positive: None is an optional, not a variable, so it's ok to not be snake_case.
         match self.complete_state.desired_state.as_mut() {
             Some(state) => state.api_version = api_version.into(),
             None => {

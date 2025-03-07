@@ -26,7 +26,9 @@ use crate::components::request::{Request, RequestType};
 use crate::components::response::{Response, ResponseType, UpdateStateSuccess};
 use crate::components::workload_mod::Workload;
 use crate::{AnkaiosError, CompleteState, Manifest};
-use crate::components::control_interface::{ControlInterface, ControlInterfaceState};
+#[cfg_attr(test, mockall_double::double)]
+use crate::components::control_interface::ControlInterface;
+use crate::components::control_interface::ControlInterfaceState;
 use crate::components::workload_state_mod::{WorkloadInstanceName, WorkloadState, WorkloadStateCollection, WorkloadStateEnum};
 
 /// The prefix for the workloads in the desired state.
@@ -203,6 +205,7 @@ impl Ankaios {
         self.control_interface.write_request(request).await?;
         let timeout_duration = timeout.unwrap_or(Duration::from_secs(DEFAULT_TIMEOUT));
         loop {
+            #[allow(non_snake_case)] // False positive: None is an optional, not a variable, so it's ok to not be snake_case.
             match tokio_timeout(timeout_duration, self.response_receiver.recv()).await {
                 Ok(Some(response)) => {
                     if let ResponseType::ConnectionClosedReason(reason) = response.content {
@@ -677,7 +680,7 @@ impl Ankaios {
     /// 
     /// ## Returns
     /// 
-    /// - an [`UpdateStateSuccess`] containing the number of added and deleted workloads if the request was successful.
+    /// - a [`CompleteState`] object containing the state of the cluster.
     /// 
     /// ## Errors
     /// 
@@ -776,6 +779,7 @@ impl Ankaios {
     pub async fn get_execution_state_for_instance_name(&mut self, instance_name: WorkloadInstanceName, timeout: Option<Duration>) -> Result<WorkloadState, AnkaiosError> {
         let complete_state = self.get_state(Some(vec![instance_name.get_filter_mask()]), timeout).await?;
         let workload_states = complete_state.get_workload_states().get_as_list();
+        #[allow(non_snake_case)] // False positive: None is an optional, not a variable, so it's ok to not be snake_case.
         match workload_states.first() {
             Some(workload_state) => Ok(workload_state.clone()),
             None => Err(AnkaiosError::AnkaiosError("No workload states found.".to_owned()))
@@ -897,5 +901,779 @@ impl Drop for Ankaios {
 //////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
+pub fn generate_test_ankaios(mock_control_interface: ControlInterface) -> (Ankaios, mpsc::Sender<Response>) {
+    let (response_sender, response_receiver) = mpsc::channel::<Response>(100);
+    (Ankaios{
+        response_receiver,
+        control_interface: mock_control_interface,
+    },
+    response_sender)
+}
+
+#[cfg(test)]
 mod tests {
+    use mockall::lazy_static;
+    use tokio::{
+        time::Duration,
+        sync::Mutex
+    };
+
+    use super::{
+        Ankaios, ControlInterface, ControlInterfaceState, generate_test_ankaios,
+        AnkaiosError, Response, CompleteState,
+    };
+    use crate::components::{
+        manifest::generate_test_manifest,
+        response::generate_test_response_update_state_success,
+        workload_mod::test_helpers::generate_test_workload,
+    };
+
+    lazy_static! {
+        // USed for synchronizing multiple tests that use the same Mock.
+        pub static ref MOCKALL_SYNC: Mutex<()> = Mutex::new(());
+    }
+
+    #[tokio::test]
+    async fn test_ankaios_state() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        let mut mock_control_interface = ControlInterface::default();
+        mock_control_interface.expect_state().returning(|| ControlInterfaceState::Initialized);
+        mock_control_interface.expect_disconnect().returning(|| Ok(()));
+
+        let (mut ank, _response_sender) = generate_test_ankaios(mock_control_interface);
+
+        assert!(ank.state() == ControlInterfaceState::Initialized);
+    }
+
+    #[tokio::test]
+    async fn itest_create_ankaios() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to send the created response sender from the ControlInterface
+        let (response_sender_store, response_sender_recv) = tokio::sync::oneshot::channel();
+        // Prepare channel to intercept the request that is being created to check the connection
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let ci_new_context = ControlInterface::new_context();
+        let mut ci_mock = ControlInterface::default();
+
+        ci_mock.expect_connect()
+            .times(1)
+            .returning(|| Ok(()));
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+        ci_mock.expect_disconnect()
+            .times(1)
+            .returning(|| Ok(()));
+
+        ci_new_context.expect()
+            .return_once(move |sender| {
+                response_sender_store.send(sender).unwrap();
+                ci_mock
+            });
+
+        // Create Ankaios handle
+        let ankaios_handle = tokio::spawn(Ankaios::new());
+
+        // Get the response sender from the ControlInterface creation
+        let response_sender = response_sender_recv.await.unwrap();
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = Response{
+            content: super::ResponseType::CompleteState(Box::default()),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Create Ankaios fully and check the connection
+        let _ankaios = ankaios_handle.await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn itest_connection_closed() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to send the created response sender from the ControlInterface
+        let (response_sender_store, response_sender_recv) = tokio::sync::oneshot::channel();
+        // Prepare channel to intercept the request that is being created to check the connection
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let ci_new_context = ControlInterface::new_context();
+        let mut ci_mock = ControlInterface::default();
+
+        ci_mock.expect_connect()
+            .times(1)
+            .returning(|| Ok(()));
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+        ci_mock.expect_disconnect()
+            .times(1)
+            .returning(|| Ok(()));
+
+        ci_new_context.expect()
+            .return_once(move |sender| {
+                response_sender_store.send(sender).unwrap();
+                ci_mock
+            });
+
+        // Create Ankaios handle
+        let ankaios_handle = tokio::spawn(Ankaios::new());
+
+        // Get the response sender from the ControlInterface creation
+        let response_sender = response_sender_recv.await.unwrap();
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = Response{
+            content: super::ResponseType::ConnectionClosedReason(String::default()),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Create Ankaios fully and check the connection
+        let result = ankaios_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::ConnectionClosedError(_))));
+    }
+
+    #[tokio::test]
+    async fn itest_get_state_ok() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare handle for getting the state
+        let method_handle = tokio::spawn(async move {
+            ank.get_state(None, Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let complete_state = CompleteState::default();
+        let response = Response{
+            content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the state
+        let state = method_handle.await.unwrap().unwrap();
+
+        assert_eq!(state.get_api_version(), complete_state.get_api_version());
+    }
+
+    #[tokio::test]
+    async fn itest_get_state_incorrect_id_timeout() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare handle for getting the state
+        let method_handle = tokio::spawn(async move {
+            ank.get_state(None, Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let _request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = Response{
+            content: super::ResponseType::CompleteState(Box::default()),
+            id: "incorrect_id".to_owned(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the state
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::TimeoutError(_))));
+    }
+
+    #[tokio::test]
+    async fn itest_apply_manifest_ok() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare manifest
+        let manifest = generate_test_manifest();
+
+        // Prepare handle for applying the manifest
+        let method_handle = tokio::spawn(async move {
+            ank.apply_manifest(manifest, Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = generate_test_response_update_state_success(request.get_id());
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let ret = method_handle.await.unwrap().unwrap();
+        assert!(ret.added_workloads.len() == 1);
+        assert!(ret.deleted_workloads.is_empty());
+    }
+
+    #[tokio::test]
+    async fn itest_apply_manifest_err() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare manifest
+        let manifest = generate_test_manifest();
+
+        // Prepare handle for applying the manifest
+        let method_handle = tokio::spawn(async move {
+            ank.apply_manifest(manifest, Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = Response{
+            content: super::ResponseType::Error("test".to_owned()),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::AnkaiosError(_))));
+    }
+
+    #[tokio::test]
+    async fn itest_apply_manifest_mismatch_response_type() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare manifest
+        let manifest = generate_test_manifest();
+
+        // Prepare handle for applying the manifest
+        let method_handle = tokio::spawn(async move {
+            ank.apply_manifest(manifest, Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = Response{
+            content: super::ResponseType::CompleteState(Box::default()),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::ResponseError(_))));
+    }
+
+    #[tokio::test]
+    async fn itest_delete_manifest_ok() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare manifest
+        let manifest = generate_test_manifest();
+
+        // Prepare handle for deleting the manifest
+        let method_handle = tokio::spawn(async move {
+            ank.delete_manifest(manifest, Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = generate_test_response_update_state_success(request.get_id());
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let ret = method_handle.await.unwrap().unwrap();
+        assert!(ret.added_workloads.len() == 1);
+        assert!(ret.deleted_workloads.is_empty());
+    }
+
+    #[tokio::test]
+    async fn itest_delete_manifest_err() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare manifest
+        let manifest = generate_test_manifest();
+
+        // Prepare handle for deleting the manifest
+        let method_handle = tokio::spawn(async move {
+            ank.delete_manifest(manifest, Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = Response{
+            content: super::ResponseType::Error("test".to_owned()),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::AnkaiosError(_))));
+    }
+
+    #[tokio::test]
+    async fn itest_delete_manifest_mismatch_response_type() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare manifest
+        let manifest = generate_test_manifest();
+
+        // Prepare handle for deleting the manifest
+        let method_handle = tokio::spawn(async move {
+            ank.delete_manifest(manifest, Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = Response{
+            content: super::ResponseType::CompleteState(Box::default()),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::ResponseError(_))));
+    }
+
+    #[tokio::test]
+    async fn itest_apply_workload_ok() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare workload
+        let workload = generate_test_workload("agent_Test", "workload_Test", "podman");
+
+        // Prepare handle for applying the workload
+        let method_handle = tokio::spawn(async move {
+            ank.apply_workload(workload, Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = generate_test_response_update_state_success(request.get_id());
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let ret = method_handle.await.unwrap().unwrap();
+        assert!(ret.added_workloads.len() == 1);
+        assert!(ret.deleted_workloads.is_empty());
+    }
+
+    #[tokio::test]
+    async fn itest_apply_workload_err() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare workload
+        let workload = generate_test_workload("agent_Test", "workload_Test", "podman");
+
+        // Prepare handle for applying the workload
+        let method_handle = tokio::spawn(async move {
+            ank.apply_workload(workload, Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = Response{
+            content: super::ResponseType::Error("test".to_owned()),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::AnkaiosError(_))));
+    }
+
+    #[tokio::test]
+    async fn itest_apply_workload_mismatch_response_type() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare workload
+        let workload = generate_test_workload("agent_Test", "workload_Test", "podman");
+
+        // Prepare handle for applying the workload
+        let method_handle = tokio::spawn(async move {
+            ank.apply_workload(workload, Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = Response{
+            content: super::ResponseType::CompleteState(Box::default()),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::ResponseError(_))));
+    }
+
+    #[tokio::test]
+    async fn itest_get_workload() {
+        // TODO
+    }
+
+    #[tokio::test]
+    async fn itest_delete_workload_ok() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare handle for deleting the workload
+        let method_handle = tokio::spawn(async move {
+            ank.delete_workload("workload_Test".to_owned(), Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = generate_test_response_update_state_success(request.get_id());
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let ret = method_handle.await.unwrap().unwrap();
+        assert!(ret.added_workloads.len() == 1);
+        assert!(ret.deleted_workloads.is_empty());
+    }
+
+    #[tokio::test]
+    async fn itest_delete_workload_err() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare handle for deleting the workload
+        let method_handle = tokio::spawn(async move {
+            ank.delete_workload("workload_Test".to_owned(), Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = Response{
+            content: super::ResponseType::Error("test".to_owned()),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::AnkaiosError(_))));
+    }
+
+    #[tokio::test]
+    async fn itest_delete_workload_mismatch_response_type() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock.expect_write_request()
+            .times(1)
+            .return_once(move |request| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+            ci_mock.expect_disconnect()
+                .times(1)
+                .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare handle for deleting the workload
+        let method_handle = tokio::spawn(async move {
+            ank.delete_workload("workload_Test".to_owned(), Some(Duration::from_millis(50))).await
+        });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = Response{
+            content: super::ResponseType::CompleteState(Box::default()),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::ResponseError(_))));
+    }
 }

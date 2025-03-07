@@ -23,7 +23,7 @@ clippy: # --all-targets
 
 # Run unit tests
 utest:
-    cargo test
+    cargo nextest run
 
 # Run code coverage
 cov:

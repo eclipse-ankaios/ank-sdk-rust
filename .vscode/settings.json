@@ -12,6 +12,9 @@
         "utest",
         "varint",
         "clippy",
+        "oneshot",
+        "mockall",
+        "itest",
     ],
     // "rust-analyzer.cfg.setTest": false,
     // "rust-analyzer.diagnostics.disabled": [

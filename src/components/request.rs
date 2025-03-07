@@ -64,6 +64,7 @@ pub enum RequestType {
 /// Struct that represents a request that can be made to the [Ankaios] application.
 /// 
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
+#[derive(Debug)]
 pub struct Request{
     /// The request proto message that will be sent to the cluster.
     #[allow(clippy::struct_field_names)]
