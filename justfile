@@ -21,13 +21,17 @@ clean:
 clippy: # --all-targets
     cargo clippy --tests --no-deps --all-features -- -Dclippy::all -Dclippy::pedantic
 
-# Run unit tests
-utest:
-    cargo nextest run
+# Run tests using cargo nextest if installed
+test:
+    bash -c 'if which cargo-nextest > /dev/null 2>&1; then cargo nextest run; else cargo test; fi'
 
 # Run code coverage
 cov:
     cargo llvm-cov
+
+# Check coverage
+cov-check:
+    tools/check_coverage.sh
 
 # Generate code coverage HTML
 cov-html:

@@ -503,7 +503,7 @@ fn generate_agents_proto() -> ank_base::AgentMap {
 }
 
 #[cfg(test)]
-fn generate_complete_state_proto() -> ank_base::CompleteState {
+pub fn generate_complete_state_proto() -> ank_base::CompleteState {
     ank_base::CompleteState {
         desired_state: Some(ank_base::State {
             api_version: SUPPORTED_API_VERSION.to_owned(),

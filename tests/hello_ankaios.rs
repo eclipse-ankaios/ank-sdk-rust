@@ -39,8 +39,7 @@ async fn main() {
 
     // Request the execution state based on the workload instance name
     match ank.get_execution_state_for_instance_name(workload_instance_name.clone(), None).await {
-        Ok(state) => {
-            let exec_state = state.execution_state;
+        Ok(exec_state) => {
             println!("State: {:?}, substate: {:?}, info: {:?}", exec_state.state, exec_state.substate, exec_state.additional_info);
         }
         Err(err) => {

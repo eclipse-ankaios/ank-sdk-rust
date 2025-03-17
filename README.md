@@ -28,7 +28,7 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-ankaios-sdk = "0.5.0-rc1"
+ankaios_sdk = "0.5.0-rc1"
 ```
 
 ### Clone and link as vendor
@@ -37,14 +37,14 @@ Create a `vendor` folder and clone the crate inside:
 
 ```sh
 mkdir -p vendor
-git clone git@github.com:eclipse-ankaios/ank-sdk-rust.git vendor/ankaios-sdk
+git clone git@github.com:eclipse-ankaios/ank-sdk-rust.git vendor/ankaios_sdk
 ```
 
 Then add it to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-ankaios-sdk = { path = "vendor/ankaios-sdk" }
+ankaios_sdk = { path = "vendor/ankaios_sdk" }
 ```
 
 ## Compatibility

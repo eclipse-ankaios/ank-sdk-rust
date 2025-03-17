@@ -42,6 +42,7 @@ impl WorkloadExecutionState {
     /// 
     /// A new [`WorkloadExecutionState`] instance.
     pub(crate) fn new(exec_state: ank_base::ExecutionState) -> WorkloadExecutionState {
+        #[allow(non_snake_case)] // False positive: None is an optional, not a variable, so it's ok to not be snake_case.
         match exec_state.execution_state_enum {
             Some(execution_state_enum) => {
                 let (state, substate) = WorkloadExecutionState::parse_state(&execution_state_enum);

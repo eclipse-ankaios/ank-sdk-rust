@@ -73,7 +73,7 @@ jobs:
           cargo install just
 
       - name: Test
-        run: just utest
+        run: just test
 
   coverage:
     name: Coverage
@@ -89,7 +89,11 @@ jobs:
           rustup target add x86_64-unknown-linux-musl
           cargo install just cargo-llvm-cov
 
-      - name: Coverage
+      - name: Check coverage
+        run: just cov-check
+        continue-on-error: true
+
+      - name: Generate coverage report
         run: just cov-html
 
       - uses: actions/upload-artifact@v4
@@ -97,6 +101,10 @@ jobs:
         with:
           name: coverage-report
           path: target/llvm-cov/html
+
+      # - name: Fail if coverage check failed
+      #   if: steps.check_coverage.outcome == 'failure'
+      #   run: exit 1
 
   docs:
     name: Docs
