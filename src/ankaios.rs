@@ -127,7 +127,7 @@ const DEFAULT_TIMEOUT: u64 = 5;  // seconds
 /// 
 /// ```rust
 /// let workload_instance_name: WorkloadInstanceName = /* */;
-/// let workload_state = ankaios.get_execution_state_for_instance_name(workload_instance_name, None).await.unwrap();
+/// let workload_state = ankaios.get_execution_state_for_instance_name(&workload_instance_name, None).await.unwrap();
 /// println!("{:?}", workload_state);
 /// ```
 /// 
@@ -159,6 +159,7 @@ impl Ankaios {
     /// ## Errors
     /// 
     /// [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if an error occurred when connecting.
+    /// [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if a timeout occurred when testing the connection.
     pub async fn new() -> Result<Self, AnkaiosError> {
         let (response_sender, response_receiver) = mpsc::channel::<Response>(100);
         let mut object = Self{
@@ -776,7 +777,7 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`AnkaiosError`](AnkaiosError::AnkaiosError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
-    pub async fn get_execution_state_for_instance_name(&mut self, instance_name: WorkloadInstanceName, timeout: Option<Duration>) -> Result<WorkloadExecutionState, AnkaiosError> {
+    pub async fn get_execution_state_for_instance_name(&mut self, instance_name: &WorkloadInstanceName, timeout: Option<Duration>) -> Result<WorkloadExecutionState, AnkaiosError> {
         let complete_state: CompleteState = self.get_state(Some(vec![instance_name.get_filter_mask()]), timeout).await?;
         let workload_states: Vec<WorkloadState> = complete_state.get_workload_states().get_as_list();
         #[allow(non_snake_case)] // False positive: None is an optional, not a variable, so it's ok to not be snake_case.
@@ -858,7 +859,7 @@ impl Ankaios {
 
         let poll_future = async {
             loop {
-                let workload_exec_state = self.get_execution_state_for_instance_name(instance_name.clone(), None).await?;
+                let workload_exec_state = self.get_execution_state_for_instance_name(&instance_name, None).await?;
                 if workload_exec_state.state == state {
                     return Ok(());
                 }
@@ -2534,7 +2535,7 @@ mod tests {
 
         // Prepare handle for getting the workload execution state
         let method_handle = tokio::spawn(async move {
-            ank.get_execution_state_for_instance_name(wl_instance_name, Some(Duration::from_millis(50))).await
+            ank.get_execution_state_for_instance_name(&wl_instance_name, Some(Duration::from_millis(50))).await
         });
 
         // Get the request from the ControlInterface

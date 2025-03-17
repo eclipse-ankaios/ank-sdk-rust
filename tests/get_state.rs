@@ -22,16 +22,15 @@ async fn get_workloads(ank: &mut Ankaios) {
     let complete_state = ank.get_state(Some(vec!["workloadStates".to_owned()]), Some(Duration::from_secs(5))).await.unwrap();
 
     // Get the workload states present in the complete state
-    let workload_states_dict = complete_state.get_workload_states().get_as_dict();
+    let workload_states_dict = complete_state.get_workload_states().get_as_list();
 
     // Print the states of the workloads
-    for (agent_name, workload_states) in workload_states_dict {
-        for (workload_name, workload_states) in workload_states.as_mapping().unwrap() {
-            for (_workload_id, workload_state) in workload_states.as_mapping().unwrap() {
-                println!("Workload {} on agent {} has the state {:?}", 
-                    workload_name.as_str().unwrap(), agent_name.as_str().unwrap(), workload_state.get("state").unwrap().as_str().unwrap().to_string());
-            }
-        }
+    for workload_state in workload_states_dict {
+        println!("Workload {} on agent {} has the state {:?}", 
+            workload_state.workload_instance_name.workload_name, 
+            workload_state.workload_instance_name.agent_name,
+            workload_state.execution_state.state
+        ); 
     }
 }
 
@@ -62,11 +61,11 @@ async fn main() {
         Ok(()) => {
             println!("Workload reached the RUNNING state.");
         }
-        Err(err) => match err {
-            AnkaiosError::TimeoutError(_) => {
-                println!("Workload didn't reach the required state in time.");
-            }
-            _ => println!("Error while waiting for workload to reach state: {err:?}"),
+        Err(AnkaiosError::TimeoutError(_)) => {
+            println!("Workload didn't reach the required state in time.");
+        }
+        Err(err) => {
+            println!("Error while waiting for workload to reach state: {err:?}");
         }
     }
 

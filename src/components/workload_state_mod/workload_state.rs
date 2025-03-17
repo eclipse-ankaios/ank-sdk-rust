@@ -22,8 +22,11 @@ use super::workload_execution_state::WorkloadExecutionState;
 use super::workload_instance_name::WorkloadInstanceName;
 use crate::AnkaiosError;
 
+/// A [`HashMap`] where the key represents the workload id and the value is of type [`WorkloadExecutionState`].
 type ExecutionsStatesForId = HashMap<String, WorkloadExecutionState>;
+/// A [`HashMap`] where the key represents the workload name and the value is of type [`ExecutionsStatesForId`].
 type ExecutionsStatesOfWorkload = HashMap<String, ExecutionsStatesForId>;
+/// A [`HashMap`] where the key represents the agent name and the value is of type [`ExecutionsStatesOfWorkload`].
 type WorkloadStatesMap = HashMap<String, ExecutionsStatesOfWorkload>;
 
 /// Struct that contains the instance name and
@@ -153,13 +156,23 @@ impl WorkloadStateCollection {
         }
     }
 
+    /// Converts the `WorkloadStateCollection` to a [`WorkloadStatesMap`].
+    /// 
+    /// ## Returns
+    /// 
+    /// A [`WorkloadStatesMap`] containing the [`WorkloadStateCollection`] information.
+    #[must_use]
+    pub fn get_as_dict(&self) -> WorkloadStatesMap {
+        self.workload_states.clone()
+    }
+
     /// Converts the `WorkloadStateCollection` to a [Mapping](serde_yaml::Mapping).
     /// 
     /// ## Returns
     /// 
     /// A [Mapping](serde_yaml::Mapping) containing the [`WorkloadStateCollection`] information.
     #[must_use]
-    pub fn get_as_dict(&self) -> serde_yaml::Mapping {
+    pub(crate) fn get_as_mapping(&self) -> serde_yaml::Mapping {
         let mut map = serde_yaml::Mapping::new();
         for (agent_name, workload_states) in &self.workload_states {
             let mut agent_map = serde_yaml::Mapping::new();
@@ -333,6 +346,11 @@ mod tests {
         assert_eq!(state_list[2].workload_instance_name.agent_name, "agent_B");
 
         let state_dict = state_collection.get_as_dict();
+        assert_eq!(state_dict.len(), 2);
+        assert_eq!(state_dict.get("agent_A").unwrap().len(), 1);
+        assert_eq!(state_dict.get("agent_B").unwrap().len(), 2);
+
+        let state_dict = state_collection.get_as_mapping();
         assert_eq!(state_dict.len(), 2);
         assert_eq!(state_dict.get("agent_A".to_owned()).unwrap().as_mapping().unwrap().len(), 1);
         assert_eq!(state_dict.get("agent_B".to_owned()).unwrap().as_mapping().unwrap().len(), 2);

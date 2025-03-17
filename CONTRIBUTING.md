@@ -18,7 +18,6 @@ besides a technical review:
 
 - **No breaks**: All builds and tests pass (GitHub actions).
 - **Docs updated**: Make sure any changes and additions are appropriately included into the design and user documentation.
-- **Requirements**: Make sure that requirements are created for new features and those are [traced in the code and tests](https://eclipse-ankaios.github.io/ankaios/main/development/requirement-tracing/).
 - **Rust coding guidelines**: Make sure to follow the [Rust coding guidelines for this project](https://eclipse-ankaios.github.io/ankaios/main/development/rust-coding-guidelines/).
 - **Unit verification strategy**: Unit tests have been created according to the [unit verification strategy](https://eclipse-ankaios.github.io/ankaios/main/development/unit-verification/).
 

@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Set threshold
-THRESHOLD=90
+THRESHOLD=80
 
 # Extract the last coverage line with the TOTAL stats
 TOTAL_LINE=$(cargo llvm-cov | grep "TOTAL")

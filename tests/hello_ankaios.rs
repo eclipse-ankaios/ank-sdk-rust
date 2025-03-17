@@ -19,7 +19,7 @@ use tokio::time::Duration;
 async fn main() {
     // Create a new Ankaios object.
     // The connection to the control interface is automatically done at this step.
-    let mut ank = Ankaios::new().await.unwrap();
+    let mut ank = Ankaios::new().await.expect("Failed to initialize");
 
     // Create a new workload
     let workload = Workload::builder()
@@ -29,21 +29,21 @@ async fn main() {
         .restart_policy("NEVER")
         .runtime_config(
             "image: docker.io/library/nginx\ncommandOptions: [\"-p\", \"8080:80\"]"
-        ).build().unwrap();
+        ).build().expect("Failed to build workload");
     
     // Run the workload
-    let response = ank.apply_workload(workload, None).await.unwrap();
+    let response = ank.apply_workload(workload, None).await.expect("Failed to apply workload");
 
     // Get the WorkloadInstanceName to check later if the workload is running
     let workload_instance_name = response.added_workloads[0].clone();
 
     // Request the execution state based on the workload instance name
-    match ank.get_execution_state_for_instance_name(workload_instance_name.clone(), None).await {
+    match ank.get_execution_state_for_instance_name(&workload_instance_name, None).await {
         Ok(exec_state) => {
             println!("State: {:?}, substate: {:?}, info: {:?}", exec_state.state, exec_state.substate, exec_state.additional_info);
         }
         Err(err) => {
-            println!("Error while getting workload state: {err:?}"); // ##########
+            println!("Error while getting workload state: {err:?}");
         }
     }
 
@@ -52,28 +52,27 @@ async fn main() {
         Ok(()) => {
             println!("Workload reached the RUNNING state.");
         }
-        Err(err) => match err {
-            AnkaiosError::TimeoutError(_) => {
-                println!("Workload didn't reach the required state in time.");
-            }
-            _ => println!("Error while waiting for workload to reach state: {err:?}"),
+        Err(AnkaiosError::TimeoutError(_)) => {
+            println!("Workload didn't reach the required state in time.");
+        }
+        Err(err) => {
+            println!("Error while waiting for workload to reach state: {err:?}");
         }
     }
 
     // Request the state of the system, filtered with the workloadStates
-    let complete_state = ank.get_state(Some(vec!["workloadStates".to_owned()]), Some(Duration::from_secs(5))).await.unwrap();
+    let complete_state = ank.get_state(Some(vec!["workloadStates".to_owned()]), Some(Duration::from_secs(5))).await.expect("Failed to get the state");
 
     // Get the workload states present in the complete state
-    let workload_states_dict = complete_state.get_workload_states().get_as_dict();
+    let workload_states_dict = complete_state.get_workload_states().get_as_list();
 
     // Print the states of the workloads
-    for (agent_name, workload_states) in workload_states_dict {
-        for (workload_name, workload_states) in workload_states.as_mapping().unwrap() {
-            for (_workload_id, workload_state) in workload_states.as_mapping().unwrap() {
-                println!("Workload {} on agent {} has the state {:?}", 
-                    workload_name.as_str().unwrap(), agent_name.as_str().unwrap(), workload_state.get("state").unwrap().as_str().unwrap().to_string());
-            }
-        }
+    for workload_state in workload_states_dict {
+        println!("Workload {} on agent {} has the state {:?}", 
+            workload_state.workload_instance_name.workload_name, 
+            workload_state.workload_instance_name.agent_name,
+            workload_state.execution_state.state
+        ); 
     }
 
     tokio::time::sleep(Duration::from_secs(5)).await;

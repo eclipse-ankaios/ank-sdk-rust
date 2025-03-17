@@ -231,7 +231,7 @@ impl CompleteState {
             agents.insert(Value::String(agent_name), Value::Mapping(agent_dict));
         }
         dict.insert(Value::String("agents".to_owned()), Value::Mapping(agents));
-        dict.insert(Value::String("workload_states".to_owned()), Value::Mapping(self.workload_state_collection.get_as_dict()));
+        dict.insert(Value::String("workload_states".to_owned()), Value::Mapping(self.workload_state_collection.get_as_mapping()));
         dict
     }
 

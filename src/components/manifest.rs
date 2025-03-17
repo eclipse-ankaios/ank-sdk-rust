@@ -77,11 +77,11 @@ impl Manifest {
     /// 
     /// ## Errors
     /// 
-    /// Returns an [`AnkaiosError`]::[`InvalidManifestError`](AnkaiosError::InvalidManifestError) if the manifest is not valid.
+    /// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError) if the manifest is not valid.
     pub fn new(manifest: serde_yaml::Value) -> Result<Manifest, AnkaiosError> {
         let obj = Self{manifest};
         if !obj.check() {
-            return Err(AnkaiosError::InvalidManifestError("Manifest is not valid".to_owned()));
+            return Err(AnkaiosError::ManifestParsingError("Manifest is not valid".to_owned()));
         }
         Ok(obj)
     }
@@ -98,7 +98,7 @@ impl Manifest {
     /// 
     /// ## Errors
     /// 
-    /// Returns an [`AnkaiosError`]::[`InvalidManifestError`](AnkaiosError::InvalidManifestError) if the manifest is not valid.
+    /// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError) if the manifest is not valid.
     pub fn from_dict(manifest: serde_yaml::Value) -> Result<Manifest, AnkaiosError> {
         Self::new(manifest)
     }
@@ -115,11 +115,11 @@ impl Manifest {
     /// 
     /// ## Errors
     /// 
-    /// Returns an [`AnkaiosError`]::[`InvalidManifestError`](AnkaiosError::InvalidManifestError) if the manifest is not valid.
+    /// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError) if the manifest is not valid.
     pub fn from_string<T: Into<String>>(manifest: T) -> Result<Manifest, AnkaiosError> {
         match serde_yaml::from_str(&manifest.into()) {
             Ok(man) => Self::from_dict(man),
-            Err(e) => Err(AnkaiosError::InvalidManifestError(e.to_string()))
+            Err(e) => Err(AnkaiosError::ManifestParsingError(e.to_string()))
         }
     }
 
@@ -135,11 +135,11 @@ impl Manifest {
     /// 
     /// ## Errors
     /// 
-    /// Returns an [`AnkaiosError`]::[`InvalidManifestError`](AnkaiosError::InvalidManifestError) if the manifest is not valid.
+    /// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError) if the manifest is not valid.
     pub fn from_file(path: &Path) -> Result<Manifest, AnkaiosError> {
         match read_file_to_string(path) {
             Ok(content) => Self::from_string(content),
-            Err(e) => Err(AnkaiosError::InvalidManifestError(e.to_string()))
+            Err(e) => Err(AnkaiosError::ManifestParsingError(e.to_string()))
         }
     }
 

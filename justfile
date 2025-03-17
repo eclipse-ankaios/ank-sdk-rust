@@ -18,7 +18,7 @@ clean:
     rm -rf build
 
 # Run clippy code checks
-clippy: # --all-targets
+clippy:
     cargo clippy --tests --no-deps --all-features -- -Dclippy::all -Dclippy::pedantic
 
 # Run tests using cargo nextest if installed

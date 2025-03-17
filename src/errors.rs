@@ -43,9 +43,9 @@ pub enum AnkaiosError{
     /// Represents an error that occurs during the building of a workload.
     #[error("Workload builder error: {0}")]
     WorkloadBuilderError(&'static str),
-    /// Represents an error related to an invalid manifest.
-    #[error("Invalid manifest: {0}")]
-    InvalidManifestError(String),
+    /// Represents an error that occurs when the manifest can't be parsed.
+    #[error("Manifest parsing error: {0}")]
+    ManifestParsingError(String),
     /// Represents an error that occurs when the connection is closed with Ankaios.
     #[error("Connection closed: {0}")]
     ConnectionClosedError(String),
