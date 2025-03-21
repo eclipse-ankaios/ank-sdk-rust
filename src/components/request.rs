@@ -38,16 +38,20 @@
 //! let request_id = request.get_id();
 //! ```
 //!
-//! ## Add a mask to the request:
+//! ## Create a request for getting the complete state filtered according to the provided field masks:
 //!
 //! ```rust
-//! request.add_mask("desiredState.workloads".to_owned());
+//! let request = GetStateRequest::new(vec!["desiredState.workloads".to_owned()]);
 //! ```
 
 use std::fmt;
 use uuid::Uuid;
 use crate::ankaios_api;
-use ankaios_api::ank_base::{Request as AnkaiosRequest, request::RequestContent, UpdateStateRequest as AnkaiosUpdateStateRequest, CompleteStateRequest};
+use ankaios_api::ank_base::{
+    Request as AnkaiosRequest,
+    request::RequestContent,
+    UpdateStateRequest as AnkaiosUpdateStateRequest,
+    CompleteStateRequest};
 use crate::components::complete_state::CompleteState;
 
 /// Trait that represents a request that can be made to the [Ankaios] application.
@@ -67,30 +71,16 @@ pub trait Request {
     /// 
     /// A [String] containing the unique identifier of the request.
     fn get_id(&self) -> String;
-
-    /// Adds a mask to the request.
-    /// 
-    /// ## Arguments
-    /// 
-    /// * `mask` - A [String] containing the mask to add.
-    fn add_mask(&mut self, mask: String);
-
-    /// Sets the masks of the request.
-    /// 
-    /// ## Arguments
-    /// 
-    /// * `masks` - A [Vec] of [Strings](String) containing the masks to set.
-    fn set_masks(&mut self, masks: Vec<String>);
 }
 
 /// Struct that represents a request to get the state of the [Ankaios] application.
 /// 
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct GetStateRequest{
     /// The request proto message that will be sent to the cluster.
     #[allow(clippy::struct_field_names)]
-    request: AnkaiosRequest,
+    pub(crate) request: AnkaiosRequest,
     /// The unique identifier of the request.
     #[allow(clippy::struct_field_names)]
     request_id: String,
@@ -99,11 +89,11 @@ pub struct GetStateRequest{
 /// Struct that represents a request to update the state of the [Ankaios] application.
 /// 
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct UpdateStateRequest{
     /// The request proto message that will be sent to the cluster.
     #[allow(clippy::struct_field_names)]
-    request: AnkaiosRequest,
+    pub(crate) request: AnkaiosRequest,
     /// The unique identifier of the request.
     #[allow(clippy::struct_field_names)]
     request_id: String,
@@ -115,7 +105,7 @@ impl GetStateRequest {
     /// ## Returns
     /// 
     /// A new [`GetStateRequest`] object.
-    pub fn new() -> Self {
+    pub fn new(masks: Vec<String>) -> Self {
         let request_id = Uuid::new_v4().to_string();
         log::debug!("Creating new request of type GetStateRequest with id {}", request_id);
 
@@ -123,7 +113,7 @@ impl GetStateRequest {
             request: AnkaiosRequest{
                 request_id: request_id.clone(),
                 request_content: Some(RequestContent::CompleteStateRequest(
-                    CompleteStateRequest::default()
+                    CompleteStateRequest { field_mask: masks }
                 )),
             },
             request_id,
@@ -139,18 +129,6 @@ impl Request for GetStateRequest {
     fn get_id(&self) -> String {
         self.request_id.clone()
     }
-
-    fn add_mask(&mut self, mask: String) {
-        if let Some(RequestContent::CompleteStateRequest(ref mut complete_state_request)) = self.request.request_content {
-            complete_state_request.field_mask.push(mask);
-        }
-    }
-
-    fn set_masks(&mut self, masks: Vec<String>) {
-        if let Some(RequestContent::CompleteStateRequest(ref mut complete_state_request)) = self.request.request_content {
-            complete_state_request.field_mask = masks;
-        }
-    }
 }
 
 impl fmt::Display for GetStateRequest {
@@ -165,13 +143,13 @@ impl UpdateStateRequest {
     /// ## Returns
     /// 
     /// A new [`UpdateStateRequest`] object.
-    pub fn new(complete_state: &CompleteState) -> Self {
+    pub fn new(complete_state: &CompleteState, masks: Vec<String>) -> Self {
         let request_id = Uuid::new_v4().to_string();
         log::debug!("Creating new request of type UpdateStateRequest with id {}", request_id);
 
         let update_state_request = AnkaiosUpdateStateRequest {
             new_state: Some(complete_state.to_proto()),
-            update_mask: vec![],
+            update_mask: masks,
         };
 
         Self{
@@ -194,18 +172,6 @@ impl Request for UpdateStateRequest {
     fn get_id(&self) -> String {
         self.request_id.clone()
     }
-
-    fn add_mask(&mut self, mask: String) {
-        if let Some(RequestContent::UpdateStateRequest(ref mut update_state_request)) = self.request.request_content {
-            update_state_request.update_mask.push(mask);
-        }
-    }
-
-    fn set_masks(&mut self, masks: Vec<String>) {
-        if let Some(RequestContent::UpdateStateRequest(ref mut update_state_request)) = self.request.request_content {
-            update_state_request.update_mask = masks;
-        }
-    }
 }
 
 impl fmt::Display for UpdateStateRequest {
@@ -224,9 +190,10 @@ impl fmt::Display for UpdateStateRequest {
 
 #[cfg(test)]
 pub fn generate_test_request() -> impl Request {
-    let mut req = UpdateStateRequest::new(&CompleteState::default());
-    req.add_mask("test_mask".to_owned());
-    req
+    UpdateStateRequest::new(
+        &CompleteState::default(),
+        vec!["test_mask".to_owned()]
+    )
 }
 
 #[cfg(test)]
@@ -241,25 +208,26 @@ mod tests {
     fn test_doc_examples() {
         // Create a request for updating the state
         let complete_state = CompleteState::new();
-        let _request = UpdateStateRequest::new(&complete_state);
+        let _request = UpdateStateRequest::new(&complete_state, Vec::default());
 
         // Create a request for getting the state
-        let mut request = GetStateRequest::new();
+        let request = GetStateRequest::new(Vec::default());
 
         // Get the request ID
         let _request_id = request.get_id();
 
-        // Add a mask to the request
-        request.add_mask("desiredState.workloads".to_owned());
+        // Create a request for getting the complete state filtered according to the provided field masks
+        let _request = GetStateRequest::new(vec!["desiredState.workloads".to_owned()]);
     }
 
     #[test]
     fn utest_request_update_state() {
-        let mut request = UpdateStateRequest::new(&CompleteState::default());
+        let request = UpdateStateRequest::new(
+            &CompleteState::default(), 
+            vec!["mask1".to_owned(), "mask2".to_owned()]
+        );
         let id = request.get_id();
 
-        request.set_masks(vec!["mask1".to_owned()]);
-        request.add_mask("mask2".to_owned());
         assert_eq!(request.to_proto(), AnkaiosRequest{
             request_id: id,
             request_content: Some(ankaios_api::ank_base::request::RequestContent::UpdateStateRequest(
@@ -275,11 +243,11 @@ mod tests {
 
     #[test]
     fn utest_request_get_state() {
-        let mut request = GetStateRequest::new();
+        let request = GetStateRequest::new(
+            vec!["mask1".to_owned(), "mask2".to_owned()]
+        );
         let id = request.get_id();
 
-        request.set_masks(vec!["mask1".to_owned()]);
-        request.add_mask("mask2".to_owned());
         assert_eq!(request.to_proto(), AnkaiosRequest{
             request_id: id,
             request_content: Some(ankaios_api::ank_base::request::RequestContent::CompleteStateRequest(

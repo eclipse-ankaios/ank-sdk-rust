@@ -1,6 +1,6 @@
 apiVersion: v0.1
 workloads:
-  hello_ankaios:
+  example:
     runtime: podman
     agent: agent_Rust_SDK
     controlInterfaceAccess:

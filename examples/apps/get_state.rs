@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Elektrobit Automotive GmbH
+// Copyright (c) 2025 Elektrobit Automotive GmbH
 //
 // This program and the accompanying materials are made available under the
 // terms of the Apache License, Version 2.0 which is available at
@@ -17,28 +17,29 @@ use std::thread::sleep;
 use ankaios_sdk::{Ankaios, AnkaiosError, Workload, WorkloadStateEnum};
 use tokio::time::Duration;
 
-async fn get_workloads(ank: &mut Ankaios) {
-    // Request the state of the system, filtered with the workloadStates
-    let complete_state = ank.get_state(Some(vec!["workloadStates".to_owned()]), Some(Duration::from_secs(5))).await.unwrap();
+async fn print_workload_states(ank: &mut Ankaios) {
+    if let Ok(complete_state) = ank.get_state(vec!["workloadStates".to_owned()]).await {
+        // Get the workload states present in the complete state
+        let workload_states = Vec::from(complete_state.get_workload_states());
 
-    // Get the workload states present in the complete state
-    let workload_states_dict = complete_state.get_workload_states().get_as_list();
-
-    // Print the states of the workloads
-    for workload_state in workload_states_dict {
-        println!("Workload {} on agent {} has the state {:?}", 
-            workload_state.workload_instance_name.workload_name, 
-            workload_state.workload_instance_name.agent_name,
-            workload_state.execution_state.state
-        ); 
+        // Print the states of the workloads
+        for workload_state in workload_states {
+            println!("Workload {} on agent {} has the state {:?}", 
+                workload_state.workload_instance_name.workload_name, 
+                workload_state.workload_instance_name.agent_name,
+                workload_state.execution_state.state
+            ); 
+        }
     }
 }
 
 #[tokio::main]
 async fn main() {
+    env_logger::builder().filter_level(log::LevelFilter::Debug).init();
+
     // Create a new Ankaios object.
     // The connection to the control interface is automatically done at this step.
-    let mut ank = Ankaios::new().await.unwrap();
+    let mut ank = Ankaios::new().await.expect("Failed to initialize");
 
     // Create a new workload
     let workload = Workload::builder()
@@ -51,14 +52,14 @@ async fn main() {
         ).build().unwrap();
     
     // Run the workload
-    let response = ank.apply_workload(workload, None).await.unwrap();
+    let response = ank.apply_workload(workload).await.expect("Failed to apply workload");
 
     // Get the WorkloadInstanceName to check later if the workload is running
     let workload_instance_name = response.added_workloads[0].clone();
 
     // Wait until the workload reaches the running state
-    match ank.wait_for_workload_to_reach_state(workload_instance_name.clone(), WorkloadStateEnum::Running, None).await {
-        Ok(()) => {
+    match ank.wait_for_workload_to_reach_state(workload_instance_name.clone(), WorkloadStateEnum::Running).await {
+        Ok(_) => {
             println!("Workload reached the RUNNING state.");
         }
         Err(AnkaiosError::TimeoutError(_)) => {
@@ -71,7 +72,7 @@ async fn main() {
 
     loop {
         // Get the state of the workloads
-        get_workloads(&mut ank).await;
+        print_workload_states(&mut ank).await;
 
         // Wait for 5 seconds
         sleep(Duration::from_secs(5));

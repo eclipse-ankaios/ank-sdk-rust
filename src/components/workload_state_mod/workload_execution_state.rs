@@ -42,7 +42,6 @@ impl WorkloadExecutionState {
     /// 
     /// A new [`WorkloadExecutionState`] instance.
     pub(crate) fn new(exec_state: ank_base::ExecutionState) -> WorkloadExecutionState {
-        #[allow(non_snake_case)] // False positive: None is an optional, not a variable, so it's ok to not be snake_case.
         match exec_state.execution_state_enum {
             Some(execution_state_enum) => {
                 let (state, substate) = WorkloadExecutionState::parse_state(&execution_state_enum);
@@ -111,7 +110,9 @@ impl WorkloadExecutionState {
                 (WorkloadStateEnum::Removed, value)
             }
         };
-        (state, WorkloadSubStateEnum::new(state, value).unwrap())
+        // WorkloadSubStateEnum::new can fail, but in the current context, if the SDK is compatible
+        // with Ankaios, it should never fail.
+        (state, WorkloadSubStateEnum::new(state, value).unwrap_or_else(|_| unreachable!()))
     }
 }
 

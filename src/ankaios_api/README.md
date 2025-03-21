@@ -1,6 +1,6 @@
 # Ankaios API
 
-This folder represents a workaround the fact that the `api` is not yet published. Using the `api` directly from Github:
+This folder is needed as a workaround for the not yet published Ankaios `api`. Using the `api` directly from Github:
 
 ```toml
 [dependencies]

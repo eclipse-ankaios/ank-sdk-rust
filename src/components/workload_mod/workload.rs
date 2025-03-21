@@ -38,6 +38,41 @@ fn read_file_to_string(path: &Path) -> Result<String, io::Error> {
 #[cfg(test)]
 use crate::components::workload_mod::test_helpers::read_to_string_mock as read_file_to_string;
 
+/// The prefix for the workloads in the desired state.
+pub const WORKLOADS_PREFIX: &str = "desiredState.workloads";
+/// The field name for the agent name.
+const FIELD_AGENT_NAME: &str = "agent";
+/// The field name for the runtime.
+const FIELD_RUNTIME: &str = "runtime";
+/// The field name for the runtime config.
+const FIELD_RUNTIME_CONFIG: &str = "runtimeConfig";
+/// The field name for the restart policy.
+const FIELD_RESTART_POLICY: &str = "restartPolicy";
+/// The field name for the dependencies.
+const FIELD_DEPENDENCIES: &str = "dependencies";
+/// The field name for the tags.
+const FIELD_TAGS: &str = "tags";
+/// The field name for the key of a tag.
+const SUBFIELD_TAG_KEY: &str = "key";
+/// The field name for the value of a tag.
+const SUBFIELD_TAG_VALUE: &str = "value";
+/// The field name for the control interface access.
+const FIELD_CONTROL_INTERFACE_ACCESS: &str = "controlInterfaceAccess";
+/// The field name for the allow rules.
+const SUBFIELD_ACCESS_ALLOW_RULES: &str = "allowRules";
+/// The field name for the deny rules.
+const SUBFIELD_ACCESS_DENY_RULES: &str = "denyRules";
+/// The field name for the operation of a rule.
+const SUBFIELD_ACCESS_OPERATION: &str = "operation";
+/// The field name for the filter mask of a rule.
+const SUBFIELD_ACCESS_FILTER_MASK: &str = "filterMask";
+/// The field name for the access type of a rule.
+const SUBFIELD_ACCESS_TYPE: &str = "type";
+/// The field name for the type of a rule.
+const SUBFIELD_ACCESS_STATE_RULE: &str = "StateRule";
+/// The field name for the configs.
+const FIELD_CONFIGS: &str = "configs";
+
 /// Represents a workload with various attributes and methods to update them.
 ///
 /// The `Workload` struct is used to store the [Ankaios] workload, allowing for
@@ -125,8 +160,8 @@ impl Workload {
         let name_str = name.into();
         Self{
             workload: ank_base::Workload::default(),
-            main_mask: format!("desiredState.workloads.{name_str}"),
-            masks: vec![format!("desiredState.workloads.{name_str}")],
+            main_mask: format!("{WORKLOADS_PREFIX}.{name_str}"),
+            masks: vec![format!("{WORKLOADS_PREFIX}.{name_str}")],
             name: name_str,
         }
     }
@@ -146,7 +181,7 @@ impl Workload {
         let name_str = name.into();
         Self{
             workload: proto,
-            main_mask: format!("desiredState.workloads.{name_str}"),
+            main_mask: format!("{WORKLOADS_PREFIX}.{name_str}"),
             masks: vec![],
             name: name_str,
         }
@@ -167,59 +202,197 @@ impl Workload {
     /// ## Errors
     ///
     /// - [`AnkaiosError`]::[`WorkloadBuilderError`](AnkaiosError::WorkloadBuilderError) - If the builder fails.
+    #[allow(clippy::too_many_lines)]
     pub(crate) fn new_from_dict<T: Into<String>>(name: T, dict_workload: &serde_yaml::Mapping) -> Result<Self, AnkaiosError> {
         let mut wl_builder = Self::builder();
         wl_builder = wl_builder.workload_name(name);
 
-        if let Some(agent) = dict_workload.get("agent") {
-            wl_builder = wl_builder.agent_name(agent.as_str().unwrap());
+        if let Some(agent) = dict_workload.get(FIELD_AGENT_NAME) {
+            let agent_str = agent.as_str().ok_or(
+                AnkaiosError::WorkloadFieldError(
+                    FIELD_AGENT_NAME.to_owned(), "Should be a string".to_owned()
+                )
+            )?;
+            wl_builder = wl_builder.agent_name(agent_str);
         }
-        if let Some(runtime) = dict_workload.get("runtime") {
-            wl_builder = wl_builder.runtime(runtime.as_str().unwrap());
+        if let Some(runtime) = dict_workload.get(FIELD_RUNTIME) {
+            let runtime_str = runtime.as_str().ok_or(
+                AnkaiosError::WorkloadFieldError(
+                    FIELD_RUNTIME.to_owned(), "Should be a string".to_owned()
+                )
+            )?;
+            wl_builder = wl_builder.runtime(runtime_str);
         }
-        if let Some(runtime_config) = dict_workload.get("runtimeConfig") {
-            wl_builder = wl_builder.runtime_config(runtime_config.as_str().unwrap());
+        if let Some(runtime_config) = dict_workload.get(FIELD_RUNTIME_CONFIG) {
+            let runtime_config_str = runtime_config.as_str().ok_or(
+                AnkaiosError::WorkloadFieldError(
+                    FIELD_RUNTIME_CONFIG.to_owned(), "Should be a string".to_owned()
+                )
+            )?;
+            wl_builder = wl_builder.runtime_config(runtime_config_str);
         }
-        if let Some(restart_policy) = dict_workload.get("restartPolicy") {
-            wl_builder = wl_builder.restart_policy(restart_policy.as_str().unwrap());
+        if let Some(restart_policy) = dict_workload.get(FIELD_RESTART_POLICY) {
+            let restart_policy_str = restart_policy.as_str().ok_or(
+                AnkaiosError::WorkloadFieldError(
+                    FIELD_RESTART_POLICY.to_owned(), "Should be a string".to_owned()
+                )
+            )?;
+            wl_builder = wl_builder.restart_policy(restart_policy_str);
         }
-        if let Some(dependencies) = dict_workload.get("dependencies") {
-            for (key, value) in dependencies.as_mapping().unwrap() {
-                wl_builder = wl_builder.add_dependency(
-                    key.as_str().unwrap(), 
-                    value.as_str().unwrap());
+        if let Some(dependencies) = dict_workload.get(FIELD_DEPENDENCIES) {
+            let dependencies_map = dependencies.as_mapping().ok_or(
+                AnkaiosError::WorkloadFieldError(
+                    FIELD_DEPENDENCIES.to_owned(), "Should be a mapping".to_owned()
+                )
+            )?;
+            for (key, value) in dependencies_map {
+                let key_str = key.as_str().ok_or(
+                    AnkaiosError::WorkloadFieldError(
+                        FIELD_DEPENDENCIES.to_owned(), "Key should be a string".to_owned()
+                    )
+                )?;
+                let value_str = value.as_str().ok_or(
+                    AnkaiosError::WorkloadFieldError(
+                        FIELD_DEPENDENCIES.to_owned(), "Value should be a string".to_owned()
+                    )
+                )?;
+                wl_builder = wl_builder.add_dependency(key_str, value_str);
             }
         }
-        if let Some(tags) = dict_workload.get("tags") {
-            for tag in tags.as_sequence().unwrap() {
-                wl_builder = wl_builder.add_tag(
-                    tag.get("key").unwrap().as_str().unwrap(), 
-                    tag.get("value").unwrap().as_str().unwrap());
+        if let Some(tags) = dict_workload.get(FIELD_TAGS) {
+            let tags_seq = tags.as_sequence().ok_or(
+                AnkaiosError::WorkloadFieldError(
+                    FIELD_TAGS.to_owned(), "Should be a sequence".to_owned()
+                )
+            )?;
+            for tag in tags_seq {
+                let tag_map = tag.as_mapping().ok_or(
+                    AnkaiosError::WorkloadFieldError(
+                        FIELD_TAGS.to_owned(), "Tag should be a mapping".to_owned()
+                    )
+                )?;
+                let key = tag_map.get(SUBFIELD_TAG_KEY).ok_or(
+                    AnkaiosError::WorkloadFieldError(
+                        FIELD_TAGS.to_owned(), "Tag should have a key".to_owned()
+                    )
+                )?;
+                let value = tag_map.get(SUBFIELD_TAG_VALUE).ok_or(
+                    AnkaiosError::WorkloadFieldError(
+                        FIELD_TAGS.to_owned(), "Tag should have a value".to_owned()
+                    )
+                )?;
+                let key_str = key.as_str().ok_or(
+                    AnkaiosError::WorkloadFieldError(
+                        FIELD_TAGS.to_owned(), "Tag key should be a string".to_owned()
+                    )
+                )?;
+                let value_str = value.as_str().ok_or(
+                    AnkaiosError::WorkloadFieldError(
+                        FIELD_TAGS.to_owned(), "Tag value should be a string".to_owned()
+                    )
+                )?;
+                wl_builder = wl_builder.add_tag(key_str, value_str);
             }
         }
-        if let Some(control_interface_access) = dict_workload.get("controlInterfaceAccess") {
-            if let Some(allow_rules) = control_interface_access.get("allowRules") {
-                for rule in allow_rules.as_sequence().unwrap() {
-                    let operation = rule.get("operation").unwrap().as_str().unwrap();
-                    let filter_masks = rule.get("filterMask")
-                        .unwrap().as_sequence().unwrap().iter().map(|x| x.as_str().unwrap().to_owned()).collect();
+        if let Some(control_interface_access) = dict_workload.get(FIELD_CONTROL_INTERFACE_ACCESS) {
+            let control_interface_access_map = control_interface_access.as_mapping().ok_or(
+                AnkaiosError::WorkloadFieldError(
+                    FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Should be a mapping".to_owned()
+                )
+            )?;
+            if let Some(allow_rules) = control_interface_access_map.get(SUBFIELD_ACCESS_ALLOW_RULES) {
+                let allow_rules_seq = allow_rules.as_sequence().ok_or(
+                    AnkaiosError::WorkloadFieldError(
+                        FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Allow rules should be a sequence".to_owned()
+                    )
+                )?;
+                for rule in allow_rules_seq {
+                    let rule_map = rule.as_mapping().ok_or(
+                        AnkaiosError::WorkloadFieldError(
+                            FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Allow rule should be a mapping".to_owned()
+                        )
+                    )?;
+                    let operation = rule_map.get(SUBFIELD_ACCESS_OPERATION).ok_or(
+                        AnkaiosError::WorkloadFieldError(
+                            FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Allow rule should have an operation".to_owned()
+                        ))?.as_str().ok_or(
+                        AnkaiosError::WorkloadFieldError(
+                            FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Allow rule operation should be a string".to_owned()
+                        ))?;
+                    let filter_masks = rule_map.get(SUBFIELD_ACCESS_FILTER_MASK)
+                        .ok_or(AnkaiosError::WorkloadFieldError(
+                            FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Allow rule should have a filter mask".to_owned()
+                        ))?.as_sequence().ok_or(
+                            AnkaiosError::WorkloadFieldError(
+                                FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Allow rule filter mask should be a sequence".to_owned()
+                            )
+                        )?.iter().map(|x| {
+                                match x.as_str() {
+                                    Some(s) => Ok(s.to_owned()),
+                                    None => Err(AnkaiosError::WorkloadFieldError(
+                                        FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Allow rule filter mask value should be a string".to_owned()
+                                    )),
+                                }
+                        }).collect::<Result<Vec<_>, _>>()?;
                     wl_builder = wl_builder.add_allow_rule(operation, filter_masks);
                 }
             }
-            if let Some(deny_rules) = control_interface_access.get("denyRules") {
-                for rule in deny_rules.as_sequence().unwrap() {
-                    let operation = rule.get("operation").unwrap().as_str().unwrap();
-                    let filter_masks = rule.get("filterMask")
-                        .unwrap().as_sequence().unwrap().iter().map(|x| x.as_str().unwrap().to_owned()).collect();
+            if let Some(deny_rules) = control_interface_access_map.get(SUBFIELD_ACCESS_DENY_RULES) {
+                let deny_rules_seq = deny_rules.as_sequence().ok_or(
+                    AnkaiosError::WorkloadFieldError(
+                        FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Deny rules should be a sequence".to_owned()
+                    )
+                )?;
+                for rule in deny_rules_seq {
+                    let rule_map = rule.as_mapping().ok_or(
+                        AnkaiosError::WorkloadFieldError(
+                            FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Deny rule should be a mapping".to_owned()
+                        )
+                    )?;
+                    let operation = rule_map.get(SUBFIELD_ACCESS_OPERATION).ok_or(
+                        AnkaiosError::WorkloadFieldError(
+                            FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Deny rule should have an operation".to_owned()
+                        ))?.as_str().ok_or(
+                        AnkaiosError::WorkloadFieldError(
+                            FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Deny rule operation should be a string".to_owned()
+                        ))?;
+                    let filter_masks = rule_map.get(SUBFIELD_ACCESS_FILTER_MASK)
+                        .ok_or(AnkaiosError::WorkloadFieldError(
+                            FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Deny rule should have a filter mask".to_owned()
+                        ))?.as_sequence().ok_or(
+                            AnkaiosError::WorkloadFieldError(
+                                FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Deny rule filter mask should be a sequence".to_owned()
+                            )
+                        )?.iter().map(|x| {
+                                match x.as_str() {
+                                    Some(s) => Ok(s.to_owned()),
+                                    None => Err(AnkaiosError::WorkloadFieldError(
+                                        FIELD_CONTROL_INTERFACE_ACCESS.to_owned(), "Deny rule filter mask value should be a string".to_owned()
+                                    )),
+                                }
+                        }).collect::<Result<Vec<_>, _>>()?;
                     wl_builder = wl_builder.add_deny_rule(operation, filter_masks);
                 }
             }
         }
-        if let Some(configs) = dict_workload.get("configs") {
-            for (alias, config_name) in configs.as_mapping().unwrap() {
-                wl_builder = wl_builder.add_config(
-                    alias.as_str().unwrap(), 
-                    config_name.as_str().unwrap());
+        if let Some(configs) = dict_workload.get(FIELD_CONFIGS) {
+            let configs_map = configs.as_mapping().ok_or(
+                AnkaiosError::WorkloadFieldError(
+                    FIELD_CONFIGS.to_owned(), "Should be a mapping".to_owned()
+                )
+            )?;
+            for (alias, config_name) in configs_map {
+                let alias_str = alias.as_str().ok_or(
+                    AnkaiosError::WorkloadFieldError(
+                        FIELD_CONFIGS.to_owned(), "Alias should be a string".to_owned()
+                    )
+                )?;
+                let config_name_str = config_name.as_str().ok_or(
+                    AnkaiosError::WorkloadFieldError(
+                        FIELD_CONFIGS.to_owned(), "Name should be a string".to_owned()
+                    )
+                )?;
+                wl_builder = wl_builder.add_config(alias_str, config_name_str);
             }
         }
 
@@ -233,8 +406,8 @@ impl Workload {
     /// A [`ank_base::Workload`] instance.
     #[must_use]
     #[inline]
-    pub fn to_proto(&self) -> ank_base::Workload {
-        self.workload.clone()
+    pub fn to_proto(self) -> ank_base::Workload {
+        self.workload
     }
 
     /// Converts the `Workload` instance to a [`serde_yaml::Mapping`].
@@ -247,30 +420,30 @@ impl Workload {
         let mut dict = serde_yaml::Mapping::new();
         if let Some(agent) = self.workload.agent.clone() {
             dict.insert(
-                Value::String("agent".to_owned()),
+                Value::String(FIELD_AGENT_NAME.to_owned()),
                 Value::String(agent));
         }
         if let Some(runtime) = self.workload.runtime.clone() {
             dict.insert(
-                Value::String("runtime".to_owned()),
+                Value::String(FIELD_RUNTIME.to_owned()),
                 Value::String(runtime));
         }
         if let Some(runtime_config) = self.workload.runtime_config.clone() {
             dict.insert(
-                Value::String("runtimeConfig".to_owned()),
+                Value::String(FIELD_RUNTIME_CONFIG.to_owned()),
                 Value::String(runtime_config));
         }
         if let Some(restart_policy) = self.workload.restart_policy {
             if let Some(ank_restart_policy) = ank_base::RestartPolicy::from_i32(restart_policy) {
                 dict.insert(
-                    Value::String("restartPolicy".to_owned()),
+                    Value::String(FIELD_RESTART_POLICY.to_owned()),
                     Value::String(ank_restart_policy.as_str_name().to_owned()));
             }
         }
         if let Some(dependencies) = self.workload.dependencies.clone() {
             let mut deps = serde_yaml::Mapping::new();
             dict.insert(
-                Value::String("dependencies".to_owned()),
+                Value::String(FIELD_DEPENDENCIES.to_owned()),
                 Value::Mapping(serde_yaml::Mapping::new()));
             for (key, value) in &dependencies.dependencies {
                 if let Some(cond) = ank_base::AddCondition::from_i32(*value) {
@@ -281,7 +454,7 @@ impl Workload {
                 }
             }
             dict.insert(
-                Value::String("dependencies".to_owned()),
+                Value::String(FIELD_DEPENDENCIES.to_owned()),
                 Value::Mapping(deps));
         }
         if let Some(wl_tags) = self.workload.tags.clone() {
@@ -289,15 +462,15 @@ impl Workload {
             for tag in &wl_tags.tags {
                 let mut tag_dict = serde_yaml::Mapping::new();
                 tag_dict.insert(
-                    Value::String("key".to_owned()),
+                    Value::String(SUBFIELD_TAG_KEY.to_owned()),
                     Value::String(tag.key.clone()));
                 tag_dict.insert(
-                    Value::String("value".to_owned()),
+                    Value::String(SUBFIELD_TAG_VALUE.to_owned()),
                     Value::String(tag.value.clone()));
                 tags.push(Value::Mapping(tag_dict));
             }
             dict.insert(
-                Value::String("tags".to_owned()),
+                Value::String(FIELD_TAGS.to_owned()),
                 Value::Sequence(tags));
         }
         if let Some(ci_access) = self.workload.control_interface_access.clone() {
@@ -307,8 +480,8 @@ impl Workload {
             for rule in &ci_access.allow_rules {
                 let mut rule_dict = serde_yaml::Mapping::new();
                 rule_dict.insert(
-                    Value::String("type".to_owned()),
-                    Value::String("StateRule".to_owned()));
+                    Value::String(SUBFIELD_ACCESS_TYPE.to_owned()),
+                    Value::String(SUBFIELD_ACCESS_STATE_RULE.to_owned()));
                 if let ank_base::AccessRightsRule {
                     access_rights_rule_enum: Some(
                         ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(inner_rule)
@@ -317,10 +490,10 @@ impl Workload {
                     match Self::access_right_rule_to_str(inner_rule) {
                         Ok(rule_ok) => {
                             rule_dict.insert(
-                                Value::String("operation".to_owned()),
+                                Value::String(SUBFIELD_ACCESS_OPERATION.to_owned()),
                                 Value::String(rule_ok.0));
                             rule_dict.insert(
-                                Value::String("filterMask".to_owned()),
+                                Value::String(SUBFIELD_ACCESS_FILTER_MASK.to_owned()),
                                 Value::Sequence(rule_ok.1.into_iter().map(Value::String).collect()));
                         },
                         Err(_) => continue,
@@ -330,7 +503,7 @@ impl Workload {
             }
             if !allow_rules.is_empty() {
                 control_interface_access.insert(
-                    Value::String("allowRules".to_owned()),
+                    Value::String(SUBFIELD_ACCESS_ALLOW_RULES.to_owned()),
                     Value::Sequence(allow_rules));
             }
 
@@ -338,8 +511,8 @@ impl Workload {
             for rule in &ci_access.deny_rules {
                 let mut rule_dict = serde_yaml::Mapping::new();
                 rule_dict.insert(
-                    Value::String("type".to_owned()),
-                    Value::String("StateRule".to_owned()));
+                    Value::String(SUBFIELD_ACCESS_TYPE.to_owned()),
+                    Value::String(SUBFIELD_ACCESS_STATE_RULE.to_owned()));
                 if let ank_base::AccessRightsRule {
                     access_rights_rule_enum: Some(
                         ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(inner_rule)
@@ -348,10 +521,10 @@ impl Workload {
                     match Self::access_right_rule_to_str(inner_rule) {
                         Ok(rule_ok) => {
                             rule_dict.insert(
-                                Value::String("operation".to_owned()),
+                                Value::String(SUBFIELD_ACCESS_OPERATION.to_owned()),
                                 Value::String(rule_ok.0));
                             rule_dict.insert(
-                                Value::String("filterMask".to_owned()),
+                                Value::String(SUBFIELD_ACCESS_FILTER_MASK.to_owned()),
                                 Value::Sequence(rule_ok.1.into_iter().map(Value::String).collect()));
                         },
                         Err(_) => continue,
@@ -361,12 +534,12 @@ impl Workload {
             }
             if !deny_rules.is_empty() {
                 control_interface_access.insert(
-                    Value::String("denyRules".to_owned()),
+                    Value::String(SUBFIELD_ACCESS_DENY_RULES.to_owned()),
                     Value::Sequence(deny_rules));
             }
 
             dict.insert(
-                Value::String("controlInterfaceAccess".to_owned()),
+                Value::String(FIELD_CONTROL_INTERFACE_ACCESS.to_owned()),
                 Value::Mapping(control_interface_access));
         }
         if let Some(wl_configs) = self.workload.configs.clone() {
@@ -377,7 +550,7 @@ impl Workload {
                     Value::String(name.clone()));
             }
             dict.insert(
-                Value::String("configs".to_owned()),
+                Value::String(FIELD_CONFIGS.to_owned()),
                 Value::Mapping(configs));
         }
         dict
@@ -400,8 +573,8 @@ impl Workload {
     /// - `new_name` - A [String] that represents the new name of the workload.
     pub fn update_workload_name<T: Into<String>>(&mut self, new_name: T) {
         self.name = new_name.into();
-        self.main_mask = format!("desiredState.workloads.{}", self.name);
-        self.masks = vec![format!("desiredState.workloads.{}", self.name)];
+        self.main_mask = format!("{WORKLOADS_PREFIX}.{}", self.name);
+        self.masks = vec![format!("{WORKLOADS_PREFIX}.{}", self.name)];
     }
 
     /// Updates the agent name of the workload.
@@ -411,7 +584,7 @@ impl Workload {
     /// - `agent_name` - A [String] that represents the new [agent name](ank_base::Workload).
     pub fn update_agent_name<T: Into<String>>(&mut self, agent_name: T) {
         self.workload.agent = Some(agent_name.into());
-        self.add_mask(format!("{}.agent", self.main_mask));
+        self.add_mask(format!("{}.{FIELD_AGENT_NAME}", self.main_mask));
     }
 
     /// Updates the runtime of the workload.
@@ -421,7 +594,7 @@ impl Workload {
     /// - `runtime` - A [String] that represents the new [runtime](ank_base::Workload).
     pub fn update_runtime<T: Into<String>>(&mut self, runtime: T) {
         self.workload.runtime = Some(runtime.into());
-        self.add_mask(format!("{}.runtime", self.main_mask));
+        self.add_mask(format!("{}.{FIELD_RUNTIME}", self.main_mask));
     }
 
     /// Updates the runtime config of the workload.
@@ -431,7 +604,7 @@ impl Workload {
     /// - `runtime_config` - A [String] that represents the new [runtime config](ank_base::Workload).
     pub fn update_runtime_config<T: Into<String>>(&mut self, runtime_config: T) {
         self.workload.runtime_config = Some(runtime_config.into());
-        self.add_mask(format!("{}.runtimeConfig", self.main_mask));
+        self.add_mask(format!("{}.{FIELD_RUNTIME_CONFIG}", self.main_mask));
     }
 
     /// Updates the runtime config of the workload using a file.
@@ -464,11 +637,11 @@ impl Workload {
         self.workload.restart_policy = match ank_base::RestartPolicy::from_str_name(&restart_policy_str.clone()) {
             Some(policy) => Some(policy as i32),
             _ => return Err(AnkaiosError::WorkloadFieldError(
-                "restartPolicy".to_owned(), 
+                FIELD_RESTART_POLICY.to_owned(), 
                 restart_policy_str
             ))
         };
-        self.add_mask(format!("{}.restartPolicy", self.main_mask));
+        self.add_mask(format!("{}.{FIELD_RESTART_POLICY}", self.main_mask));
         Ok(())
     }
 
@@ -515,7 +688,7 @@ impl Workload {
                 deps.dependencies.insert(workload_name.into(), add_condition);
             }
         }
-        self.add_mask(format!("{}.dependencies", self.main_mask));
+        self.add_mask(format!("{}.{FIELD_DEPENDENCIES}", self.main_mask));
         Ok(())
     }
 
@@ -534,8 +707,8 @@ impl Workload {
             tags.tags.push(ank_base::Tag{key: key_str.clone(), value: value.into()});
         }
 
-        if !self.masks.contains(&format!("{}.tags", self.main_mask)) {
-            self.add_mask(format!("{}.tags.{}", self.main_mask, key_str));
+        if !self.masks.contains(&format!("{}.{FIELD_TAGS}", self.main_mask)) {
+            self.add_mask(format!("{}.{FIELD_TAGS}.{key_str}", self.main_mask));
         }
     }
 
@@ -568,8 +741,8 @@ impl Workload {
             }
             ank_tags
         });
-        self.masks.retain(|mask| !mask.starts_with(&format!("{}.tags", self.main_mask)));
-        self.add_mask(format!("{}.tags", self.main_mask));
+        self.masks.retain(|mask| !mask.starts_with(&format!("{}.{FIELD_TAGS}", self.main_mask)));
+        self.add_mask(format!("{}.{FIELD_TAGS}", self.main_mask));
     }
 
     /// Given an operation and a list of filter masks, generates an [`AccessRightsRule`](ank_base::AccessRightsRule).
@@ -596,7 +769,7 @@ impl Workload {
                         "Read" => ank_base::ReadWriteEnum::RwRead as i32,
                         "ReadWrite" => ank_base::ReadWriteEnum::RwReadWrite as i32,
                         _ => return Err(AnkaiosError::WorkloadFieldError(
-                            "operation".to_owned(), 
+                            SUBFIELD_ACCESS_OPERATION.to_owned(), 
                             operation.to_owned(),
                         )),
                     },
@@ -627,12 +800,12 @@ impl Workload {
                 "RW_READ" => "Read".to_owned(),
                 "RW_READ_WRITE" => "ReadWrite".to_owned(),
                 _ => return Err(AnkaiosError::WorkloadFieldError(
-                    "operation".to_owned(), 
+                    SUBFIELD_ACCESS_OPERATION.to_owned(), 
                     rule.operation.to_string(),
                 ))
             },
             _ => return Err(AnkaiosError::WorkloadFieldError(
-                "operation".to_owned(), 
+                SUBFIELD_ACCESS_OPERATION.to_owned(), 
                 rule.operation.to_string(),
             )),
         }, rule.filter_masks.clone()))
@@ -688,7 +861,7 @@ impl Workload {
                 access.allow_rules.push(access_rule);
             }
         }
-        self.add_mask(format!("{}.controlInterfaceAccess.allowRules", self.main_mask));
+        self.add_mask(format!("{}.{FIELD_CONTROL_INTERFACE_ACCESS}.{SUBFIELD_ACCESS_ALLOW_RULES}", self.main_mask));
         Ok(())
     }
 
@@ -740,7 +913,7 @@ impl Workload {
                 access.deny_rules.push(access_rule);
             }
         }
-        self.add_mask(format!("{}.controlInterfaceAccess.denyRules", self.main_mask));
+        self.add_mask(format!("{}.{FIELD_CONTROL_INTERFACE_ACCESS}.{SUBFIELD_ACCESS_DENY_RULES}", self.main_mask));
         Ok(())
     }
 
@@ -751,18 +924,18 @@ impl Workload {
     /// - `alias` - A [String] containing the alias of the config;
     /// - `name` - A [String] containing the name of the config it refers to.
     pub fn add_config<T: Into<String>>(&mut self, alias: T, name: T) {
-        #[allow(non_snake_case)] // False positive: None is an optional, not a variable, so it's ok to not be snake_case.
+        let alias_str = alias.into();
         match self.workload.configs {
             Some(ref mut configs_map) => {
-                configs_map.configs.insert(alias.into(), name.into());
+                configs_map.configs.insert(alias_str.clone(), name.into());
             },
             None => {
                 self.workload.configs = Some(ank_base::ConfigMappings{
-                    configs: [(alias.into(), name.into())].iter().cloned().collect(),
+                    configs: [(alias_str.clone(), name.into())].iter().cloned().collect(),
                 });
             },
         }
-        self.add_mask(format!("{}.configs", self.main_mask));
+        self.add_mask(format!("{}.{FIELD_CONFIGS}.{alias_str}", self.main_mask));
     }
 
     /// Getter for the [configs](ank_base::Workload) of the workload.
@@ -790,6 +963,7 @@ impl Workload {
         self.workload.configs = Some(ank_base::ConfigMappings{
             configs: configs.into_iter().collect(),
         });
+        self.add_mask(format!("{}.{FIELD_CONFIGS}", self.main_mask));
     }
 
     /// Adds a mask to the workload.
@@ -799,7 +973,25 @@ impl Workload {
     /// - `mask` - A [String] containing the mask to be added.
     fn add_mask(&mut self, mask: String) {
         if !self.masks.contains(&mask) && !self.masks.contains(&self.main_mask) {
-            self.masks.push(mask);
+            let configs_mask = format!("{}.{}", self.main_mask.as_str(), FIELD_CONFIGS);
+            if mask == configs_mask {
+                let masks_to_remove: Vec<String> = self.masks.iter()
+                    .filter(|mask_| mask_.starts_with(&configs_mask))
+                    .cloned()
+                    .collect();
+                for mask_ in masks_to_remove {
+                    if let Some(pos) = self.masks.iter().position(|m| m == &mask_) {
+                        self.masks.remove(pos);
+                    }
+                }
+                self.masks.push(configs_mask);
+            }
+            else if mask.starts_with(&configs_mask) && self.masks.contains(&configs_mask) {
+                return;
+            }
+            else {
+                self.masks.push(mask);
+            }
         }
     }
 }
@@ -807,7 +999,7 @@ impl Workload {
 impl fmt::Display for Workload {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Workload {}: {:?}", self.name, self.to_proto())
+        write!(f, "Workload {}: {:?}", self.name, self.clone().to_proto())
     }
 }
 
@@ -990,17 +1182,36 @@ mod tests {
             .runtime("podman")
             .runtime_config("config")
             .build().unwrap();
+        wl.masks = Vec::default();
         wl.add_config("alias_test_1", "config_test_1");
         let mut configs = wl.get_configs();
         assert_eq!(configs.len(), 1);
+        assert_eq!(wl.masks, vec![
+            "desiredState.workloads.Test.configs.alias_test_1".to_owned()
+        ]);
 
         wl.add_config("alias_test_2", "config_test_2");
         configs = wl.get_configs();
         assert_eq!(configs.len(), 2);
+        assert_eq!(wl.masks, vec![
+            "desiredState.workloads.Test.configs.alias_test_1".to_owned(),
+            "desiredState.workloads.Test.configs.alias_test_2".to_owned()
+        ]);
 
         configs.insert("alias_test_3".to_owned(), "config_test_3".to_owned());
         wl.update_configs(configs.clone());
         assert_eq!(wl.get_configs().len(), 3);
+        assert_eq!(configs.len(), 3);
+        assert_eq!(wl.masks, vec![
+            "desiredState.workloads.Test.configs".to_owned()
+        ]);
+        
+        wl.add_config("alias_test_4", "config_test_2");
+        configs = wl.get_configs();
+        assert_eq!(configs.len(), 4);
+        assert_eq!(wl.masks, vec![
+            "desiredState.workloads.Test.configs".to_owned()
+        ]);
     }
 
     macro_rules! generate_test_for_mask_generation {
@@ -1048,7 +1259,7 @@ mod tests {
     generate_test_for_mask_generation!(utest_update_deny_rule, update_deny_rules,
         vec![String::from("desiredState.workloads.Test.controlInterfaceAccess.denyRules")], vec![("Write".to_owned(), vec!["desiredState.workloads.workload_B".to_owned()])]);
     generate_test_for_mask_generation!(utest_add_config, add_config,
-        vec![String::from("desiredState.workloads.Test.configs")], "alias_test", "config_test");
+        vec![String::from("desiredState.workloads.Test.configs.alias_test")], "alias_test", "config_test");
 
     #[test]
     fn utest_workload_builder() {

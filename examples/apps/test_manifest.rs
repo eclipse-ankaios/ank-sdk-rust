@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Elektrobit Automotive GmbH
+// Copyright (c) 2025 Elektrobit Automotive GmbH
 //
 // This program and the accompanying materials are made available under the
 // terms of the Apache License, Version 2.0 which is available at
@@ -17,20 +17,19 @@ use std::thread::sleep;
 use ankaios_sdk::{Ankaios, Manifest};
 use tokio::time::Duration;
 
-async fn get_workloads(ank: &mut Ankaios) {
-    // Request the state of the system, filtered with the workloadStates
-    let complete_state = ank.get_state(Some(vec!["workloadStates".to_owned()]), Some(Duration::from_secs(5))).await.unwrap();
+async fn print_workload_states(ank: &mut Ankaios) {
+    if let Ok(complete_state) = ank.get_state(vec!["workloadStates".to_owned()]).await {
+        // Get the workload states present in the complete state
+        let workload_states = Vec::from(complete_state.get_workload_states());
 
-    // Get the workload states present in the complete state
-    let workload_states_dict = complete_state.get_workload_states().get_as_list();
-
-    // Print the states of the workloads
-    for workload_state in workload_states_dict {
-        println!("Workload {} on agent {} has the state {:?}", 
-            workload_state.workload_instance_name.workload_name, 
-            workload_state.workload_instance_name.agent_name,
-            workload_state.execution_state.state
-        ); 
+        // Print the states of the workloads
+        for workload_state in workload_states {
+            println!("Workload {} on agent {} has the state {:?}", 
+                workload_state.workload_instance_name.workload_name, 
+                workload_state.workload_instance_name.agent_name,
+                workload_state.execution_state.state
+            ); 
+        }
     }
 }
 
@@ -38,7 +37,7 @@ async fn get_workloads(ank: &mut Ankaios) {
 async fn main() {
     // Create a new Ankaios object.
     // The connection to the control interface is automatically done at this step.
-    let mut ank = Ankaios::new().await.unwrap();
+    let mut ank = Ankaios::new().await.expect("Failed to initialize");
 
     // Create manifest
     let manifest_str = r#"apiVersion: v0.1
@@ -55,9 +54,9 @@ workloads:
 configs:
     agent:
         name: agent_Rust_SDK"#;
-    let manifest = Manifest::from_string(manifest_str).unwrap();
+    let manifest = Manifest::from_string(manifest_str).expect("Failed to parse manifest");
 
-    match ank.apply_manifest(manifest.clone(), None).await {
+    match ank.apply_manifest(manifest.clone()).await {
         Ok(result) => {
             println!("Manifest applied successfully: {result:?}");
         }
@@ -67,10 +66,10 @@ configs:
     }
 
     sleep(Duration::from_secs(5));
-    get_workloads(&mut ank).await;
+    print_workload_states(&mut ank).await;
     sleep(Duration::from_secs(5));
 
-    match ank.delete_manifest(manifest, None).await {
+    match ank.delete_manifest(manifest).await {
         Ok(result) => {
             println!("Manifest deleted successfully: {result:?}");
         }
@@ -80,5 +79,5 @@ configs:
     }
 
     sleep(Duration::from_secs(5));
-    get_workloads(&mut ank).await;
+    print_workload_states(&mut ank).await;
 }

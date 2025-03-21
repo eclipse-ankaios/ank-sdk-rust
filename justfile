@@ -48,31 +48,3 @@ doc:
 # Open documentation
 doc-open:
     python3 -m http.server -d target/x86_64-unknown-linux-musl/doc 8001
-
-# Open code coverage HTML as a server, depending on the method
-# cov-open method="server":
-#     if [[ "{{method}}" == "server" ]]; then
-#         if command -v python3 > /dev/null; then
-#             python3 -m http.server -d target/llvm-cov/html 8000
-#         else
-#             echo "Error: python3 is not available for running the server."
-#             exit 1
-#         fi
-#     elif [[ "{{method}}" == "xdg" ]]; then
-#         if command -v xdg-open > /dev/null; then
-#             xdg-open target/llvm-cov/html/index.html
-#         else
-#             echo "Error: xdg-open is not available."
-#             exit 1
-#         fi
-#     elif [[ "{{method}}" == "open" ]]; then
-#         if command -v open > /dev/null; then
-#             open target/llvm-cov/html/index.html
-#         else
-#             echo "Error: open is not available."
-#             exit 1
-#         fi
-#     else
-#         echo "Error: Invalid method. Use 'server', 'xdg', or 'open'."
-#         exit 1
-#     fi

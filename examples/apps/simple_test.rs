@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Elektrobit Automotive GmbH
+// Copyright (c) 2025 Elektrobit Automotive GmbH
 //
 // This program and the accompanying materials are made available under the
 // terms of the Apache License, Version 2.0 which is available at
@@ -21,14 +21,14 @@ use tokio::time::{Duration, sleep};
 async fn main() {
     {
         println!("Ankaios 1");
-        let mut _ank = Ankaios::new().await.unwrap();
+        let mut _ank = Ankaios::new().await.expect("Failed to initialize");
         sleep(Duration::from_secs(5)).await;
     }
     println!("Pause");
     sleep(Duration::from_secs(5)).await;
     {
         println!("Ankaios 2");
-        let mut _ank = Ankaios::new().await.unwrap();
+        let mut _ank = Ankaios::new().await.expect("Failed to initialize");
         sleep(Duration::from_secs(5)).await;
     }
     println!("End");

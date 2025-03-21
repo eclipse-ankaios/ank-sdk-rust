@@ -110,41 +110,7 @@ impl Response {
     /// 
     /// A new [Response] instance.
     pub fn new(response: FromAnkaios) -> Self {
-        if let Some(response_enum) = response.from_ankaios_enum {
-            match response_enum {
-                FromAnkaiosEnum::Response(inner_response) => {
-                    Self{
-                        content: match inner_response.response_content.unwrap_or(
-                            AnkaiosResponseContent::Error(Error{
-                                message: String::from("Response content is None."),
-                            })
-                        )  {
-                            AnkaiosResponseContent::Error(err) => ResponseType::Error(
-                                err.message
-                            ),
-                            AnkaiosResponseContent::CompleteState(complete_state) => ResponseType::CompleteState(
-                                Box::new(CompleteState::new_from_proto(&complete_state)),
-                            ),
-                            AnkaiosResponseContent::UpdateStateSuccess(update_state_success) => ResponseType::UpdateStateSuccess(
-                                Box::new(UpdateStateSuccess::new_from_proto(update_state_success)),
-                            ),
-                        },
-                        id: inner_response.request_id,
-                    }
-                },
-                FromAnkaiosEnum::ConnectionClosed(connection_closed) => {
-                    Self{
-                        content: ResponseType::ConnectionClosedReason(connection_closed.reason),
-                        id: String::default(),
-                    }
-                },
-            }
-        } else {
-            Self{
-                content: ResponseType::Error(String::from("Response is empty.")),
-                id: String::default(),
-            }
-        }
+        Self::from(response)
     }
 
     /// Returns the request ID of the response.
@@ -167,6 +133,45 @@ impl Response {
     }
 }
 
+impl From<FromAnkaios> for Response {
+    fn from(response: FromAnkaios) -> Self {
+        if let Some(response_enum) = response.from_ankaios_enum {
+            match response_enum {
+                FromAnkaiosEnum::Response(inner_response) => {
+                    Self{
+                        content: match inner_response.response_content.unwrap_or(
+                            AnkaiosResponseContent::Error(Error{
+                                message: String::from("Response content is None."),
+                            })
+                        )  {
+                            AnkaiosResponseContent::Error(err) => ResponseType::Error(
+                                err.message
+                            ),
+                            AnkaiosResponseContent::CompleteState(complete_state) => ResponseType::CompleteState(
+                                Box::new(CompleteState::new_from_proto(complete_state)),
+                            ),
+                            AnkaiosResponseContent::UpdateStateSuccess(update_state_success) => ResponseType::UpdateStateSuccess(
+                                Box::new(UpdateStateSuccess::new_from_proto(update_state_success)),
+                            ),
+                        },
+                        id: inner_response.request_id,
+                    }
+                },
+                FromAnkaiosEnum::ConnectionClosed(connection_closed) => {
+                    Self{
+                        content: ResponseType::ConnectionClosedReason(connection_closed.reason),
+                        id: String::default(),
+                    }
+                },
+            }
+        } else {
+            Self{
+                content: ResponseType::Error(String::from("Response is empty.")),
+                id: String::default(),
+            }
+        }
+    }
+}
 
 impl UpdateStateSuccess{
     #[doc(hidden)]

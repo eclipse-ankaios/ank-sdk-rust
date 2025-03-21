@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Elektrobit Automotive GmbH
+// Copyright (c) 2025 Elektrobit Automotive GmbH
 //
 // This program and the accompanying materials are made available under the
 // terms of the Apache License, Version 2.0 which is available at
@@ -17,20 +17,19 @@ use std::{collections::HashMap, thread::sleep};
 use ankaios_sdk::{Ankaios, Workload};
 use tokio::time::Duration;
 
-async fn get_workloads(ank: &mut Ankaios) {
-    // Request the state of the system, filtered with the workloadStates
-    let complete_state = ank.get_state(Some(vec!["workloadStates".to_owned()]), Some(Duration::from_secs(5))).await.unwrap();
+async fn print_workload_states(ank: &mut Ankaios) {
+    if let Ok(complete_state) = ank.get_state(vec!["workloadStates".to_owned()]).await {
+        // Get the workload states present in the complete state
+        let workload_states = Vec::from(complete_state.get_workload_states());
 
-    // Get the workload states present in the complete state
-    let workload_states_dict = complete_state.get_workload_states().get_as_list();
-
-    // Print the states of the workloads
-    for workload_state in workload_states_dict {
-        println!("Workload {} on agent {} has the state {:?}", 
-            workload_state.workload_instance_name.workload_name, 
-            workload_state.workload_instance_name.agent_name,
-            workload_state.execution_state.state
-        ); 
+        // Print the states of the workloads
+        for workload_state in workload_states {
+            println!("Workload {} on agent {} has the state {:?}", 
+                workload_state.workload_instance_name.workload_name, 
+                workload_state.workload_instance_name.agent_name,
+                workload_state.execution_state.state
+            ); 
+        }
     }
 }
 
@@ -38,7 +37,7 @@ async fn get_workloads(ank: &mut Ankaios) {
 async fn main() {
     // Create a new Ankaios object.
     // The connection to the control interface is automatically done at this step.
-    let mut ank = Ankaios::new().await.unwrap();
+    let mut ank = Ankaios::new().await.expect("Failed to initialize");
 
     // Create a new workload
     let workload = Workload::builder()
@@ -49,7 +48,7 @@ async fn main() {
         .add_config("conf", "configuration")
         .runtime_config(
             "image: docker.io/library/nginx\ncommandOptions: [\"-p\", \"8080:{{conf.port}}\"]"
-        ).build().unwrap();
+        ).build().expect("Failed to build workload");
     
     // Create configuration
     let mut port_map = serde_yaml::Mapping::new();
@@ -57,29 +56,29 @@ async fn main() {
     let mut configs = HashMap::from([("configuration".to_owned(), serde_yaml::Value::Mapping(port_map))]);
     
     // Send configuration to Ankaios
-    ank.update_configs(configs.clone(), None).await.unwrap();
+    ank.update_configs(configs.clone()).await.expect("Failed to update configs");
 
     // Send workload to Ankaios
-    ank.apply_workload(workload, None).await.unwrap();
+    ank.apply_workload(workload).await.expect("Failed to apply workload");
 
     // Get workloads
     sleep(Duration::from_secs(5));
-    get_workloads(&mut ank).await;
+    print_workload_states(&mut ank).await;
 
     // Modify config
     configs.get_mut("configuration").unwrap().as_mapping_mut().unwrap().insert(serde_yaml::Value::String("port".to_owned()), serde_yaml::Value::String("81".to_owned()));
 
     // Send updated configuration to Ankaios
-    ank.update_configs(configs, None).await.unwrap();
+    ank.update_configs(configs).await.expect("Failed to update configs");
 
     // Get workloads
     sleep(Duration::from_secs(5));
-    get_workloads(&mut ank).await;
+    print_workload_states(&mut ank).await;
 
     // Delete workload
-    ank.delete_workload("dynamic_nginx".to_owned(), None).await.unwrap();
+    ank.delete_workload("dynamic_nginx".to_owned()).await.expect("Failed to delete workload");
 
     // Get workloads
     sleep(Duration::from_secs(5));
-    get_workloads(&mut ank).await;
+    print_workload_states(&mut ank).await;
 }

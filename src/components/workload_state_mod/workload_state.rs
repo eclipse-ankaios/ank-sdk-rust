@@ -20,7 +20,6 @@ use crate::ankaios_api;
 use ankaios_api::ank_base;
 use super::workload_execution_state::WorkloadExecutionState;
 use super::workload_instance_name::WorkloadInstanceName;
-use crate::AnkaiosError;
 
 /// A [`HashMap`] where the key represents the workload id and the value is of type [`WorkloadExecutionState`].
 type ExecutionsStatesForId = HashMap<String, WorkloadExecutionState>;
@@ -79,6 +78,7 @@ impl WorkloadState {
     /// ## Returns
     /// 
     /// A new [`WorkloadState`] instance.
+    #[must_use]
     pub fn new_from_exec_state(agent_name: String, workload_name: String, workload_id: String, exec_state: WorkloadExecutionState) -> WorkloadState {
         WorkloadState {
             execution_state: exec_state,
@@ -129,31 +129,23 @@ impl WorkloadStateCollection {
         workload_states
     }
 
+    #[doc(hidden)]
     /// Adds a [`WorkloadState`] to the collection.
     /// 
     /// ## Arguments
     /// 
     /// * `workload_state` - The [`WorkloadState`] to add to the collection.
-    pub fn add_workload_state(&mut self, workload_state: WorkloadState) {
+    pub(crate) fn add_workload_state(&mut self, workload_state: WorkloadState) {
         let agent_name = workload_state.workload_instance_name.agent_name.clone();
         let workload_name = workload_state.workload_instance_name.workload_name.clone();
         let workload_id = workload_state.workload_instance_name.workload_id.clone();
 
-        if !self.workload_states.contains_key(&agent_name) {
-            self.workload_states.insert(agent_name.clone(), ExecutionsStatesOfWorkload::new());
-        }
-
-        if let Some(workloads) = self.workload_states.get_mut(&agent_name) {
-            if !workloads.contains_key(&workload_name) {
-                workloads.insert(workload_name.clone(), ExecutionsStatesForId::new());
-            }
-        }
-
-        if let Some(agent_map) = self.workload_states.get_mut(&agent_name) {
-            if let Some(workload_map) = agent_map.get_mut(&workload_name) {
-                workload_map.insert(workload_id, workload_state.execution_state);
-            }
-        }
+        self.workload_states
+            .entry(agent_name.clone())
+            .or_default()
+            .entry(workload_name.clone())
+            .or_default()
+            .insert(workload_id.clone(), workload_state.execution_state);
     }
 
     /// Converts the `WorkloadStateCollection` to a [`WorkloadStatesMap`].
@@ -162,8 +154,8 @@ impl WorkloadStateCollection {
     /// 
     /// A [`WorkloadStatesMap`] containing the [`WorkloadStateCollection`] information.
     #[must_use]
-    pub fn get_as_dict(&self) -> WorkloadStatesMap {
-        self.workload_states.clone()
+    pub fn as_dict(self) -> WorkloadStatesMap {
+        WorkloadStatesMap::from(self)
     }
 
     /// Converts the `WorkloadStateCollection` to a [Mapping](serde_yaml::Mapping).
@@ -172,20 +164,8 @@ impl WorkloadStateCollection {
     /// 
     /// A [Mapping](serde_yaml::Mapping) containing the [`WorkloadStateCollection`] information.
     #[must_use]
-    pub(crate) fn get_as_mapping(&self) -> serde_yaml::Mapping {
-        let mut map = serde_yaml::Mapping::new();
-        for (agent_name, workload_states) in &self.workload_states {
-            let mut agent_map = serde_yaml::Mapping::new();
-            for (workload_name, workload_states_for_id) in workload_states {
-                let mut workload_map = serde_yaml::Mapping::new();
-                for (workload_id, workload_state) in workload_states_for_id {
-                    workload_map.insert(Value::String(workload_id.clone()), Value::Mapping(workload_state.to_dict()));
-                }
-                agent_map.insert(Value::String(workload_name.clone()), Value::Mapping(workload_map));
-            }
-            map.insert(Value::String(agent_name.clone()), Value::Mapping(agent_map));
-        }
-        map
+    pub fn as_mapping(self) -> serde_yaml::Mapping {
+        serde_yaml::Mapping::from(self)
     }
 
     /// Converts the `WorkloadStateCollection` to a [Vec] of [`WorkloadState`].
@@ -194,24 +174,8 @@ impl WorkloadStateCollection {
     /// 
     /// A [Vec] of [`WorkloadStates`](WorkloadState) containing the [`WorkloadStateCollection`] information.
     #[must_use]
-    pub fn get_as_list(&self) -> Vec<WorkloadState> {
-        let mut list = Vec::new();
-        for (agent_name, workload_states_for_agent) in &self.workload_states {
-            for (workload_name, workload_states_for_id) in workload_states_for_agent {
-                for (workload_id, workload_state) in workload_states_for_id {
-                    let workload_instance_name = WorkloadInstanceName::new(
-                        agent_name.clone(),
-                        workload_name.clone(),
-                        workload_id.clone(),
-                    );
-                    list.push(WorkloadState {
-                        execution_state: workload_state.clone(),
-                        workload_instance_name,
-                    });
-                }
-            }
-        }
-        list
+    pub fn as_list(self) -> Vec<WorkloadState> {
+        Vec::from(self)
     }
 
     /// Returns the [`WorkloadState`] for a given [`WorkloadInstanceName`].
@@ -232,11 +196,55 @@ impl WorkloadStateCollection {
     }
 }
 
-impl TryFrom<ank_base::WorkloadStatesMap> for WorkloadStateCollection {
-    type Error = AnkaiosError;
+impl From<ank_base::WorkloadStatesMap> for WorkloadStateCollection {
+    fn from(proto: ank_base::WorkloadStatesMap) -> Self {
+        Self::new_from_proto(&proto)
+    }
+}
 
-    fn try_from(proto: ank_base::WorkloadStatesMap) -> Result<Self, Self::Error> {
-        Ok(Self::new_from_proto(&proto))
+impl From<WorkloadStateCollection> for WorkloadStatesMap {
+    fn from(collection: WorkloadStateCollection) -> Self {
+        collection.workload_states
+    }
+}
+
+impl From<WorkloadStateCollection> for serde_yaml::Mapping {
+    fn from(collection: WorkloadStateCollection) -> Self {
+        let mut map = serde_yaml::Mapping::new();
+        for (agent_name, workload_states) in &collection.workload_states {
+            let mut agent_map = serde_yaml::Mapping::new();
+            for (workload_name, workload_states_for_id) in workload_states {
+                let mut workload_map = serde_yaml::Mapping::new();
+                for (workload_id, workload_state) in workload_states_for_id {
+                    workload_map.insert(Value::String(workload_id.clone()), Value::Mapping(workload_state.to_dict()));
+                }
+                agent_map.insert(Value::String(workload_name.clone()), Value::Mapping(workload_map));
+            }
+            map.insert(Value::String(agent_name.clone()), Value::Mapping(agent_map));
+        }
+        map
+    }
+}
+
+impl From<WorkloadStateCollection> for Vec<WorkloadState> {
+    fn from(collection: WorkloadStateCollection) -> Self {
+        let mut list = Vec::new();
+        for (agent_name, workload_states_for_agent) in &collection.workload_states {
+            for (workload_name, workload_states_for_id) in workload_states_for_agent {
+                for (workload_id, workload_state) in workload_states_for_id {
+                    let workload_instance_name = WorkloadInstanceName::new(
+                        agent_name.clone(),
+                        workload_name.clone(),
+                        workload_id.clone(),
+                    );
+                    list.push(WorkloadState {
+                        execution_state: workload_state.clone(),
+                        workload_instance_name,
+                    });
+                }
+            }
+        }
+        list
     }
 }
 
@@ -333,9 +341,8 @@ mod tests {
 
     #[test]
     fn utest_workload_state_collection() {
-        let state_collection = WorkloadStateCollection::try_from(
-            generate_test_workload_states_proto()).unwrap();
-        let mut state_list = state_collection.get_as_list();
+        let state_collection = WorkloadStateCollection::from(generate_test_workload_states_proto());
+        let mut state_list = state_collection.clone().as_list();
         // The list comes unsorted, thus the test is not deterministic
         state_list.sort_by(|a, b| a.workload_instance_name.agent_name.cmp(&b.workload_instance_name.agent_name));
         assert_eq!(state_list.len(), 3);
@@ -345,12 +352,12 @@ mod tests {
         assert_eq!(state_list[1].workload_instance_name.agent_name, "agent_B");
         assert_eq!(state_list[2].workload_instance_name.agent_name, "agent_B");
 
-        let state_dict = state_collection.get_as_dict();
+        let state_dict = state_collection.clone().as_dict();
         assert_eq!(state_dict.len(), 2);
         assert_eq!(state_dict.get("agent_A").unwrap().len(), 1);
         assert_eq!(state_dict.get("agent_B").unwrap().len(), 2);
 
-        let state_dict = state_collection.get_as_mapping();
+        let state_dict = state_collection.clone().as_mapping();
         assert_eq!(state_dict.len(), 2);
         assert_eq!(state_dict.get("agent_A".to_owned()).unwrap().as_mapping().unwrap().len(), 1);
         assert_eq!(state_dict.get("agent_B".to_owned()).unwrap().as_mapping().unwrap().len(), 2);

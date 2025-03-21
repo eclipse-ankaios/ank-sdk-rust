@@ -17,8 +17,25 @@
 # Set threshold
 THRESHOLD=80
 
+# Check if cargo-llvm-cov is installed
+if ! cargo llvm-cov --version &>/dev/null; then
+    echo "Installing cargo-llvm-cov..."
+    cargo install cargo-llvm-cov
+    if [ $? -ne 0 ]; then
+        cho -e "\033[0;31mError\033[0m: Failed to install cargo-llvm-cov. Please install it manually."
+        exit 1
+    fi
+fi
+
 # Extract the last coverage line with the TOTAL stats
-TOTAL_LINE=$(cargo llvm-cov | grep "TOTAL")
+echo "Running coverage analysis..."
+TOTAL_LINE=$(cargo llvm-cov 2>/dev/null | grep "TOTAL")
+
+# Check if we got a coverage result
+if [[ -z "$TOTAL_LINE" ]]; then
+    echo -e "\033[0;31mError\033[0m: Failed to calculate coverage. Check if tests pass."
+    exit 1
+fi
 
 # Extract the three percentages
 mapfile -t PERCENTAGES < <(echo "$TOTAL_LINE" | grep -o '[0-9]*\.[0-9]*%' | tr -d '%')

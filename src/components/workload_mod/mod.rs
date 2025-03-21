@@ -20,7 +20,7 @@
 mod workload;
 mod workload_builder;
 
-pub use workload::Workload;
+pub use workload::{Workload, WORKLOADS_PREFIX};
 pub use workload_builder::WorkloadBuilder;
 
 #[cfg(test)]

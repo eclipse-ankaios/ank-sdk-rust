@@ -19,12 +19,10 @@ use ankaios_api::ank_base;
 use crate::Workload;
 
 #[allow(clippy::unnecessary_wraps)]
-#[cfg(test)]
 pub fn read_to_string_mock(path: &Path) -> Result<String, std::io::Error> {
     Ok(path.to_str().unwrap().to_owned())
 }
 
-#[cfg(test)]
 pub fn generate_test_dependencies() -> HashMap<String, i32> {
 
     HashMap::from([
@@ -43,7 +41,6 @@ commandArgs: ["bash"]
     )
 }
 
-#[cfg(test)]
 pub fn generate_test_workload_proto<T: Into<String>>(
     agent_name: T,
     runtime_name: T,
@@ -89,7 +86,6 @@ pub fn generate_test_workload_proto<T: Into<String>>(
     }
 }
 
-#[cfg(test)]
 pub fn generate_test_workload<T: Into<String>>(
     agent_name: T,
     workload_name: T,

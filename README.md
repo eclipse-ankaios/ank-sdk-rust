@@ -62,9 +62,9 @@ are using. For information regarding versioning, please refer to this table:
 After setup, you can use the Ankaios SDK to configure and run workloads
 and request the state of the Ankaios system and the connected agents.
 
-The following example assumes that the code is running in a managed by
-Ankaios workload with configured control interface access. A full working
-example can be seen in the `examples` folder.
+The following example assumes that the code is running in a workload managed by
+Ankaios with configured control interface access. This can also be tested from the
+[examples](examples) by running `./run_example.sh hello_ankaios`.
 
 ```rust
 use ankaios_sdk::{Ankaios, AnkaiosError, Workload, WorkloadStateEnum};
@@ -87,13 +87,13 @@ async fn main() {
         ).build().expect("Failed to build workload");
     
     // Run the workload
-    let response = ank.apply_workload(workload, None).await.expect("Failed to apply workload");
+    let response = ank.apply_workload(workload).await.expect("Failed to apply workload");
 
     // Get the WorkloadInstanceName to check later if the workload is running
     let workload_instance_name = response.added_workloads[0].clone();
 
     // Request the execution state based on the workload instance name
-    match ank.get_execution_state_for_instance_name(&workload_instance_name, None).await {
+    match ank.get_execution_state_for_instance_name(&workload_instance_name).await {
         Ok(state) => {
             let exec_state = state.execution_state;
             println!("State: {:?}, substate: {:?}, info: {:?}", exec_state.state, exec_state.substate, exec_state.additional_info);
@@ -104,7 +104,7 @@ async fn main() {
     }
 
     // Wait until the workload reaches the running state
-    match ank.wait_for_workload_to_reach_state(workload_instance_name, WorkloadStateEnum::Running, None).await {
+    match ank.wait_for_workload_to_reach_state(workload_instance_name, WorkloadStateEnum::Running).await {
         Ok(_) => {
             println!("Workload reached the RUNNING state.");
         }
@@ -117,7 +117,7 @@ async fn main() {
     }
 
     // Request the state of the system, filtered with the workloadStates
-    let complete_state = ank.get_state(Some(vec!["workloadStates".to_owned()]), Some(Duration::from_secs(5))).await.expect("Failed to get the state");
+    let complete_state = ank.get_state(vec!["workloadStates".to_owned()]).await.expect("Failed to get the state");
 
     // Get the workload states present in the complete state
     let workload_states_dict = complete_state.get_workload_states().get_as_list();
@@ -134,6 +134,7 @@ async fn main() {
 ```
 
 For more details, please visit:
+
 * [Ankaios documentation](https://eclipse-ankaios.github.io/ankaios/latest/)
 * [Rust SDK documentation](https://docs.rs/ankaios-sdk/0.5.0-rc1)
 

@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains structs and enums that are used to define and manage the
+//! This module contains structs and enums that are used to monitor the
 //! state of workloads in the [Ankaios] application.
 //! 
 //! [Ankaios]: https://eclipse-ankaios.github.io/ankaios
@@ -74,8 +74,8 @@ mod tests {
     fn test_doc_examples() {
         // Get all workload states
         let workload_state_collection = WorkloadStateCollection::new();
-        let _workload_states_list = workload_state_collection.get_as_list();
-        let _workload_states_map = workload_state_collection.get_as_dict();
+        let _workload_states_list = workload_state_collection.clone().as_list();
+        let _workload_states_map = workload_state_collection.as_dict();
 
         // Unpack a workload state
         let workload_state: WorkloadState = generate_test_workload_state();

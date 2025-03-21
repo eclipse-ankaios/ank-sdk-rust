@@ -49,9 +49,6 @@ pub enum AnkaiosError{
     /// Represents an error that occurs when the connection is closed with Ankaios.
     #[error("Connection closed: {0}")]
     ConnectionClosedError(String),
-    /// Represents an error related to the creation of a request.
-    #[error("Request error: {0}")]
-    RequestError(String),
     /// Represents an error that occurs when the response is invalid.
     #[error("Response error: {0}")]
     ResponseError(String),
@@ -60,6 +57,6 @@ pub enum AnkaiosError{
     ControlInterfaceError(String),
     /// Represents an error returned by the server in response to a distinct request.
     /// e.g. due to insufficient reading rights by the requester.
-    #[error("Ankaios error: {0}")]
-    AnkaiosError(String)
+    #[error("Ankaios response error: {0}")]
+    AnkaiosResponseError(String)
 }

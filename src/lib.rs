@@ -25,8 +25,7 @@
     clippy::shadow_reuse,
     clippy::deref_by_slicing,
     clippy::else_if_without_else,
-    // clippy::indexing_slicing, // TODO solve this => makes the code more robust
-    // clippy::unwrap_used, // TODO solve this => makes the code more robust
+    clippy::unwrap_used,
 )]
 #![deny(
     rustdoc::broken_intra_doc_links, // All links should be valid
@@ -43,12 +42,12 @@
     clippy::panic,
     clippy::print_stdout,
     clippy::shadow_unrelated,
+    clippy::unwrap_used,
 ))]
 
 
 #![doc(html_root_url = "https://docs.rs/ankaios_sdk/0.5.0-rc1")]
 #![doc(html_logo_url = "https://avatars.githubusercontent.com/u/132572901?s=200&v=4")] // Icon above title in top-left
-/* #![doc(html_favicon_url = "https://avatars.githubusercontent.com/u/132572901?s=200&v=4")] */ // Icon in browser tab
 #![doc(issue_tracker_base_url = "https://github.com/eclipse-ankaios/ank-sdk-rust/issues/")]
 
 //! <div>
@@ -117,8 +116,9 @@
 //! After setup, you can use the Ankaios SDK to configure and run workloads
 //! and request the state of the Ankaios system and the connected agents.
 //! 
-//! The following example assumes that the code is running in a managed by
-//! Ankaios workload with configured control interface access:
+//! The following example assumes that the code is running in a workload managed by
+//! Ankaios with configured control interface access. This can also be tested from the
+//! examples folder by running `./run_example.sh hello_ankaios`.
 //! 
 //! ```rust
 //! use ankaios_sdk::{Ankaios, AnkaiosError, Workload, WorkloadStateEnum};
@@ -141,13 +141,13 @@
 //!         ).build().expect("Failed to build workload");
 //!     
 //!     // Run the workload
-//!     let response = ank.apply_workload(workload, None).await.expect("Failed to apply workload");
+//!     let response = ank.apply_workload(workload).await.expect("Failed to apply workload");
 //! 
 //!     // Get the WorkloadInstanceName to check later if the workload is running
 //!     let workload_instance_name = response.added_workloads[0].clone();
 //! 
 //!     // Request the execution state based on the workload instance name
-//!     match ank.get_execution_state_for_instance_name(&workload_instance_name, None).await {
+//!     match ank.get_execution_state_for_instance_name(&workload_instance_name).await {
 //!         Ok(state) => {
 //!             let exec_state = state.execution_state;
 //!             println!("State: {:?}, substate: {:?}, info: {:?}", exec_state.state, exec_state.substate, exec_state.additional_info);
@@ -158,7 +158,7 @@
 //!     }
 //! 
 //!     // Wait until the workload reaches the running state
-//!     match ank.wait_for_workload_to_reach_state(workload_instance_name, WorkloadStateEnum::Running, None).await {
+//!     match ank.wait_for_workload_to_reach_state(workload_instance_name, WorkloadStateEnum::Running).await {
 //!         Ok(_) => {
 //!             println!("Workload reached the RUNNING state.");
 //!         }
@@ -171,7 +171,7 @@
 //!     }
 //! 
 //!     // Request the state of the system, filtered with the workloadStates
-//!     let complete_state = ank.get_state(Some(vec!["workloadStates".to_owned()]), Some(Duration::from_secs(5))).await.expect("Failed to get the state");
+//!     let complete_state = ank.get_state(vec!["workloadStates".to_owned()]).await.expect("Failed to get the state");
 //! 
 //!     // Get the workload states present in the complete state
 //!     let workload_states_dict = complete_state.get_workload_states().get_as_list();
@@ -188,6 +188,7 @@
 //! ```
 //! 
 //! For more details, please visit:
+//! 
 //! * [Ankaios documentation](https://eclipse-ankaios.github.io/ankaios/latest/)
 //! * [Rust SDK documentation](https://docs.rs/ankaios-sdk/0.5.0-rc1)
 //! 
@@ -199,6 +200,7 @@
 //! ## License
 //! 
 //! Ankaios Rust SDK is licensed using the Apache License Version 2.0.
+//! 
 
 mod docs;
 mod ankaios_api;
@@ -208,7 +210,7 @@ pub use errors::AnkaiosError;
 
 mod components;
 pub use components::workload_mod::{Workload, WorkloadBuilder};
-pub use components::workload_state_mod::{WorkloadStateCollection, WorkloadStateEnum};
+pub use components::workload_state_mod::{WorkloadState, WorkloadStateCollection, WorkloadStateEnum};
 pub use components::manifest::Manifest;
 pub use components::complete_state::CompleteState;
 pub use components::control_interface::ControlInterfaceState;
