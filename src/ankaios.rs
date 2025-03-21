@@ -22,7 +22,7 @@ use std::vec;
 use tokio::sync::mpsc;
 use tokio::time::{timeout as tokio_timeout, Duration, sleep};
 
-use crate::components::request::{Request, RequestType};
+use crate::components::request::{Request, GetStateRequest, UpdateStateRequest};
 use crate::components::response::{Response, ResponseType, UpdateStateSuccess};
 use crate::components::workload_mod::Workload;
 use crate::{AnkaiosError, CompleteState, Manifest};
@@ -201,7 +201,7 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
-    async fn send_request(&mut self, request: Request, timeout: Option<Duration>) -> Result<Response, AnkaiosError> {
+    async fn send_request(&mut self, request: impl Request + 'static, timeout: Option<Duration>) -> Result<Response, AnkaiosError> {
         let request_id = request.get_id();
         self.control_interface.write_request(request).await?;
         let timeout_duration = timeout.unwrap_or(Duration::from_secs(DEFAULT_TIMEOUT));
@@ -250,10 +250,7 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn apply_manifest(&mut self, manifest: Manifest, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
         // Create request
-        let mut request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(&CompleteState::new_from_manifest(&manifest)).unwrap_or_else(|err| {
-            log::error!("Error while setting the complete state: {}", err);
-        });
+        let mut request = UpdateStateRequest::new(&CompleteState::new_from_manifest(&manifest));
         request.set_masks(manifest.calculate_masks());
 
         // Wait for the response
@@ -296,10 +293,7 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn delete_manifest(&mut self, manifest: Manifest, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
         // Create request
-        let mut request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(&CompleteState::default()).unwrap_or_else(|err| {
-            log::error!("Error while setting the complete state: {}", err);
-        });
+        let mut request = UpdateStateRequest::new(&CompleteState::default());
         request.set_masks(manifest.calculate_masks());
 
         // Wait for the response
@@ -348,10 +342,7 @@ impl Ankaios {
         complete_state.add_workload(workload);
 
         // Create request
-        let mut request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(&complete_state).unwrap_or_else(|err| {
-            log::error!("Error while setting the complete state: {}", err);
-        });
+        let mut request = UpdateStateRequest::new(&complete_state);
         request.set_masks(masks);
 
         // Wait for the response
@@ -418,10 +409,7 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn delete_workload(&mut self, workload_name: String, timeout: Option<Duration>) -> Result<UpdateStateSuccess, AnkaiosError> {
         // Create request
-        let mut request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(&CompleteState::default()).unwrap_or_else(|err| {
-            log::error!("Error while setting the complete state: {}", err);
-        });
+        let mut request = UpdateStateRequest::new(&CompleteState::default());
         request.add_mask(format!("{WORKLOADS_PREFIX}.{workload_name}"));
 
         // Wait for the response
@@ -468,10 +456,7 @@ impl Ankaios {
         complete_state.set_configs(configs);
 
         // Create request
-        let mut request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(&complete_state).unwrap_or_else(|err| {
-            log::error!("Error while setting the complete state: {}", err);
-        });
+        let mut request = UpdateStateRequest::new(&complete_state);
         request.add_mask(CONFIGS_PREFIX.to_owned());
 
         // Wait for the response
@@ -520,10 +505,7 @@ impl Ankaios {
         complete_state.set_configs(HashMap::from([(name, configs)]));
 
         // Create request
-        let mut request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(&complete_state).unwrap_or_else(|err| {
-            log::error!("Error while setting the complete state: {}", err);
-        });
+        let mut request = UpdateStateRequest::new(&complete_state);
         request.add_mask(CONFIGS_PREFIX.to_owned());
 
         // Wait for the response
@@ -606,10 +588,7 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn delete_all_configs(&mut self, timeout: Option<Duration>) -> Result<(), AnkaiosError> {
         // Create request
-        let mut request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(&CompleteState::default()).unwrap_or_else(|err| {
-            log::error!("Error while setting the complete state: {}", err);
-        });
+        let mut request = UpdateStateRequest::new(&CompleteState::default());
         request.add_mask(CONFIGS_PREFIX.to_owned());
 
         // Wait for the response
@@ -647,10 +626,7 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn delete_config(&mut self, name: String, timeout: Option<Duration>) -> Result<(), AnkaiosError> {
         // Create request
-        let mut request = Request::new(RequestType::UpdateState);
-        request.set_complete_state(&CompleteState::default()).unwrap_or_else(|err| {
-            log::error!("Error while setting the complete state: {}", err);
-        });
+        let mut request = UpdateStateRequest::new(&CompleteState::default());
         request.add_mask(format!("{CONFIGS_PREFIX}.{name}"));
 
         // Wait for the response
@@ -692,7 +668,7 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn get_state(&mut self, field_masks: Option<Vec<String>>, timeout: Option<Duration>) -> Result<CompleteState, AnkaiosError> {
         // Create request
-        let mut request = Request::new(RequestType::GetState);
+        let mut request = GetStateRequest::new();
         if let Some(masks) = field_masks {
             request.set_masks(masks);
         }
@@ -928,6 +904,7 @@ mod tests {
         complete_state::generate_complete_state_proto,
         manifest::generate_test_manifest,
         response::generate_test_response_update_state_success,
+        request::{Request, GetStateRequest, UpdateStateRequest},
         workload_mod::test_helpers::generate_test_workload,
     };
 
@@ -966,7 +943,7 @@ mod tests {
             .returning(|| Ok(()));
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1019,7 +996,7 @@ mod tests {
             .returning(|| Ok(()));
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1067,7 +1044,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1111,7 +1088,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1154,7 +1131,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1197,7 +1174,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1240,7 +1217,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1283,7 +1260,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1329,7 +1306,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1375,7 +1352,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1418,7 +1395,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1464,7 +1441,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1510,7 +1487,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1553,7 +1530,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1599,7 +1576,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1645,7 +1622,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1691,7 +1668,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1731,7 +1708,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1774,7 +1751,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1817,7 +1794,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1860,7 +1837,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1906,7 +1883,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1952,7 +1929,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1995,7 +1972,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2041,7 +2018,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2087,7 +2064,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2133,7 +2110,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2179,7 +2156,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2217,7 +2194,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2260,7 +2237,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2303,7 +2280,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2341,7 +2318,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2384,7 +2361,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2427,7 +2404,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2476,7 +2453,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2520,7 +2497,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2570,7 +2547,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2614,7 +2591,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2658,7 +2635,7 @@ mod tests {
         let mut ci_mock = ControlInterface::default();
         ci_mock.expect_write_request()
             .times(1)
-            .return_once(move |request| {
+            .return_once(move |request: GetStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });

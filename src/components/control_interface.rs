@@ -333,7 +333,7 @@ impl ControlInterface {
     /// ## Returns
     /// 
     /// An [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected.
-    pub async fn write_request(&mut self, request: Request) -> Result<(), AnkaiosError> {
+    pub async fn write_request<T: Request + 'static>(&mut self, request: T) -> Result<(), AnkaiosError> {
         if *self.state.lock().unwrap() != ControlInterfaceState::Initialized {
             log::error!("Could not write to pipe, not connected.");
             return Err(AnkaiosError::ControlInterfaceError("Could not write to pipe, not connected.".to_owned()));
@@ -403,7 +403,7 @@ mod tests {
     use super::{ControlInterface, ControlInterfaceState, read_protobuf_data, ANKAIOS_VERSION};
     use crate::components::{
         response::{Response, generate_test_proto_update_state_success, generate_test_response_update_state_success},
-        request::generate_test_request,
+        request::{Request, generate_test_request},
     };
 
     #[tokio::test(flavor = "multi_thread")]
