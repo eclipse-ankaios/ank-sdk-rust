@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+concurrency:
+  group: "release-${{ github.head_ref || github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+
+  release:
+    name: Create Release
+    permissions: write-all
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: mkdir dist
+
+      - name: "Prepare Cargo.lock artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: Cargo.lock
+          path: dist/Cargo.lock
+
+      - name: "Prepare coverage artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: dist/coverage-report
+
+      - name: "Prepare docs artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-html
+          path: dist/docs-html
+
+      - name: "Prepare build artifact - amd64"
+        uses: actions/download-artifact@v4
+        with:
+          name: libankaios_sdk-amd64
+          path: dist/libankaios_sdk-amd64
+
+      - name: "Prepare build artifact - arm64"
+        uses: actions/download-artifact@v4
+        with:
+          name: libankaios_sdk-arm64
+          path: dist/libankaios_sdk-arm64
+
+      - name: "Compress the artifacts"
+        run: |
+          cd dist
+          zip -r docs-html.zip docs-html
+          zip -r coverage-report.zip coverage-report
+
+      - name: "Package release"
+        id: package
+        run: |
+          cd dist
+          gh release upload ${{ github.ref_name }} \
+          Cargo.lock \
+          libankaios_sdk-* \
+          docs-html.zip \
+          coverage-report.zip
+
+  publish:
+    name: Publish to crates.io
+    needs: release
+    runs-on: ubuntu-latest
+    env: 
+      CRATES_TOKEN: ${{ secrets.CRATES_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Setup
+        run: |
+          sudo apt -y install protobuf-compiler
+          rustup target add x86_64-unknown-linux-musl
+          cargo install just
+
+      - name: Check Build
+        run: cargo check
+
+      - name: Publish to crates.io
+        run: cargo publish --token ${CRATES_TOKEN}

@@ -1,0 +1,179 @@
+name: Build
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - release-**
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+  RUST_BACKTRACE: 1
+
+concurrency:
+  group: "build-${{ github.head_ref || github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Setup
+        run: |
+          sudo apt -y install protobuf-compiler
+          rustup target add x86_64-unknown-linux-musl
+          cargo install just
+
+      - name: Check
+        run: cargo check
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Cargo.lock
+          path: Cargo.lock
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Setup
+        run: |
+          sudo apt -y install protobuf-compiler
+          rustup target add x86_64-unknown-linux-musl
+          cargo install just
+
+      - name: Clippy
+        run: just clippy
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Setup
+        run: |
+          sudo apt -y install protobuf-compiler
+          rustup target add x86_64-unknown-linux-musl
+          cargo install just
+
+      - name: Test
+        run: just test
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Setup
+        run: |
+          sudo apt -y install protobuf-compiler
+          rustup target add x86_64-unknown-linux-musl
+          cargo install just cargo-llvm-cov
+
+      - name: Generate coverage report
+        run: just cov-html
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: target/llvm-cov/html
+
+      - name: Check coverage
+        run: just cov-check
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Setup
+        run: |
+          sudo apt -y install protobuf-compiler
+          rustup target add x86_64-unknown-linux-musl
+          cargo install just
+
+      - name: Docs
+        run: just doc
+
+      - name: Upload documentation
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: docs-html
+          path: target/x86_64-unknown-linux-musl/doc
+
+  build:
+    name: Build - ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Set build target
+        id: set_target
+        run: |
+          if [ "${{ matrix.arch }}" == "amd64" ]; then
+            echo "TARGET=x86_64-unknown-linux-musl" >> $GITHUB_ENV
+          elif [ "${{ matrix.arch }}" == "arm64" ]; then
+            echo "TARGET=aarch64-unknown-linux-musl" >> $GITHUB_ENV
+          fi
+
+      - name: Setup
+        run: |
+          sudo apt -y install protobuf-compiler
+          rustup target add ${TARGET}
+          cargo install just
+
+      - name: Build - ${{ matrix.arch }}
+        run: cargo build --target ${TARGET} --release
+
+      - name: Upload binary - ${{ matrix.arch }}
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: libankaios_sdk-${{ matrix.arch }}
+          path: target/${{ env.TARGET }}/release/libankaios_sdk.rlib
+
+  publish-check:
+    name: Publish Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Setup
+        run: |
+          sudo apt -y install protobuf-compiler
+          rustup target add x86_64-unknown-linux-musl
+          cargo install just
+
+      - name: Publish Check
+        run: cargo publish --dry-run

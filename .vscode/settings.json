@@ -1,0 +1,9 @@
+{
+    "cSpell.words": [
+        "Ankaios", "chrono", "Elektrobit",
+        "prost", "proto", "repr", "serde",
+        "substate", "thiserror", "utest",
+        "varint", "clippy", "oneshot", "mockall",
+        "itest", "withf", "mkfifo", "IRWXU", "unistd",
+    ]
+}

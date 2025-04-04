@@ -1,0 +1,51 @@
+[package]
+name = "ankaios_sdk"
+version = "0.5.0-rc1"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Elektrobit Automotive GmbH and Ankaios contributors"]
+description = "Eclipse Ankaios Rust SDK - provides a convenient Rust interface for interacting with the Ankaios platform."
+documentation = "https://docs.rs/ankaios-sdk/0.5.0-rc1"
+repository = "https://github.com/eclipse-ankaios/ank-sdk-rust"
+readme = "README.md"
+keywords = ["ankaios", "eclipse", "elektrobit", "automotive", "sdk", "containers", "OCI", "orchestration"]
+categories = ["virtualization", "api-bindings"]  # https://crates.io/category_slugs
+exclude = ["/tests", "/.github"]
+
+[lib]
+name = "ankaios_sdk"
+crate-type = ["lib"]
+
+[dependencies]
+prost = "0.11"
+tonic = "0.9"
+log = "0.4"
+env_logger = "0.11"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+thiserror = "1.0"
+uuid = { version = "1.7.0", features = ["v4"] }
+async-trait = "0.1"
+tokio = { version = "1.41", features = [
+    "macros",
+    "rt-multi-thread",
+    "fs",
+    "io-util",
+    "process",
+] }
+# home version is pinpointed because this is the only one
+# that works with the current version of rust (from the devcontainer)
+home = "=0.5.9"
+
+[dev-dependencies]
+tempfile = "3.4"
+nix = { version = "0.29", features = ["fs", "user"] }
+mockall = "0.11"
+mockall_double = "0.3"
+
+[build-dependencies]
+tonic-build = "0.9"
+
+[features]
+default = []
+test_utils = []

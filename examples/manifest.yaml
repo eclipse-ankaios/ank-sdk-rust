@@ -1,0 +1,13 @@
+apiVersion: v0.1
+workloads:
+  example:
+    runtime: podman
+    agent: agent_Rust_SDK
+    controlInterfaceAccess:
+      allowRules:
+        - type: StateRule
+          operation: ReadWrite
+          filterMask:
+            - "*"
+    runtimeConfig: |
+      image: localhost/app:0.1
