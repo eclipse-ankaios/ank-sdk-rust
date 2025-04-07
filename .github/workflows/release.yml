@@ -64,12 +64,11 @@ jobs:
       - name: "Package release"
         id: package
         run: |
-          cd dist
           gh release upload ${{ github.ref_name }} \
-          Cargo.lock \
-          libankaios_sdk-* \
-          docs-html.zip \
-          coverage-report.zip
+          dist/Cargo.lock \
+          dist/libankaios_sdk-* \
+          dist/docs-html.zip \
+          dist/coverage-report.zip
 
   publish:
     name: Publish to crates.io
