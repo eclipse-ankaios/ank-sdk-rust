@@ -154,12 +154,15 @@ jobs:
       - name: Build - ${{ matrix.arch }}
         run: cargo build --target ${TARGET} --release
 
+      - name: Prepare build artifact
+        run: mv target/${{ env.TARGET }}/release/libankaios_sdk.rlib libankaios_sdk-${{ matrix.arch }}.rlib
+
       - name: Upload binary - ${{ matrix.arch }}
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: libankaios_sdk-${{ matrix.arch }}
-          path: target/${{ env.TARGET }}/release/libankaios_sdk.rlib
+          path: libankaios_sdk-${{ matrix.arch }}.rlib
 
   publish-check:
     name: Publish Check
