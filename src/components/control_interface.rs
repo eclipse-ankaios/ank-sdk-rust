@@ -223,7 +223,7 @@ impl ControlInterface {
             return;
         }
         state.lock().unwrap_or_else(|_| unreachable!()).clone_from(&new_state);
-        log::info!("State changed: {:?}", new_state);
+        log::info!("State changed: {new_state:?}");
     }
 
     /// Prepares the writer thread for the control interface.
@@ -242,7 +242,7 @@ impl ControlInterface {
 
             while let Some(message) = writer_ch_receiver.recv().await {
                 output_file.write_all(&message.encode_length_delimited_to_vec()).await.unwrap_or_else(|err| {
-                    log::error!("Error while writing to output fifo: '{}'", err);
+                    log::error!("Error while writing to output fifo: '{err}'");
                     // let _ = self.disconnect();
                 });
                 #[allow(clippy::else_if_without_else)]
@@ -255,7 +255,7 @@ impl ControlInterface {
                         sleep(Duration::from_secs(AGENT_RECONNECT_INTERVAL)).await;
                         ControlInterface::send_initial_hello(&writer_ch_sender).await;
                     } else {
-                        log::error!("Error while flushing to output fifo: '{}'", err);
+                        log::error!("Error while flushing to output fifo: '{err}'");
                         // let _ = self.disconnect();
                     }
                 } else if *state_clone.lock().unwrap_or_else(|_| unreachable!()) == ControlInterfaceState::AgentDisconnected {
@@ -296,14 +296,14 @@ impl ControlInterface {
                                 let received_response = Response::new(from_ankaios);
                                 let is_con_closed = matches!(received_response.content, ResponseType::ConnectionClosedReason(_));
                                 response_sender_clone.send(received_response).await.unwrap_or_else(|err| {
-                                    log::error!("Error while sending response: '{}'", err);
+                                    log::error!("Error while sending response: '{err}'");
                                 });
                                 if is_con_closed {
                                     log::error!("Connection closed by the agent.");
                                     break;
                                 }
                             },
-                            Err(err) => log::error!("Invalid response, parsing error: '{}'", err),
+                            Err(err) => log::error!("Invalid response, parsing error: '{err}'"),
                         }
                     },
                     Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
@@ -314,7 +314,7 @@ impl ControlInterface {
                         sleep(Duration::from_millis(SLEEP_DURATION)).await;
                     }
                     Err(err) => {
-                        log::error!("Error while reading from input fifo: '{}'", err);
+                        log::error!("Error while reading from input fifo: '{err}'");
                         ControlInterface::change_state(&state_clone, ControlInterfaceState::Terminated);
                         break;
                     }
@@ -344,7 +344,7 @@ impl ControlInterface {
         };
         if let Some(sender) = self.writer_ch_sender.as_ref() {
             sender.send(message).await.unwrap_or_else(|err| {
-                log::error!("Error while sending request: '{}'", err);
+                log::error!("Error while sending request: '{err}'");
             });
         }
         Ok(())
@@ -363,7 +363,7 @@ impl ControlInterface {
             })),
         };
         writer_ch_sender.send(hello_msg).await.unwrap_or_else(|err| {
-            log::error!("Error while sending initial hello message: '{}'", err);
+            log::error!("Error while sending initial hello message: '{err}'");
         });
     }
 }

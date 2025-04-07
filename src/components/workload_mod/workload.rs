@@ -497,7 +497,7 @@ impl Workload {
                                 Value::Sequence(rule_ok.1.into_iter().map(Value::String).collect()));
                         },
                         Err(_) => continue,
-                    };
+                    }
                 }
                 allow_rules.push(Value::Mapping(rule_dict));
             }
@@ -528,7 +528,7 @@ impl Workload {
                                 Value::Sequence(rule_ok.1.into_iter().map(Value::String).collect()));
                         },
                         Err(_) => continue,
-                    };
+                    }
                 }
                 deny_rules.push(Value::Mapping(rule_dict));
             }
