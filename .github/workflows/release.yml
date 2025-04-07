@@ -23,6 +23,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - run: mkdir dist
 
       - name: "Prepare Cargo.lock artifact"
