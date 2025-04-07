@@ -30,7 +30,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: Cargo.lock
-          path: dist/Cargo.lock
+          path: dist/
 
       - name: "Prepare coverage artifact"
         uses: actions/download-artifact@v4
@@ -48,13 +48,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: libankaios_sdk-amd64
-          path: dist/libankaios_sdk-amd64
+          path: dist/
 
       - name: "Prepare build artifact - arm64"
         uses: actions/download-artifact@v4
         with:
           name: libankaios_sdk-arm64
-          path: dist/libankaios_sdk-arm64
+          path: dist/
 
       - name: "Compress the artifacts"
         run: |
@@ -65,11 +65,13 @@ jobs:
       - name: "Package release"
         id: package
         run: |
+          cd dist
+          tree
           gh release upload ${{ github.ref_name }} \
-          dist/Cargo.lock \
-          dist/libankaios_sdk-* \
-          dist/docs-html.zip \
-          dist/coverage-report.zip
+          Cargo.lock \
+          libankaios_sdk-*.rlib \
+          docs-html.zip \
+          coverage-report.zip
 
   publish:
     name: Publish to crates.io
