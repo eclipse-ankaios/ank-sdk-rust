@@ -23,13 +23,13 @@
 //! 
 //! ```rust
 //! let complete_state = CompleteState::new();
-//! let _request = UpdateStateRequest::new(&complete_state);
+//! let _request = UpdateStateRequest::new(&complete_state, Vec::default());
 //! ```
 //! 
 //! ## Create a request for getting the state:
 //! 
 //! ```rust
-//! let mut request = GetStateRequest::new();
+//! let mut request = GetStateRequest::new(Vec::default());
 //! ```
 //! 
 //! ## Get the request ID:
@@ -102,12 +102,16 @@ pub struct UpdateStateRequest{
 impl GetStateRequest {
     /// Creates a new `GetStateRequest`.
     /// 
+    /// ## Arguments
+    /// 
+    /// * `masks` - The field masks to be used for the request.
+    /// 
     /// ## Returns
     /// 
     /// A new [`GetStateRequest`] object.
     pub fn new(masks: Vec<String>) -> Self {
         let request_id = Uuid::new_v4().to_string();
-        log::debug!("Creating new request of type GetStateRequest with id {}", request_id);
+        log::debug!("Creating new request of type GetStateRequest with id {request_id}");
 
         Self{
             request: AnkaiosRequest{
@@ -140,12 +144,17 @@ impl fmt::Display for GetStateRequest {
 impl UpdateStateRequest {
     /// Creates a new `UpdateStateRequest`.
     /// 
+    /// ## Arguments
+    /// 
+    /// * `complete_state` - The complete state to be set.
+    /// * `masks` - The update masks to be used.
+    /// 
     /// ## Returns
     /// 
     /// A new [`UpdateStateRequest`] object.
     pub fn new(complete_state: &CompleteState, masks: Vec<String>) -> Self {
         let request_id = Uuid::new_v4().to_string();
-        log::debug!("Creating new request of type UpdateStateRequest with id {}", request_id);
+        log::debug!("Creating new request of type UpdateStateRequest with id {request_id}");
 
         let update_state_request = AnkaiosUpdateStateRequest {
             new_state: Some(complete_state.to_proto()),

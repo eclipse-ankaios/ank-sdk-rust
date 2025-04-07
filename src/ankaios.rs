@@ -231,7 +231,7 @@ impl Ankaios {
             match tokio_timeout(self.timeout, self.response_receiver.recv()).await {
                 Ok(Some(response)) => {
                     if let ResponseType::ConnectionClosedReason(reason) = response.content {
-                        log::error!("Connection closed: {}", reason);
+                        log::error!("Connection closed: {reason}");
                         return Err(AnkaiosError::ConnectionClosedError(reason));
                     }
                     if response.get_request_id() == request_id {
@@ -286,7 +286,7 @@ impl Ankaios {
                 Ok(*update_state_success)
             },
             ResponseType::Error(error) => {
-                log::error!("Error while trying to apply manifest: {}", error);
+                log::error!("Error while trying to apply manifest: {error}");
                 Err(AnkaiosError::AnkaiosResponseError(error))
             },
             _ => {
@@ -330,7 +330,7 @@ impl Ankaios {
                 Ok(*update_state_success)
             },
             ResponseType::Error(error) => {
-                log::error!("Error while trying to delete manifest: {}", error);
+                log::error!("Error while trying to delete manifest: {error}");
                 Err(AnkaiosError::AnkaiosResponseError(error))
             },
             _ => {
@@ -376,7 +376,7 @@ impl Ankaios {
                 Ok(*update_state_success)
             },
             ResponseType::Error(error) => {
-                log::error!("Error while trying to apply workload: {}", error);
+                log::error!("Error while trying to apply workload: {error}");
                 Err(AnkaiosError::AnkaiosResponseError(error))
             },
             _ => {
@@ -443,7 +443,7 @@ impl Ankaios {
                 Ok(*update_state_success)
             },
             ResponseType::Error(error) => {
-                log::error!("Error while trying to delete workload: {}", error);
+                log::error!("Error while trying to delete workload: {error}");
                 Err(AnkaiosError::AnkaiosResponseError(error))
             },
             _ => {
@@ -490,7 +490,7 @@ impl Ankaios {
                 Ok(*update_state_success)
             },
             ResponseType::Error(error) => {
-                log::error!("Error while trying to update configs: {}", error);
+                log::error!("Error while trying to update configs: {error}");
                 Err(AnkaiosError::AnkaiosResponseError(error))
             },
             _ => {
@@ -539,7 +539,7 @@ impl Ankaios {
                 Ok(*update_state_success)
             },
             ResponseType::Error(error) => {
-                log::error!("Error while trying to add the config: {}", error);
+                log::error!("Error while trying to add the config: {error}");
                 Err(AnkaiosError::AnkaiosResponseError(error))
             },
             _ => {
@@ -614,7 +614,7 @@ impl Ankaios {
                 Ok(())
             },
             ResponseType::Error(error) => {
-                log::error!("Error while trying to delete all configs: {}", error);
+                log::error!("Error while trying to delete all configs: {error}");
                 Err(AnkaiosError::AnkaiosResponseError(error))
             },
             _ => {
@@ -653,7 +653,7 @@ impl Ankaios {
                 Ok(())
             },
             ResponseType::Error(error) => {
-                log::error!("Error while trying to delete config: {}", error);
+                log::error!("Error while trying to delete config: {error}");
                 Err(AnkaiosError::AnkaiosResponseError(error))
             },
             _ => {
@@ -692,7 +692,7 @@ impl Ankaios {
                 Ok(*complete_state)
             },
             ResponseType::Error(error) => {
-                log::error!("Error while trying to get the state: {}", error);
+                log::error!("Error while trying to get the state: {error}");
                 Err(AnkaiosError::AnkaiosResponseError(error))
             },
             _ => {
@@ -847,11 +847,11 @@ impl Ankaios {
                 Ok(())
             },
             Ok(Err(err)) => {
-                log::error!("Error while waiting for workload to reach state: {}", err);
+                log::error!("Error while waiting for workload to reach state: {err}");
                 Err(err)
             },
             Err(err) => {
-                log::error!("Timeout while waiting for workload to reach state: {}", err);
+                log::error!("Timeout while waiting for workload to reach state: {err}");
                 Err(AnkaiosError::TimeoutError(err))
             },
         }
@@ -862,7 +862,7 @@ impl Drop for Ankaios {
     fn drop(&mut self) {
         log::trace!("Dropping Ankaios");
         self.control_interface.disconnect().unwrap_or_else(|err| {
-            log::error!("Error while disconnecting: '{}'", err);
+            log::error!("Error while disconnecting: '{err}'");
         });
     }
 }
@@ -888,9 +888,10 @@ fn generate_test_ankaios(mock_control_interface: ControlInterface) -> (Ankaios, 
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use mockall::lazy_static;
-    // use mockall::{lazy_static, predicate};
+    use std::{
+        sync::LazyLock,
+        collections::HashMap
+    };
     use tokio::{
         time::Duration,
         sync::Mutex
@@ -914,10 +915,10 @@ mod tests {
     };
     use crate::ankaios_api::ank_base::request::RequestContent;
 
-    lazy_static! {
-        // Used for synchronizing multiple tests that use the same mock.
-        pub static ref MOCKALL_SYNC: Mutex<()> = Mutex::new(());
-    }
+    // Used for synchronizing multiple tests that use the same mock.
+    pub static MOCKALL_SYNC: LazyLock<Mutex<()>> = LazyLock::new(|| {
+        Mutex::new(())
+    });
 
     #[tokio::test]
     async fn itest_create_ankaios() {
