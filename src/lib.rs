@@ -46,19 +46,21 @@
 ))]
 
 
-#![doc(html_root_url = "https://docs.rs/ankaios_sdk/0.5.0-rc1")]
+#![doc(html_root_url = "https://docs.rs/ankaios_sdk/0.5.0")]
 #![doc(html_logo_url = "https://avatars.githubusercontent.com/u/132572901?s=200&v=4")] // Icon above title in top-left
 #![doc(issue_tracker_base_url = "https://github.com/eclipse-ankaios/ank-sdk-rust/issues/")]
 
-//! <div>
-//! <img src="https://raw.githubusercontent.com/eclipse-ankaios/ankaios/refs/heads/main/logo/Ankaios__logo_for_dark_bgrd_clipped.png" />
-//! </div>
+//! <picture style="padding-bottom: 1em;">
+//!   <source media="(prefers-color-scheme: dark)" srcset="https://github.com/eclipse-ankaios/ankaios/raw/main/logo/Ankaios__logo_for_dark_bgrd_clipped.png">
+//!   <source media="(prefers-color-scheme: light)" srcset="https://github.com/eclipse-ankaios/ankaios/raw/main/logo/Ankaios__logo_for_light_bgrd_clipped.png">
+//!   <img alt="Shows Ankaios logo" src="https://github.com/eclipse-ankaios/ankaios/raw/main/logo/Ankaios__logo_for_light_bgrd_clipped.png">
+//! </picture>
 //!
 //! # Rust SDK for Eclipse Ankaios
 //!  
 //! [![github]](https://github.com/eclipse-ankaios/ank-sdk-rust)
 //! [![crates-io]](https://crates.io/crates/ankaios-sdk)
-//! [![docs-rs]](https://docs.rs/ankaios-sdk/0.5.0-rc1)
+//! [![docs-rs]](https://docs.rs/ankaios-sdk/0.5.0)
 //!
 //! [github]: https://img.shields.io/badge/github-8da0cb?style=for-the-badge&labelColor=555555&logo=github
 //! [crates-io]: https://img.shields.io/badge/crates.io-fc8d62?style=for-the-badge&labelColor=555555&logo=rust
@@ -82,7 +84,7 @@
 //! 
 //! ```toml
 //! [dependencies]
-//! ankaios_sdk = "0.5.0-rc1"
+//! ankaios_sdk = "0.5.0"
 //! ```
 //! 
 //! ### Clone and link as vendor
@@ -190,7 +192,7 @@
 //! For more details, please visit:
 //! 
 //! * [Ankaios documentation](https://eclipse-ankaios.github.io/ankaios/latest/)
-//! * [Rust SDK documentation](https://docs.rs/ankaios-sdk/0.5.0-rc1)
+//! * [Rust SDK documentation](https://docs.rs/ankaios-sdk/0.5.0)
 //! 
 //! ## Contributing
 //! 
