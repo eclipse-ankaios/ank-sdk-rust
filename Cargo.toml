@@ -8,7 +8,7 @@ description = "Eclipse Ankaios Rust SDK - provides a convenient Rust interface f
 documentation = "https://docs.rs/ankaios-sdk/0.5.0-rc1"
 repository = "https://github.com/eclipse-ankaios/ank-sdk-rust"
 readme = "README.md"
-keywords = ["ankaios", "eclipse", "elektrobit", "automotive", "sdk", "containers", "OCI", "orchestration"]
+keywords = ["ankaios", "automotive", "sdk", "container", "orchestration"]
 categories = ["virtualization", "api-bindings"]  # https://crates.io/category_slugs
 exclude = ["/tests", "/.github"]
 
