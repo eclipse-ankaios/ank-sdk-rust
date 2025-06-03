@@ -386,7 +386,7 @@ impl Ankaios {
         }
     }
 
-    /// Send a request to get the [Workload] that match the given name.
+    /// Send a request to get the [Workload] that matches the given name.
     /// 
     /// ## Arguments
     /// 
