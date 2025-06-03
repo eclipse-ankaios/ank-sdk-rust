@@ -34,7 +34,7 @@
 )]
 #![allow(
     clippy::module_name_repetitions, // Some structs have similar names with the module and this is intentional.
-    clippy::struct_field_names, // Necessary due to different Rust versions between dev environment and CI/CD pipeline. 
+    clippy::struct_field_names, // Some structs have fields with the same name as the struct, but this is intentional.
     rustdoc::private_intra_doc_links, // Some links are private, but they are necessary for the documentation and solved by the "--document-private-items" flag.
 )]
 
