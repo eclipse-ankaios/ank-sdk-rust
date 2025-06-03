@@ -76,7 +76,17 @@ fi
 
 if [ -n "$sdk_version" ]; then
     echo "Updating SDK version to $sdk_version"
-    sed -i "s/^version = .*/version = \"$sdk_version\"/" "$base_dir"/Cargo.toml
+    sed -i "s|^version = .*|version = \"$sdk_version\"|" "$base_dir"/Cargo.toml
+    sed -i "s|documentation = \"https://docs.rs/ankaios-sdk/.*|documentation = \"https://docs.rs/ankaios-sdk/$sdk_version\"|" "$base_dir"/Cargo.toml
+    
+    sed -i "s|\(\[!\[Docs\.rs\](https://img\.shields\.io/badge/docs\.rs-66c2a5?style=for-the-badge&labelColor=555555&logo=docs\.rs)\](https://docs\.rs/ankaios-sdk/\)[^)]*|\1$sdk_version|" "$base_dir"/README.md
+    sed -i "s|\* \[Rust SDK documentation\](https://docs\.rs/ankaios-sdk/[^)]*)|* [Rust SDK documentation](https://docs.rs/ankaios-sdk/$sdk_version)|" "$base_dir"/README.md
+    sed -i "s|ankaios_sdk = \"[^\"]*\"|ankaios_sdk = \"$sdk_version\"|" "$base_dir"/README.md
+    
+    sed -i "s|#!\[doc(html_root_url = \"https://docs\.rs/ankaios_sdk/[^\"]*\")\]|#![doc(html_root_url = \"https://docs.rs/ankaios_sdk/$sdk_version\")]|" "$base_dir"/src/lib.rs
+    sed -i "s|//! \[!\[docs-rs\]\](https://docs\.rs/ankaios-sdk/[^)]*)|//! [![docs-rs]](https://docs.rs/ankaios-sdk/$sdk_version)|" "$base_dir"/src/lib.rs
+    sed -i "s|//! ankaios_sdk = \"[^\"]*\"|//! ankaios_sdk = \"$sdk_version\"|" "$base_dir"/src/lib.rs
+    sed -i "s|//! \* \[Rust SDK documentation\](https://docs\.rs/ankaios-sdk/[^)]*)|//! * [Rust SDK documentation](https://docs.rs/ankaios-sdk/$sdk_version)|" "$base_dir"/src/lib.rs
 fi
 
 if [ -n "$ankaios_version" ]; then
@@ -88,4 +98,6 @@ fi
 if [ -n "$api_version" ]; then
     echo "Updating API version to $api_version"
     sed -i "s/const SUPPORTED_API_VERSION: &str = .*/const SUPPORTED_API_VERSION: \&str = \"$api_version\";/" "$base_dir"/src/components/complete_state.rs
+    sed -i "s/^apiVersion: .*/apiVersion: $api_version/" "$base_dir"/examples/manifest.yaml
+    sed -i "s/^\/\/\/ let manifest = Manifest::from_string(\"apiVersion: .*/\/\/\/ let manifest = Manifest::from_string(\"apiVersion: $api_version\").unwrap();/" "$base_dir"/src/components/manifest.rs
 fi
