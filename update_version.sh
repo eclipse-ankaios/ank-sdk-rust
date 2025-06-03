@@ -87,6 +87,8 @@ if [ -n "$sdk_version" ]; then
     sed -i "s|//! \[!\[docs-rs\]\](https://docs\.rs/ankaios-sdk/[^)]*)|//! [![docs-rs]](https://docs.rs/ankaios-sdk/$sdk_version)|" "$base_dir"/src/lib.rs
     sed -i "s|//! ankaios_sdk = \"[^\"]*\"|//! ankaios_sdk = \"$sdk_version\"|" "$base_dir"/src/lib.rs
     sed -i "s|//! \* \[Rust SDK documentation\](https://docs\.rs/ankaios-sdk/[^)]*)|//! * [Rust SDK documentation](https://docs.rs/ankaios-sdk/$sdk_version)|" "$base_dir"/src/lib.rs
+
+    echo "Please remember to update the SDK versions in the compatibility tables from README.md and src/lib.rs!"
 fi
 
 if [ -n "$ankaios_version" ]; then
