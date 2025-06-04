@@ -386,8 +386,7 @@ impl Ankaios {
         }
     }
 
-    /// Send a request to get the [Workload] with the given name.
-    /// If the workload name contains a wildcard, all workloads matching the pattern will be returned.
+    /// Send a request to get the [Workload] that matches the given name.
     /// 
     /// ## Arguments
     /// 
