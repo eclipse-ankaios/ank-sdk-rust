@@ -160,6 +160,8 @@ pub struct Ankaios{
     response_receiver: mpsc::Receiver<Response>,
     /// The control interface instance that is used to communicate with the Control Interface.
     control_interface: ControlInterface,
+    /// Flag used to correct the connection checks, will be removed in the near future
+    connection_established: bool,
     /// The timeout used for the requests.
     pub timeout: Duration,
 }
@@ -198,6 +200,7 @@ impl Ankaios {
         let mut object = Self{
             response_receiver,
             control_interface: ControlInterface::new(response_sender),
+            connection_established: false,
             timeout,
         };
 
@@ -691,8 +694,15 @@ impl Ankaios {
                 Ok(*complete_state)
             },
             ResponseType::Error(error) => {
-                log::error!("Error while trying to get the state: {error}");
-                Err(AnkaiosError::AnkaiosResponseError(error))
+                if self.connection_established {
+                    log::error!("Error while trying to get the state: {error}");
+                    return Err(AnkaiosError::AnkaiosResponseError(error));
+                }
+
+                // flag connection as established, will be removed in the near future
+                self.connection_established = true;
+
+                Ok(CompleteState::default())
             },
             _ => {
                 log::error!("Received unexpected response type.");
