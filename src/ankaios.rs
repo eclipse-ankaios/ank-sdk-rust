@@ -890,6 +890,7 @@ fn generate_test_ankaios(mock_control_interface: ControlInterface) -> (Ankaios, 
     (Ankaios{
         response_receiver,
         control_interface: mock_control_interface,
+        connection_established: true,
         timeout: Duration::from_millis(50),
     },
     response_sender)
