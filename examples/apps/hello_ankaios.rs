@@ -48,7 +48,7 @@ async fn main() {
     }
 
     // Wait until the workload reaches the running state
-    match ank.wait_for_workload_to_reach_state(workload_instance_name, WorkloadStateEnum::Running).await {
+    match ank.wait_for_workload_to_reach_state(workload_instance_name.clone(), WorkloadStateEnum::Running).await {
         Ok(()) => {
             println!("Workload reached the RUNNING state.");
         }
@@ -74,6 +74,9 @@ async fn main() {
             workload_state.execution_state.state
         ); 
     }
+
+    // Delete the workload
+    let _response = ank.delete_workload(workload_instance_name.workload_name).await.expect("Failed to delete workload");
 
     tokio::time::sleep(Duration::from_secs(5)).await;
 }
