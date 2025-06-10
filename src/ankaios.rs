@@ -691,6 +691,8 @@ impl Ankaios {
 
         match response.content {
             ResponseType::CompleteState(complete_state) => {
+                self.connection_established = true;
+                
                 Ok(*complete_state)
             },
             ResponseType::Error(error) => {
