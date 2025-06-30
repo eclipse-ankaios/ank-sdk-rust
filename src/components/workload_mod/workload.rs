@@ -17,7 +17,7 @@ use crate::AnkaiosError;
 use crate::WorkloadBuilder;
 use ankaios_api::ank_base;
 use serde_yaml::Value;
-use std::{collections::HashMap, convert::Into, fmt, path::Path, vec, borrow::ToOwned};
+use std::{borrow::ToOwned, collections::HashMap, convert::Into, fmt, path::Path, vec};
 
 // Disable this from coverage
 // https://github.com/rust-lang/rust/issues/84605
@@ -69,11 +69,11 @@ const FIELD_CONFIGS: &str = "configs";
 /// The field name for files.
 const FIELD_FILES: &str = "files";
 /// Key name for mount point of workload file.
-const FILE_MOUNT_POINT_KEY: &str = "mount_point";
+pub const FILE_MOUNT_POINT_KEY: &str = "mount_point";
 /// Key name for data of workload file.
-const FILE_DATA_KEY: &str = "data";
+pub const FILE_DATA_KEY: &str = "data";
 /// Key name for binary data of workload file.
-const FILE_BINARY_DATA_KEY: &str = "binaryData";
+pub const FILE_BINARY_DATA_KEY: &str = "binaryData";
 
 /// Represents a workload with various attributes and methods to update them.
 ///
@@ -473,11 +473,8 @@ impl Workload {
                     ));
                 }
 
-                wl_builder = wl_builder.add_file(
-                    mount_point_str,
-                    data.as_deref(),
-                    binary_data.as_deref(),
-                )?;
+                wl_builder =
+                    wl_builder.add_file(mount_point_str, data.as_deref(), binary_data.as_deref());
             }
         }
 
@@ -1208,7 +1205,9 @@ impl Workload {
                     )),
                 });
             } else {
-                unreachable!("Both data and binary_data are None, which should have been caught earlier");
+                unreachable!(
+                    "Both data and binary_data are None, which should have been caught earlier"
+                );
             }
         }
 
@@ -1601,18 +1600,14 @@ mod tests {
         assert!(res.is_ok());
         files = wl.get_files();
         assert_eq!(files.len(), 2);
-    
+
         files.push(HashMap::from([
             (FILE_MOUNT_POINT_KEY.to_owned(), "mount_point_3".to_owned()),
-            (FILE_DATA_KEY.to_owned(), "data_3".to_owned())
+            (FILE_DATA_KEY.to_owned(), "data_3".to_owned()),
         ]));
         let files_with_options: Vec<HashMap<String, Option<String>>> = files
             .into_iter()
-            .map(|file| {
-                file.into_iter()
-                    .map(|(k, v)| (k, Some(v)))
-                    .collect()
-            })
+            .map(|file| file.into_iter().map(|(k, v)| (k, Some(v))).collect())
             .collect();
         assert_eq!(files_with_options.len(), 3);
         res = wl.update_files(files_with_options);
@@ -1621,10 +1616,14 @@ mod tests {
         assert_eq!(files.len(), 3);
 
         res = wl.add_file("mount_point_4", Some("data_4"), Some("binary_data_4"));
-        assert!(matches!(res.unwrap_err(), AnkaiosError::WorkloadBuilderError(msg) if msg == "Only one of data or binary_data should be provided."));
+        assert!(
+            matches!(res.unwrap_err(), AnkaiosError::WorkloadBuilderError(msg) if msg == "Only one of data or binary_data should be provided.")
+        );
 
         res = wl.add_file("mount_point_5", None, None);
-        assert!(matches!(res.unwrap_err(), AnkaiosError::WorkloadBuilderError(msg) if msg == "Neither data nor binary_data is provided."));
+        assert!(
+            matches!(res.unwrap_err(), AnkaiosError::WorkloadBuilderError(msg) if msg == "Neither data nor binary_data is provided.")
+        );
     }
 
     macro_rules! generate_test_for_mask_generation {
@@ -1755,7 +1754,6 @@ mod tests {
             )
             .add_config("alias_test", "config_1")
             .add_file("mount_point", Some("Data"), None)
-            .unwrap()
             .build();
         assert!(wl.is_ok());
         assert_eq!(

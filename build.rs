@@ -46,6 +46,11 @@ fn main() {
             "#[serde(with = \"serde_yaml::with::singleton_map_recursive\")]",
         )
         .field_attribute("ControlInterfaceAccess.allowRules", "#[serde(default)]")
+        .field_attribute("Files.files", "#[serde(default)]")
+        .field_attribute(
+            "Files.files",
+            "#[serde(with = \"serde_yaml::with::singleton_map_recursive\")]",
+        )
         .field_attribute(
             "ControlInterfaceAccess.denyRules",
             "#[serde(with = \"serde_yaml::with::singleton_map_recursive\")]",

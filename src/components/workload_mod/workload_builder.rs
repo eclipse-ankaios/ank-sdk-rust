@@ -29,6 +29,10 @@ fn read_file_to_string(path: &Path) -> Result<String, io::Error> {
 #[cfg(test)]
 use crate::components::workload_mod::test_helpers::read_to_string_mock as read_file_to_string;
 
+use super::workload::FILE_BINARY_DATA_KEY;
+use super::workload::FILE_DATA_KEY;
+use super::workload::FILE_MOUNT_POINT_KEY;
+
 /// A builder struct for the [Workload] struct.
 ///
 /// # Example
@@ -271,24 +275,20 @@ impl WorkloadBuilder {
     /// ## Returns
     ///
     /// The [`WorkloadBuilder`] instance wrapped in a `Result`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an [`AnkaiosError`] if the file addition fails due to invalid input or other issues.
     pub fn add_file<T: Into<String>>(
         mut self,
         mount_point: T,
         data: Option<T>,
         binary_data: Option<T>,
-    ) -> Result<Self, AnkaiosError> {
+    ) -> Self {
         let file_entry = HashMap::from([
-            ("mount_point".to_owned(), Some(mount_point.into())),
-            ("data".to_owned(), data.map(Into::into)),
-            ("binaryData".to_owned(), binary_data.map(Into::into)),
+            (FILE_MOUNT_POINT_KEY.to_owned(), Some(mount_point.into())),
+            (FILE_DATA_KEY.to_owned(), data.map(Into::into)),
+            (FILE_BINARY_DATA_KEY.to_owned(), binary_data.map(Into::into)),
         ]);
         self.files.push(file_entry);
 
-        Ok(self)
+        self
     }
 
     /// Creates a new `Workload` instance from a Map.
@@ -401,7 +401,6 @@ mod tests {
             )
             .add_config("alias_test", "config_1")
             .add_file("mount_point", Some("Data"), None)
-            .unwrap()
             .build();
 
         assert!(wl.is_ok());
@@ -464,7 +463,7 @@ mod tests {
                 .agent_name("agent_A")
                 .runtime("podman")
                 .runtime_config_from_file(Path::new(generate_test_runtime_config().as_str())).unwrap()
-                .add_file("mount_point", Some("data"), Some("binary_data")).unwrap()
+                .add_file("mount_point", Some("data"), Some("binary_data"))
                 .build()
                 .unwrap_err(),
             AnkaiosError::WorkloadBuilderError(msg) if msg == "Only one of data or binary_data should be provided."
@@ -477,7 +476,7 @@ mod tests {
                 .agent_name("agent_A")
                 .runtime("podman")
                 .runtime_config_from_file(Path::new(generate_test_runtime_config().as_str())).unwrap()
-                .add_file("mount_point", None, None).unwrap()
+                .add_file("mount_point", None, None)
                 .build()
                 .unwrap_err(),
             AnkaiosError::WorkloadBuilderError(msg) if msg == "Neither data nor binary_data is provided."
