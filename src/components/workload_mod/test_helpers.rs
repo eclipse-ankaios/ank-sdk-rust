@@ -12,11 +12,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::ankaios_api;
+use crate::Workload;
+use ankaios_api::ank_base;
 use std::collections::HashMap;
 use std::path::Path;
-use crate::ankaios_api;
-use ankaios_api::ank_base;
-use crate::Workload;
 
 #[allow(clippy::unnecessary_wraps)]
 pub fn read_to_string_mock(path: &Path) -> Result<String, std::io::Error> {
@@ -24,10 +24,15 @@ pub fn read_to_string_mock(path: &Path) -> Result<String, std::io::Error> {
 }
 
 pub fn generate_test_dependencies() -> HashMap<String, i32> {
-
     HashMap::from([
-        (String::from("workload_C"), ank_base::AddCondition::AddCondRunning as i32),
-        (String::from("workload_A"), ank_base::AddCondition::AddCondSucceeded as i32),
+        (
+            String::from("workload_C"),
+            ank_base::AddCondition::AddCondRunning as i32,
+        ),
+        (
+            String::from("workload_A"),
+            ank_base::AddCondition::AddCondSucceeded as i32,
+        ),
     ])
 }
 
@@ -37,7 +42,7 @@ pub fn generate_test_runtime_config() -> String {
 commandOptions: ["--network=host"]
 image: alpine:latest
 commandArgs: ["bash"]
-"#
+"#,
     )
 }
 
@@ -53,35 +58,47 @@ pub fn generate_test_workload_proto<T: Into<String>>(
         runtime: Some(runtime_name.into()),
         runtime_config: Some(runtime_config),
         restart_policy: Some(ank_base::RestartPolicy::Always as i32),
-        dependencies: Some(ank_base::Dependencies { 
-            dependencies: deps 
+        dependencies: Some(ank_base::Dependencies { dependencies: deps }),
+        tags: Some(ank_base::Tags {
+            tags: vec![ank_base::Tag {
+                key: String::from("key_test"),
+                value: String::from("val_test"),
+            }],
         }),
-        tags: Some(ank_base::Tags { tags: vec![ank_base::Tag {
-            key: String::from("key_test"),
-            value: String::from("val_test"),
-        }] }),
         control_interface_access: Some(ank_base::ControlInterfaceAccess {
             allow_rules: vec![ank_base::AccessRightsRule {
-                access_rights_rule_enum: Some(ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(
-                    ank_base::StateRule {
-                        operation: ank_base::ReadWriteEnum::RwRead as i32,
-                        filter_masks: vec![String::from("desiredState.workloads.workload_A")],
-                    }
-                )),
+                access_rights_rule_enum: Some(
+                    ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(
+                        ank_base::StateRule {
+                            operation: ank_base::ReadWriteEnum::RwRead as i32,
+                            filter_masks: vec![String::from("desiredState.workloads.workload_A")],
+                        },
+                    ),
+                ),
             }],
             deny_rules: vec![ank_base::AccessRightsRule {
-                access_rights_rule_enum: Some(ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(
-                    ank_base::StateRule {
-                        operation: ank_base::ReadWriteEnum::RwWrite as i32,
-                        filter_masks: vec![String::from("desiredState.workloads.workload_B")],
-                    }
-                )),
+                access_rights_rule_enum: Some(
+                    ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(
+                        ank_base::StateRule {
+                            operation: ank_base::ReadWriteEnum::RwWrite as i32,
+                            filter_masks: vec![String::from("desiredState.workloads.workload_B")],
+                        },
+                    ),
+                ),
             }],
         }),
         configs: Some(ank_base::ConfigMappings {
-            configs: [
-                (String::from("alias_test"), String::from("config_1")),
-            ].iter().cloned().collect(),
+            configs: [(String::from("alias_test"), String::from("config_1"))]
+                .iter()
+                .cloned()
+                .collect(),
+        }),
+        files: Some(ank_base::Files {
+            files: [ank_base::File {
+                mount_point: "mount_point".to_owned(),
+                file_content: Some(ank_base::file::FileContent::Data("Data".to_owned())),
+            }]
+            .to_vec(),
         }),
     }
 }
@@ -91,7 +108,6 @@ pub fn generate_test_workload<T: Into<String>>(
     workload_name: T,
     runtime_name: T,
 ) -> Workload {
-
     let name = workload_name.into();
 
     Workload {
