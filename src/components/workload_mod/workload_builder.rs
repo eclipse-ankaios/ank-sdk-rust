@@ -274,7 +274,7 @@ impl WorkloadBuilder {
     ///
     /// ## Returns
     ///
-    /// The [`WorkloadBuilder`] instance wrapped in a `Result`.
+    /// The [`WorkloadBuilder`] instance.
     pub fn add_file<T: Into<String>>(
         mut self,
         mount_point: T,
@@ -456,7 +456,7 @@ mod tests {
             AnkaiosError::WorkloadBuilderError(msg) if msg == "Workload can not be built without a runtime config."
         ));
 
-        // Confligting file data
+        // Conflicting file data
         assert!(matches!(
             Workload::builder()
                 .workload_name("Test")
