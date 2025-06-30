@@ -17,7 +17,7 @@ use crate::AnkaiosError;
 use crate::WorkloadBuilder;
 use ankaios_api::ank_base;
 use serde_yaml::Value;
-use std::{collections::HashMap, convert::Into, fmt, path::Path, vec};
+use std::{collections::HashMap, convert::Into, fmt, path::Path, vec, borrow::ToOwned};
 
 // Disable this from coverage
 // https://github.com/rust-lang/rust/issues/84605
@@ -454,11 +454,11 @@ impl Workload {
                 let data = file_map
                     .get(FILE_DATA_KEY)
                     .and_then(|v| v.as_str())
-                    .map(|s| s.to_owned());
+                    .map(ToOwned::to_owned);
                 let binary_data = file_map
                     .get(FILE_BINARY_DATA_KEY)
                     .and_then(|v| v.as_str())
-                    .map(|s| s.to_owned());
+                    .map(ToOwned::to_owned);
 
                 if data.is_some() && binary_data.is_some() {
                     return Err(AnkaiosError::WorkloadFieldError(
@@ -1227,6 +1227,7 @@ impl Workload {
     /// - `data`: The content of the file (if available).
     /// - `binaryData`: The binary content of the file (if available).
     ///
+    #[must_use]
     pub fn get_files(&self) -> Vec<HashMap<String, String>> {
         if let Some(files) = &self.workload.files {
             files
@@ -1591,13 +1592,13 @@ mod tests {
             .build()
             .unwrap();
         wl.masks = Vec::default();
-        let mut _res = wl.add_file("mount_point_1", Some("data_1"), None);
-        assert!(_res.is_ok());
+        let mut res = wl.add_file("mount_point_1", Some("data_1"), None);
+        assert!(res.is_ok());
         let mut files = wl.get_files();
         assert_eq!(files.len(), 1);
 
-        _res = wl.add_file("mount_point_2", None, Some("binary_data_2"));
-        assert!(_res.is_ok());
+        res = wl.add_file("mount_point_2", None, Some("binary_data_2"));
+        assert!(res.is_ok());
         files = wl.get_files();
         assert_eq!(files.len(), 2);
     
@@ -1614,16 +1615,16 @@ mod tests {
             })
             .collect();
         assert_eq!(files_with_options.len(), 3);
-        _res = wl.update_files(files_with_options);
-        assert!(_res.is_ok());
+        res = wl.update_files(files_with_options);
+        assert!(res.is_ok());
         files = wl.get_files();
         assert_eq!(files.len(), 3);
 
-        _res = wl.add_file("mount_point_4", Some("data_4"), Some("binary_data_4"));
-        assert!(matches!(_res.unwrap_err(), AnkaiosError::WorkloadBuilderError(msg) if msg == "Only one of data or binary_data should be provided."));
+        res = wl.add_file("mount_point_4", Some("data_4"), Some("binary_data_4"));
+        assert!(matches!(res.unwrap_err(), AnkaiosError::WorkloadBuilderError(msg) if msg == "Only one of data or binary_data should be provided."));
 
-        _res = wl.add_file("mount_point_5", None, None);
-        assert!(matches!(_res.unwrap_err(), AnkaiosError::WorkloadBuilderError(msg) if msg == "Neither data nor binary_data is provided."));
+        res = wl.add_file("mount_point_5", None, None);
+        assert!(matches!(res.unwrap_err(), AnkaiosError::WorkloadBuilderError(msg) if msg == "Neither data nor binary_data is provided."));
     }
 
     macro_rules! generate_test_for_mask_generation {

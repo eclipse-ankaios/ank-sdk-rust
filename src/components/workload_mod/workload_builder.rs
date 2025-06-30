@@ -283,8 +283,8 @@ impl WorkloadBuilder {
     ) -> Result<Self, AnkaiosError> {
         let file_entry = HashMap::from([
             ("mount_point".to_owned(), Some(mount_point.into())),
-            ("data".to_owned(), data.map(|d| d.into())),
-            ("binaryData".to_owned(), binary_data.map(|bd| bd.into())),
+            ("data".to_owned(), data.map(Into::into)),
+            ("binaryData".to_owned(), binary_data.map(Into::into)),
         ]);
         self.files.push(file_entry);
 
