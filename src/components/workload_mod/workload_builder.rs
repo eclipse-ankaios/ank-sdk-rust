@@ -29,9 +29,7 @@ fn read_file_to_string(path: &Path) -> Result<String, io::Error> {
 #[cfg(test)]
 use crate::components::workload_mod::test_helpers::read_to_string_mock as read_file_to_string;
 
-use super::workload::FILE_BINARY_DATA_KEY;
-use super::workload::FILE_DATA_KEY;
-use super::workload::FILE_MOUNT_POINT_KEY;
+use super::file::File;
 
 /// A builder struct for the [Workload] struct.
 ///
@@ -40,7 +38,7 @@ use super::workload::FILE_MOUNT_POINT_KEY;
 /// ## Create a workload using the [`WorkloadBuilder`]:
 ///
 /// ```rust
-/// use ankaios_sdk::{Workload, WorkloadBuilder};
+/// use ankaios_sdk::{Workload, WorkloadBuilder, File};
 ///
 /// let workload: Workload = WorkloadBuilder::new()
 ///     .workload_name("example_workload")
@@ -52,6 +50,7 @@ use super::workload::FILE_MOUNT_POINT_KEY;
 ///     .add_dependency("other_workload", "ADD_COND_RUNNING")
 ///     .add_tag("key1", "value1")
 ///     .add_tag("key2", "value2")
+///     .add_file_object(File::text("/etc/config.yaml", "debug: true"))
 ///     .build().unwrap();
 /// ```
 #[must_use] // Added to ensure that the returned Self from the methods is used.
@@ -78,7 +77,7 @@ pub struct WorkloadBuilder {
     /// The config aliases.
     pub configs: HashMap<String, String>,
     /// The workload files.
-    pub files: Vec<HashMap<String, Option<String>>>,
+    pub files: Vec<File>,
 }
 
 impl WorkloadBuilder {
@@ -264,29 +263,17 @@ impl WorkloadBuilder {
         self
     }
 
-    /// Adds a file to the workload.
+    /// Adds a [`File`] object to the workload.
     ///
     /// ## Arguments
     ///
-    /// * `mount_point` - A [String] that represents the mount point of the file.
-    /// * `data` - An optional [String] that represents the file's textual data.
-    /// * `binary_data` - An optional [String] that represents the file's binary data.
+    /// * `file` - A [`File`] object that represents the file to be added.
     ///
     /// ## Returns
     ///
     /// The [`WorkloadBuilder`] instance.
-    pub fn add_file<T: Into<String>>(
-        mut self,
-        mount_point: T,
-        data: Option<T>,
-        binary_data: Option<T>,
-    ) -> Self {
-        let file_entry = HashMap::from([
-            (FILE_MOUNT_POINT_KEY.to_owned(), Some(mount_point.into())),
-            (FILE_DATA_KEY.to_owned(), data.map(Into::into)),
-            (FILE_BINARY_DATA_KEY.to_owned(), binary_data.map(Into::into)),
-        ]);
-        self.files.push(file_entry);
+    pub fn add_file(mut self, file: File) -> Self {
+        self.files.push(file);
 
         self
     }
@@ -352,13 +339,7 @@ impl WorkloadBuilder {
             wl.update_configs(self.configs.clone());
         }
         if !self.files.is_empty() {
-            wl.update_files(
-                self.files
-                    .clone()
-                    .into_iter()
-                    .map(|file| file.into_iter().collect())
-                    .collect(),
-            )?;
+            wl.update_files(self.files.clone());
         }
 
         Ok(wl)
@@ -376,6 +357,7 @@ impl WorkloadBuilder {
 #[cfg(test)]
 mod tests {
     use super::Workload;
+    use crate::components::workload_mod::file::File;
     use crate::components::workload_mod::test_helpers::{
         generate_test_runtime_config, generate_test_workload_proto,
     };
@@ -400,7 +382,7 @@ mod tests {
                 vec!["desiredState.workloads.workload_B".to_owned()],
             )
             .add_config("alias_test", "config_1")
-            .add_file("mount_point", Some("Data"), None)
+            .add_file(File::from_text("mount_point", "Data"))
             .build();
 
         assert!(wl.is_ok());
@@ -454,32 +436,6 @@ mod tests {
                 .build()
                 .unwrap_err(),
             AnkaiosError::WorkloadBuilderError(msg) if msg == "Workload can not be built without a runtime config."
-        ));
-
-        // Conflicting file data
-        assert!(matches!(
-            Workload::builder()
-                .workload_name("Test")
-                .agent_name("agent_A")
-                .runtime("podman")
-                .runtime_config_from_file(Path::new(generate_test_runtime_config().as_str())).unwrap()
-                .add_file("mount_point", Some("data"), Some("binary_data"))
-                .build()
-                .unwrap_err(),
-            AnkaiosError::WorkloadBuilderError(msg) if msg == "Only one of data or binary_data should be provided."
-        ));
-
-        // Missing data and binary data
-        assert!(matches!(
-            Workload::builder()
-                .workload_name("Test")
-                .agent_name("agent_A")
-                .runtime("podman")
-                .runtime_config_from_file(Path::new(generate_test_runtime_config().as_str())).unwrap()
-                .add_file("mount_point", None, None)
-                .build()
-                .unwrap_err(),
-            AnkaiosError::WorkloadBuilderError(msg) if msg == "Neither data nor binary_data is provided."
         ));
     }
 }

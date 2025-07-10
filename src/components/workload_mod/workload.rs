@@ -15,6 +15,7 @@
 use crate::ankaios_api;
 use crate::AnkaiosError;
 use crate::WorkloadBuilder;
+use crate::File;
 use ankaios_api::ank_base;
 use serde_yaml::Value;
 use std::{borrow::ToOwned, collections::HashMap, convert::Into, fmt, path::Path, vec};
@@ -68,12 +69,6 @@ const SUBFIELD_ACCESS_STATE_RULE: &str = "StateRule";
 const FIELD_CONFIGS: &str = "configs";
 /// The field name for files.
 const FIELD_FILES: &str = "files";
-/// Key name for mount point of workload file.
-pub const FILE_MOUNT_POINT_KEY: &str = "mount_point";
-/// Key name for data of workload file.
-pub const FILE_DATA_KEY: &str = "data";
-/// Key name for binary data of workload file.
-pub const FILE_BINARY_DATA_KEY: &str = "binaryData";
 
 /// Represents a workload with various attributes and methods to update them.
 ///
@@ -427,54 +422,21 @@ impl Workload {
             }
         }
         if let Some(files) = dict_workload.get(FIELD_FILES) {
-            let files_seq = files.as_sequence().ok_or(AnkaiosError::WorkloadFieldError(
+            let files_vec = files.as_sequence().ok_or(AnkaiosError::WorkloadFieldError(
                 FIELD_FILES.to_owned(),
-                "Should be a sequence".to_owned(),
+                "should be a sequence".to_owned(),
             ))?;
-            for file in files_seq {
-                let file_map = file.as_mapping().ok_or(AnkaiosError::WorkloadFieldError(
-                    FIELD_FILES.to_owned(),
-                    "File should be a mapping".to_owned(),
-                ))?;
-                let mount_point =
-                    file_map
-                        .get(FILE_MOUNT_POINT_KEY)
+
+            for file_value in files_vec {
+                let file_mapping =
+                    file_value
+                        .as_mapping()
                         .ok_or(AnkaiosError::WorkloadFieldError(
                             FIELD_FILES.to_owned(),
-                            "File should have a mount point".to_owned(),
+                            "file should be a mapping".to_owned(),
                         ))?;
-                let mount_point_str =
-                    mount_point
-                        .as_str()
-                        .ok_or(AnkaiosError::WorkloadFieldError(
-                            FIELD_FILES.to_owned(),
-                            "Mount point should be a string".to_owned(),
-                        ))?;
-
-                let data = file_map
-                    .get(FILE_DATA_KEY)
-                    .and_then(|v| v.as_str())
-                    .map(ToOwned::to_owned);
-                let binary_data = file_map
-                    .get(FILE_BINARY_DATA_KEY)
-                    .and_then(|v| v.as_str())
-                    .map(ToOwned::to_owned);
-
-                if data.is_some() && binary_data.is_some() {
-                    return Err(AnkaiosError::WorkloadFieldError(
-                        FIELD_FILES.to_owned(),
-                        "File should have either data or binaryData, not both".to_owned(),
-                    ));
-                }
-                if data.is_none() && binary_data.is_none() {
-                    return Err(AnkaiosError::WorkloadFieldError(
-                        FIELD_FILES.to_owned(),
-                        "File should have either data or binaryData".to_owned(),
-                    ));
-                }
-
-                wl_builder =
-                    wl_builder.add_file(mount_point_str, data.as_deref(), binary_data.as_deref());
+                let file = File::from_dict(file_mapping)?;
+                wl_builder = wl_builder.add_file(file);
             }
         }
 
@@ -652,29 +614,9 @@ impl Workload {
         if let Some(wl_files) = self.workload.files.clone() {
             let mut files = serde_yaml::Sequence::new();
             for file in &wl_files.files {
-                let mut file_dict = serde_yaml::Mapping::new();
-                file_dict.insert(
-                    Value::String(FILE_MOUNT_POINT_KEY.to_owned()),
-                    Value::String(file.mount_point.clone()),
-                );
+                let file_mapping = File::from_proto(file.clone()).to_dict();
 
-                if let Some(ref content) = file.file_content {
-                    match content {
-                        ank_base::file::FileContent::Data(data) => {
-                            file_dict.insert(
-                                Value::String(FILE_DATA_KEY.to_owned()),
-                                Value::String(data.clone()),
-                            );
-                        }
-                        ank_base::file::FileContent::BinaryData(binary_data) => {
-                            file_dict.insert(
-                                Value::String(FILE_BINARY_DATA_KEY.to_owned()),
-                                Value::String(binary_data.clone()),
-                            );
-                        }
-                    }
-                }
-                files.push(Value::Mapping(file_dict));
+                files.push(Value::Mapping(file_mapping));
             }
             dict.insert(
                 Value::String(FIELD_FILES.to_owned()),
@@ -1154,142 +1096,50 @@ impl Workload {
 
     /// Adds a file to the workload.
     ///
-    /// This method allows adding a file with a mount point and optional content.
-    /// Either `data` or `binary_data` can be provided, but not both.
-    ///
     /// ## Arguments
     ///
-    /// - `mount_point` - A [String] representing the mount point of the file.
-    /// - `data` - A [Option<String>] content for the file.
-    /// - `binary_data` - A [Option<String>]  binary content for the file.
-    ///
-    /// ## Errors
-    ///
-    /// Returns an [`AnkaiosError`] if both `data` and `binaryData` are provided.
-    pub fn add_file<T: Into<String>>(
-        &mut self,
-        mount_point: T,
-        data: Option<T>,
-        binary_data: Option<T>,
-    ) -> Result<(), AnkaiosError> {
-        if data.is_some() && binary_data.is_some() {
-            return Err(AnkaiosError::WorkloadBuilderError(
-                "Only one of data or binary_data should be provided.",
-            ));
-        }
-
-        if data.is_none() && binary_data.is_none() {
-            return Err(AnkaiosError::WorkloadBuilderError(
-                "Neither data nor binary_data is provided.",
-            ));
-        }
-
-        let mount_point_str: String = mount_point.into();
-
+    /// - `file` - A [File] object representing the file to add.
+    pub fn add_file(&mut self, file: File) {
         if self.workload.files.is_none() {
             self.workload.files = Some(ank_base::Files::default());
             self.add_mask(format!("{}.{FIELD_FILES}", self.main_mask));
         }
 
         if let Some(files) = self.workload.files.as_mut() {
-            if let Some(data_str) = data {
-                files.files.push(ank_base::File {
-                    mount_point: mount_point_str,
-                    file_content: Some(ank_base::file::FileContent::Data(data_str.into())),
-                });
-            } else if let Some(binary_data_str) = binary_data {
-                files.files.push(ank_base::File {
-                    mount_point: mount_point_str,
-                    file_content: Some(ank_base::file::FileContent::BinaryData(
-                        binary_data_str.into(),
-                    )),
-                });
-            } else {
-                unreachable!(
-                    "Both data and binary_data are None, which should have been caught earlier"
-                );
-            }
+            files.files.push(file.to_proto());
         }
-
-        Ok(())
     }
 
-    /// Retrieves the files associated with the workload.
-    ///
-    /// This method returns a vector of hash maps, where each hash map represents
-    /// a file with its mount point and content (either `data` or `binaryData`).
+    /// Retrieves the files associated with the workload as File objects.
     ///
     /// ## Returns
     ///
-    /// A vector of hash maps containing file details (one of `data` or `binaryData`):
-    /// - `mountPoint`: The mount point of the file.
-    /// - `data`: The content of the file (if available).
-    /// - `binaryData`: The binary content of the file (if available).
-    ///
+    /// A [Vec] of [File] objects representing the files in the workload.
     #[must_use]
-    pub fn get_files(&self) -> Vec<HashMap<String, String>> {
+    pub fn get_files(&self) -> Vec<File> {
         if let Some(files) = &self.workload.files {
-            files
-                .files
-                .iter()
-                .map(|file| {
-                    let mut file_dict = HashMap::new();
-                    file_dict.insert(FILE_MOUNT_POINT_KEY.to_owned(), file.mount_point.clone());
-
-                    if let Some(ref content) = file.file_content {
-                        match content {
-                            ank_base::file::FileContent::Data(data) => {
-                                file_dict.insert(FILE_DATA_KEY.to_owned(), data.clone());
-                            }
-                            ank_base::file::FileContent::BinaryData(binary_data) => {
-                                file_dict
-                                    .insert(FILE_BINARY_DATA_KEY.to_owned(), binary_data.clone());
-                            }
-                        }
-                    }
-
-                    file_dict
-                })
-                .collect()
+            files.files.clone().into_iter().map(|f| File::from_proto(f)).collect()
         } else {
             Vec::new()
         }
     }
 
-    /// Updates the files associated with the workload.
+    /// Updates the files associated with the workload using File objects.
     ///
-    /// This method replaces the existing files with the provided list of files.
-    /// Each file is represented as a hash map containing the following keys:
-    /// - `mountPoint`: The mount point of the file.
-    /// - `data`: The content of the file (if available).
-    /// - `binaryData`: The binary content of the file (if available).
+    /// This method replaces all existing files with the provided File objects.
     ///
     /// ## Arguments
     ///
-    /// - `files` - A vector of hash maps representing the files to be updated.
-    ///
-    /// ## Errors
-    ///
-    /// Returns an [`AnkaiosError`] if both `data` and `binaryData` are provided for a file.
-    pub fn update_files(
-        &mut self,
-        files: Vec<HashMap<String, Option<String>>>,
-    ) -> Result<(), AnkaiosError> {
-        if let Some(workload_files) = self.workload.files.as_mut() {
-            workload_files.files.clear();
+    /// - `files` - A vector of [File] objects to set as the workload's files.
+    pub fn update_files(&mut self, files: Vec<File>) {
+        if files.is_empty() {
+            self.workload.files = None;
         } else {
-            self.workload.files = Some(ank_base::Files::default());
+            self.workload.files = Some(ank_base::Files {
+                files: files.into_iter().map(|f| f.to_proto()).collect(),
+            });
+            self.add_mask(format!("{}.{FIELD_FILES}", self.main_mask));
         }
-
-        for file in files {
-            let mount_point = file.get(FILE_MOUNT_POINT_KEY).cloned().unwrap_or_default();
-            let data = file.get(FILE_DATA_KEY).cloned().flatten();
-            let binary_data = file.get(FILE_BINARY_DATA_KEY).cloned().flatten();
-
-            self.add_file(mount_point.unwrap_or_default(), data, binary_data)?;
-        }
-
-        Ok(())
     }
 
     /// Adds a mask to the workload.
@@ -1340,11 +1190,10 @@ impl fmt::Display for Workload {
 #[cfg(test)]
 mod tests {
     use super::Workload;
+    use crate::components::workload_mod::file::File;
     use crate::components::workload_mod::test_helpers::{
-        generate_test_runtime_config, generate_test_workload, generate_test_workload_proto,
+        generate_test_runtime_config, generate_test_workload, generate_test_workload_proto
     };
-    use crate::components::workload_mod::workload::{FILE_DATA_KEY, FILE_MOUNT_POINT_KEY};
-    use crate::AnkaiosError;
     use std::collections::HashMap;
     use std::path::Path;
 
@@ -1590,40 +1439,40 @@ mod tests {
             .runtime_config("config")
             .build()
             .unwrap();
-        wl.masks = Vec::default();
-        let mut res = wl.add_file("mount_point_1", Some("data_1"), None);
-        assert!(res.is_ok());
-        let mut files = wl.get_files();
-        assert_eq!(files.len(), 1);
 
-        res = wl.add_file("mount_point_2", None, Some("binary_data_2"));
-        assert!(res.is_ok());
-        files = wl.get_files();
+        let config_file = File::from_text("/etc/app/config.yaml", "debug: true");
+        let icon_file = File::from_binary("/usr/share/app/icon.png", "iVBORw0KGgoAAAANSUhEUgA...");
+
+        wl.add_file(config_file.clone());
+        wl.add_file(icon_file.clone());
+
+        let files = wl.get_files();
         assert_eq!(files.len(), 2);
+        assert!(files
+            .iter()
+            .any(|f| f.mount_point() == "/etc/app/config.yaml"));
+        assert!(files
+            .iter()
+            .any(|f| f.mount_point() == "/usr/share/app/icon.png"));
 
-        files.push(HashMap::from([
-            (FILE_MOUNT_POINT_KEY.to_owned(), "mount_point_3".to_owned()),
-            (FILE_DATA_KEY.to_owned(), "data_3".to_owned()),
-        ]));
-        let files_with_options: Vec<HashMap<String, Option<String>>> = files
-            .into_iter()
-            .map(|file| file.into_iter().map(|(k, v)| (k, Some(v))).collect())
-            .collect();
-        assert_eq!(files_with_options.len(), 3);
-        res = wl.update_files(files_with_options);
-        assert!(res.is_ok());
-        files = wl.get_files();
-        assert_eq!(files.len(), 3);
+        // Test updating file objects
+        let new_files = vec![
+            File::from_text("/etc/new_config.yaml", "production: true"),
+            File::from_binary(
+                "/usr/share/binary_data",
+                "AAABAAEAEBAAAAEAIABoBAAAFgAAA...",
+            ),
+        ];
 
-        res = wl.add_file("mount_point_4", Some("data_4"), Some("binary_data_4"));
-        assert!(
-            matches!(res.unwrap_err(), AnkaiosError::WorkloadBuilderError(msg) if msg == "Only one of data or binary_data should be provided.")
-        );
-
-        res = wl.add_file("mount_point_5", None, None);
-        assert!(
-            matches!(res.unwrap_err(), AnkaiosError::WorkloadBuilderError(msg) if msg == "Neither data nor binary_data is provided.")
-        );
+        wl.update_files(new_files);
+        let updated_files = wl.get_files();
+        assert_eq!(updated_files.len(), 2);
+        assert!(updated_files
+            .iter()
+            .any(|f| f.mount_point() == "/etc/new_config.yaml"));
+        assert!(updated_files
+            .iter()
+            .any(|f| f.mount_point() == "/usr/share/binary_data"));
     }
 
     macro_rules! generate_test_for_mask_generation {
@@ -1753,7 +1602,7 @@ mod tests {
                 vec!["desiredState.workloads.workload_B".to_owned()],
             )
             .add_config("alias_test", "config_1")
-            .add_file("mount_point", Some("Data"), None)
+            .add_file(File::from_text("mount_point", "Data"))
             .build();
         assert!(wl.is_ok());
         assert_eq!(

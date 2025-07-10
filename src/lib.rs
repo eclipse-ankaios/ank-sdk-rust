@@ -212,7 +212,7 @@ mod errors;
 pub use errors::AnkaiosError;
 
 mod components;
-pub use components::workload_mod::{Workload, WorkloadBuilder};
+pub use components::workload_mod::{Workload, WorkloadBuilder, File, FileContent};
 pub use components::workload_state_mod::{WorkloadState, WorkloadStateCollection, WorkloadStateEnum};
 pub use components::manifest::Manifest;
 pub use components::complete_state::CompleteState;
