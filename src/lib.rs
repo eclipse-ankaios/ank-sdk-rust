@@ -207,6 +207,7 @@
 
 mod ankaios_api;
 mod docs;
+mod std_extensions;
 
 mod errors;
 pub use errors::AnkaiosError;

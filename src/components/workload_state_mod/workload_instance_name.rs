@@ -119,6 +119,16 @@ impl From<ankaios_api::ank_base::WorkloadInstanceName> for WorkloadInstanceName 
     }
 }
 
+impl From<WorkloadInstanceName> for ankaios_api::ank_base::WorkloadInstanceName {
+    fn from(workload_instance_name: WorkloadInstanceName) -> Self {
+        ankaios_api::ank_base::WorkloadInstanceName {
+            agent_name: workload_instance_name.agent_name,
+            workload_name: workload_instance_name.workload_name,
+            id: workload_instance_name.workload_id,
+        }
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////////
 //                 ########  #######    #########  #########                //
 //                    ##     ##        ##             ##                    //

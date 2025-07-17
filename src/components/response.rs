@@ -39,9 +39,11 @@
 //! ```
 
 use super::workload_state_mod::WorkloadInstanceName;
+use crate::ankaios::CHANNEL_SIZE;
 use crate::ankaios_api::{self};
 use crate::components::complete_state::CompleteState;
 use crate::components::log_entry::LogEntry;
+use crate::std_extensions::UnreachableOption;
 use ankaios_api::ank_base::{
     response::ResponseContent as AnkaiosResponseContent, Error,
     UpdateStateSuccess as AnkaiosUpdateStateSuccess,
@@ -50,6 +52,7 @@ use ankaios_api::control_api::{from_ankaios::FromAnkaiosEnum, FromAnkaios};
 use core::fmt;
 use std::collections::HashMap;
 use std::default;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 /// Enum that represents the type of responses that can be provided by the [Ankaios] cluster.
 ///
@@ -64,16 +67,14 @@ pub enum ResponseType {
     Error(String),
     /// The reason a connection closed was received.
     ConnectionClosedReason(String),
-    /// The reason why the response is invalid.
-    InvalidResponse(String),
     /// The success of an logs request.
-    LogsRequestAccepted(Box<Vec<WorkloadInstanceName>>),
+    LogsRequestAccepted(Vec<WorkloadInstanceName>),
     /// The success of an logs cancel request.
     LogsCancelAccepted,
     /// The response containing log entries.
-    LogEntriesResponse(Box<Vec<LogEntry>>),
+    LogEntriesResponse(Vec<LogEntry>),
     /// The response indicating the stop of log entries for a specific workload.
-    LogsStopResponse,
+    LogsStopResponse(WorkloadInstanceName),
 }
 
 /// Struct that represents a response from the [Ankaios] cluster.
@@ -106,8 +107,7 @@ impl fmt::Display for ResponseType {
             ResponseType::LogsRequestAccepted(_) => write!(f, "LogsRequestAccepted"),
             ResponseType::LogsCancelAccepted => write!(f, "LogsCancelAccepted"),
             ResponseType::LogEntriesResponse(_) => write!(f, "LogEntriesResponse"),
-            ResponseType::LogsStopResponse => write!(f, "LogsStopResponse"),
-            ResponseType::InvalidResponse(ref msg) => write!(f, "InvalidResponse: '{}'", msg),
+            ResponseType::LogsStopResponse(_) => write!(f, "LogsStopResponse"),
         }
     }
 }
@@ -174,32 +174,33 @@ impl From<FromAnkaios> for Response {
                             ))
                         }
                         AnkaiosResponseContent::LogsRequestAccepted(logs_request_accepted) => {
-                            ResponseType::LogsRequestAccepted(Box::new(
+                            ResponseType::LogsRequestAccepted(
                                 logs_request_accepted
                                     .workload_names
                                     .into_iter()
                                     .map(WorkloadInstanceName::from)
                                     .collect(),
-                            ))
+                            )
                         }
                         AnkaiosResponseContent::LogsCancelAccepted(_) => {
                             ResponseType::LogsCancelAccepted
                         }
                         AnkaiosResponseContent::LogEntriesResponse(log_entries_response) => {
-                            match log_entries_response
+                            let log_entries = log_entries_response
                                 .log_entries
                                 .into_iter()
-                                .map(LogEntry::try_from)
-                                .collect::<Result<_, String>>()
-                            {
-                                Ok(log_entries) => {
-                                    ResponseType::LogEntriesResponse(Box::new(log_entries))
-                                }
-                                Err(err) => ResponseType::InvalidResponse(err),
-                            }
+                                .map(LogEntry::from)
+                                .collect();
+
+                            ResponseType::LogEntriesResponse(log_entries)
                         }
-                        AnkaiosResponseContent::LogsStopResponse(_) => {
-                            ResponseType::LogsStopResponse
+                        AnkaiosResponseContent::LogsStopResponse(logs_stop_response) => {
+                            let instance_name = logs_stop_response
+                                .workload_name
+                                .map(WorkloadInstanceName::from)
+                                .unwrap_or_unreachable();
+
+                            ResponseType::LogsStopResponse(instance_name)
                         }
                     },
                     id: inner_response.request_id,
@@ -295,6 +296,49 @@ impl fmt::Display for UpdateStateSuccess {
             f,
             "UpdateStateSuccess: added_workloads: {:?}, deleted_workloads: {:?}",
             self.added_workloads, self.deleted_workloads
+        )
+    }
+}
+
+/// Enum that represents the type of log responses that are available in a LogCampaignResponse.
+///
+/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
+#[derive(Debug)]
+pub enum LogResponse {
+    /// A response containing log entries.
+    LogEntries(Vec<LogEntry>),
+    /// A response indicating the stop of log entries for a specific workload.
+    LogsStopResponse(WorkloadInstanceName),
+}
+
+/// Struct that represents a response of a log request.
+///
+#[derive(Debug)]
+pub struct LogCampaignResponse {
+    pub accepted_workload_names: Vec<WorkloadInstanceName>,
+    pub log_entries_receiver: Receiver<LogResponse>,
+}
+
+impl LogCampaignResponse {
+    #[doc(hidden)]
+    /// Creates a new `LogCampaignResponse` object.
+    ///
+    ///
+    /// ## Arguments
+    ///
+    /// * `update_state_success` - The [AnkaiosUpdateStateSuccess](ank_base::UpdateStateSuccess) to create the [`UpdateStateSuccess`] from.
+    ///
+    /// ## Returns
+    ///
+    /// A new [`UpdateStateSuccess`] instance.
+    pub fn new(accepted_workload_names: Vec<WorkloadInstanceName>) -> (Sender<LogResponse>, Self) {
+        let (logs_sender, logs_receiver) = channel(CHANNEL_SIZE);
+        (
+            logs_sender,
+            LogCampaignResponse {
+                accepted_workload_names,
+                log_entries_receiver: logs_receiver,
+            },
         )
     }
 }

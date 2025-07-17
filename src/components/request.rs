@@ -44,8 +44,8 @@
 //! let request = GetStateRequest::new(vec!["desiredState.workloads".to_owned()]);
 //! ```
 
-use crate::ankaios_api;
 use crate::components::complete_state::CompleteState;
+use crate::{ankaios_api, components::workload_state_mod::WorkloadInstanceName};
 use ankaios_api::ank_base::{
     request::RequestContent, CompleteStateRequest, Request as AnkaiosRequest,
     UpdateStateRequest as AnkaiosUpdateStateRequest,
@@ -183,6 +183,77 @@ impl Request for UpdateStateRequest {
 }
 
 impl fmt::Display for UpdateStateRequest {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.to_proto())
+    }
+}
+
+/// Struct that represents a request to request logs from the [Ankaios] application.
+///
+/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
+#[derive(Debug, PartialEq)]
+pub struct LogsRequest {
+    /// The request proto message that will be sent to the cluster.
+    #[allow(clippy::struct_field_names)]
+    pub(crate) request: AnkaiosRequest,
+    /// The unique identifier of the request.
+    #[allow(clippy::struct_field_names)]
+    request_id: String,
+}
+
+impl LogsRequest {
+    /// Creates a new `GetStateRequest`.
+    ///
+    /// ## Arguments
+    ///
+    /// * `instance_names` - A [Vec] of [`WorkloadInstanceName`] for which to get logs;
+    /// * `follow` - A [bool] indicating whether to continuously follow the logs;
+    /// * `tail` - An [i32] indicating the number of lines to be output at the end of the logs;
+    /// * `since` - An [Option<String>] to show logs after the timestamp in RFC3339 format;
+    /// * `until` - An [Option<String>] to show logs before the timestamp in RFC3339 format.
+    ///
+    /// ## Returns
+    ///
+    /// A new [`LogsRequest`] object.
+    pub fn new(
+        instance_names: Vec<WorkloadInstanceName>,
+        follow: bool,
+        tail: i32,
+        since: Option<String>,
+        until: Option<String>,
+    ) -> Self {
+        let request_id = Uuid::new_v4().to_string();
+        log::debug!("Creating new request of type LogsRequest with id {request_id}");
+
+        Self {
+            request: AnkaiosRequest {
+                request_id: request_id.clone(),
+                request_content: Some(RequestContent::LogsRequest(
+                    ankaios_api::ank_base::LogsRequest {
+                        workload_names: instance_names.into_iter().map(Into::into).collect(),
+                        follow: Some(follow),
+                        tail: Some(tail),
+                        since,
+                        until,
+                    },
+                )),
+            },
+            request_id,
+        }
+    }
+}
+
+impl Request for LogsRequest {
+    fn to_proto(&self) -> AnkaiosRequest {
+        self.request.clone()
+    }
+
+    fn get_id(&self) -> String {
+        self.request_id.clone()
+    }
+}
+
+impl fmt::Display for LogsRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.to_proto())
     }

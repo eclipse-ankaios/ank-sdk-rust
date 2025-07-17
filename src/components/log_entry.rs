@@ -17,9 +17,10 @@
 //!
 //! [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 
-use crate::ankaios_api;
-
-use super::workload_state_mod::WorkloadInstanceName;
+use crate::{
+    ankaios_api, components::workload_state_mod::WorkloadInstanceName,
+    std_extensions::UnreachableOption,
+};
 
 #[derive(Debug, Clone)]
 pub struct LogEntry {
@@ -27,15 +28,11 @@ pub struct LogEntry {
     pub message: String,
 }
 
-impl TryFrom<ankaios_api::ank_base::LogEntry> for LogEntry {
-    type Error = String;
-    fn try_from(value: ankaios_api::ank_base::LogEntry) -> Result<Self, Self::Error> {
-        Ok(LogEntry {
-            workload_name: value
-                .workload_name
-                .ok_or_else(|| format!("LogEntry has no workload instance name."))?
-                .into(), // TODO: switch to try_from
+impl From<ankaios_api::ank_base::LogEntry> for LogEntry {
+    fn from(value: ankaios_api::ank_base::LogEntry) -> Self {
+        LogEntry {
+            workload_name: value.workload_name.unwrap_or_unreachable().into(),
             message: value.message,
-        })
+        }
     }
 }

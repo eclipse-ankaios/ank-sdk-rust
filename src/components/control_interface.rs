@@ -16,6 +16,7 @@
 
 use prost::{encoding::decode_varint, Message};
 use std::{
+    collections::HashMap,
     fmt,
     fs::metadata,
     path::Path,
@@ -32,7 +33,10 @@ use tokio::{
 
 use crate::ankaios_api;
 use crate::components::request::Request;
-use crate::components::response::{Response, ResponseType};
+use crate::components::{
+    response::LogResponse,
+    response::{Response, ResponseType},
+};
 use crate::AnkaiosError;
 use ankaios_api::control_api::{to_ankaios::ToAnkaiosEnum, FromAnkaios, Hello, ToAnkaios};
 
@@ -85,6 +89,8 @@ pub struct ControlInterface {
     response_sender: mpsc::Sender<Response>,
     /// Sender for the writer channel.
     writer_ch_sender: Option<mpsc::Sender<ToAnkaios>>,
+    /// Request ID to logs sender mapping
+    request_id_to_logs_sender: Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>,
 }
 
 /// Helper function that reads varint data from the input pipe.
@@ -162,6 +168,7 @@ impl ControlInterface {
             state: Arc::new(Mutex::new(ControlInterfaceState::Terminated)),
             response_sender,
             writer_ch_sender: None,
+            request_id_to_logs_sender: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -319,6 +326,10 @@ impl ControlInterface {
             .unwrap_or_else(|| unreachable!())
             .clone();
         let state_clone = Arc::<Mutex<ControlInterfaceState>>::clone(&self.state);
+        let request_id_logs_sender_map =
+            Arc::<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>::clone(
+                &self.request_id_to_logs_sender,
+            );
         self.read_thread_handler = Some(spawn(async move {
             let receiver = pipe::OpenOptions::new()
                 .open_receiver(input_path)
@@ -347,12 +358,53 @@ impl ControlInterface {
                                     received_response.content,
                                     ResponseType::ConnectionClosedReason(_)
                                 );
-                                response_sender_clone
-                                    .send(received_response)
-                                    .await
-                                    .unwrap_or_else(|err| {
-                                        log::error!("Error while sending response: '{err}'");
-                                    });
+
+                                if let ResponseType::LogEntriesResponse(log_entries) =
+                                    received_response.content
+                                {
+                                    let request_id = received_response.id;
+                                    let log_entries_sender = request_id_logs_sender_map
+                                        .lock()
+                                        .unwrap_or_else(|_| unreachable!())
+                                        .get(&request_id)
+                                        .cloned();
+
+                                    if let Some(sender) = log_entries_sender {
+                                        sender
+                                            .send(LogResponse::LogEntries(log_entries))
+                                            .await
+                                            .unwrap_or_else(|err| {
+                                                log::error!(
+                                                    "Error while sending log entries: '{err}'"
+                                                );
+                                            });
+                                    }
+                                } else if let ResponseType::LogsStopResponse(instance_name) =
+                                    received_response.content
+                                {
+                                    let request_id = received_response.id;
+                                    let log_entries_sender = request_id_logs_sender_map
+                                        .lock()
+                                        .unwrap_or_else(|_| unreachable!())
+                                        .remove(&request_id);
+                                    if let Some(sender) = log_entries_sender {
+                                        sender
+                                            .send(LogResponse::LogsStopResponse(instance_name))
+                                            .await
+                                            .unwrap_or_else(|err| {
+                                                log::error!(
+                                                    "Error while sending log stop message: '{err}'"
+                                                );
+                                            });
+                                    }
+                                } else {
+                                    response_sender_clone
+                                        .send(received_response)
+                                        .await
+                                        .unwrap_or_else(|err| {
+                                            log::error!("Error while sending response: '{err}'");
+                                        });
+                                }
                                 if is_con_closed {
                                     log::error!("Connection closed by the agent.");
                                     break;
@@ -418,6 +470,17 @@ impl ControlInterface {
             });
         }
         Ok(())
+    }
+
+    pub fn add_log_campaign_sender(
+        &mut self,
+        request_id: String,
+        log_entries_sender: mpsc::Sender<LogResponse>,
+    ) {
+        self.request_id_to_logs_sender
+            .lock()
+            .unwrap_or_else(|_| unreachable!())
+            .insert(request_id, log_entries_sender);
     }
 
     /// Prepares and sends a hello to the [Ankaios](https://eclipse-ankaios.github.io/ankaios) cluster.

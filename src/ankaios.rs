@@ -25,8 +25,10 @@ use tokio::time::{sleep, timeout as tokio_timeout, Duration};
 #[cfg_attr(test, mockall_double::double)]
 use crate::components::control_interface::ControlInterface;
 use crate::components::manifest::{API_VERSION_PREFIX, CONFIGS_PREFIX};
-use crate::components::request::{GetStateRequest, Request, UpdateStateRequest};
-use crate::components::response::{Response, ResponseType, UpdateStateSuccess};
+use crate::components::request::{GetStateRequest, LogsRequest, Request, UpdateStateRequest};
+use crate::components::response::{
+    LogCampaignResponse, Response, ResponseType, UpdateStateSuccess,
+};
 use crate::components::workload_mod::{Workload, WORKLOADS_PREFIX};
 use crate::components::workload_state_mod::{
     WorkloadExecutionState, WorkloadInstanceName, WorkloadStateCollection, WorkloadStateEnum,
@@ -952,6 +954,56 @@ impl Ankaios {
             Err(err) => {
                 log::error!("Timeout while waiting for workload to reach state: {err}");
                 Err(AnkaiosError::TimeoutError(err))
+            }
+        }
+    }
+
+    /// Request logs for the specified workloads.
+    ///
+    /// ## Arguments
+    ///
+    /// - `instance_names`: A [Vec] of the [`WorkloadInstanceName`] for which to get logs;
+    /// - `follow`: A [bool] indicating whether to continuously follow the logs;
+    /// - `tail`: An [i32] indicating the number of lines to be output at the end of the logs;
+    /// - `since`: An [Option<String>] to show logs after the timestamp in RFC3339 format;
+    /// - `until`: An [Option<String>] to show logs before the timestamp in RFC3339 format.
+    ///
+    /// ## Errors
+    ///
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response or waiting for the state to be reached.
+    /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    pub async fn request_logs(
+        &mut self,
+        instance_names: Vec<WorkloadInstanceName>,
+        follow: bool,
+        tail: i32,
+        since: Option<String>,
+        until: Option<String>,
+    ) -> Result<LogCampaignResponse, AnkaiosError> {
+        let request = LogsRequest::new(instance_names, follow, tail, since, until);
+        let request_id = request.get_id();
+        let response = self.send_request(request).await?;
+
+        match response.content {
+            ResponseType::LogsRequestAccepted(accepted_workload_names) => {
+                let (log_entries_sender, log_campaign_response) =
+                    LogCampaignResponse::new(accepted_workload_names);
+                self.control_interface
+                    .add_log_campaign_sender(request_id, log_entries_sender);
+                Ok(log_campaign_response)
+            }
+            ResponseType::Error(error) => {
+                log::error!("Error while trying to request logs: {error}");
+                Err(AnkaiosError::AnkaiosResponseError(error))
+            }
+            _ => {
+                log::error!("Received unexpected response type.");
+                Err(AnkaiosError::ResponseError(
+                    "Received unexpected response type.".to_owned(),
+                ))
             }
         }
     }
