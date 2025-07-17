@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Elektrobit Automotive GmbH
+// Copyright (c) 2025 Elektrobit Automotive GmbH
 //
 // This program and the accompanying materials are made available under the
 // terms of the Apache License, Version 2.0 which is available at
@@ -17,11 +17,25 @@
 //!
 //! [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 
-pub mod complete_state;
-pub mod control_interface;
-pub mod log_entry;
-pub mod manifest;
-pub mod request;
-pub mod response;
-pub mod workload_mod;
-pub mod workload_state_mod;
+use crate::ankaios_api;
+
+use super::workload_state_mod::WorkloadInstanceName;
+
+#[derive(Debug, Clone)]
+pub struct LogEntry {
+    pub workload_name: WorkloadInstanceName,
+    pub message: String,
+}
+
+impl TryFrom<ankaios_api::ank_base::LogEntry> for LogEntry {
+    type Error = String;
+    fn try_from(value: ankaios_api::ank_base::LogEntry) -> Result<Self, Self::Error> {
+        Ok(LogEntry {
+            workload_name: value
+                .workload_name
+                .ok_or_else(|| format!("LogEntry has no workload instance name."))?
+                .into(), // TODO: switch to try_from
+            message: value.message,
+        })
+    }
+}

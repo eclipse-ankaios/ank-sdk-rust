@@ -15,6 +15,8 @@
 use serde_yaml::Value;
 use std::fmt;
 
+use crate::ankaios_api;
+
 /// Helper struct that contains information about a Workload instance.
 ///
 /// # Example
@@ -104,6 +106,16 @@ impl fmt::Display for WorkloadInstanceName {
             "{}.{}.{}",
             self.workload_name, self.workload_id, self.agent_name
         )
+    }
+}
+
+impl From<ankaios_api::ank_base::WorkloadInstanceName> for WorkloadInstanceName {
+    fn from(workload_instance_name: ankaios_api::ank_base::WorkloadInstanceName) -> Self {
+        WorkloadInstanceName {
+            agent_name: workload_instance_name.agent_name,
+            workload_name: workload_instance_name.workload_name,
+            workload_id: workload_instance_name.id,
+        }
     }
 }
 

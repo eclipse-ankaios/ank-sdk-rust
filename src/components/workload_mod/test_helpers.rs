@@ -65,6 +65,7 @@ pub fn generate_test_workload_proto<T: Into<String>>(
                 value: String::from("val_test"),
             }],
         }),
+        files: None,
         control_interface_access: Some(ank_base::ControlInterfaceAccess {
             allow_rules: vec![ank_base::AccessRightsRule {
                 access_rights_rule_enum: Some(

@@ -39,8 +39,9 @@
 //! ```
 
 use super::workload_state_mod::WorkloadInstanceName;
-use crate::ankaios_api;
+use crate::ankaios_api::{self};
 use crate::components::complete_state::CompleteState;
+use crate::components::log_entry::LogEntry;
 use ankaios_api::ank_base::{
     response::ResponseContent as AnkaiosResponseContent, Error,
     UpdateStateSuccess as AnkaiosUpdateStateSuccess,
@@ -63,6 +64,16 @@ pub enum ResponseType {
     Error(String),
     /// The reason a connection closed was received.
     ConnectionClosedReason(String),
+    /// The reason why the response is invalid.
+    InvalidResponse(String),
+    /// The success of an logs request.
+    LogsRequestAccepted(Box<Vec<WorkloadInstanceName>>),
+    /// The success of an logs cancel request.
+    LogsCancelAccepted,
+    /// The response containing log entries.
+    LogEntriesResponse(Box<Vec<LogEntry>>),
+    /// The response indicating the stop of log entries for a specific workload.
+    LogsStopResponse,
 }
 
 /// Struct that represents a response from the [Ankaios] cluster.
@@ -92,6 +103,11 @@ impl fmt::Display for ResponseType {
             ResponseType::UpdateStateSuccess(_) => write!(f, "UpdateStateSuccess"),
             ResponseType::Error(_) => write!(f, "Error"),
             ResponseType::ConnectionClosedReason(_) => write!(f, "ConnectionClosedReason"),
+            ResponseType::LogsRequestAccepted(_) => write!(f, "LogsRequestAccepted"),
+            ResponseType::LogsCancelAccepted => write!(f, "LogsCancelAccepted"),
+            ResponseType::LogEntriesResponse(_) => write!(f, "LogEntriesResponse"),
+            ResponseType::LogsStopResponse => write!(f, "LogsStopResponse"),
+            ResponseType::InvalidResponse(ref msg) => write!(f, "InvalidResponse: '{}'", msg),
         }
     }
 }
@@ -156,6 +172,34 @@ impl From<FromAnkaios> for Response {
                             ResponseType::UpdateStateSuccess(Box::new(
                                 UpdateStateSuccess::new_from_proto(update_state_success),
                             ))
+                        }
+                        AnkaiosResponseContent::LogsRequestAccepted(logs_request_accepted) => {
+                            ResponseType::LogsRequestAccepted(Box::new(
+                                logs_request_accepted
+                                    .workload_names
+                                    .into_iter()
+                                    .map(WorkloadInstanceName::from)
+                                    .collect(),
+                            ))
+                        }
+                        AnkaiosResponseContent::LogsCancelAccepted(_) => {
+                            ResponseType::LogsCancelAccepted
+                        }
+                        AnkaiosResponseContent::LogEntriesResponse(log_entries_response) => {
+                            match log_entries_response
+                                .log_entries
+                                .into_iter()
+                                .map(LogEntry::try_from)
+                                .collect::<Result<_, String>>()
+                            {
+                                Ok(log_entries) => {
+                                    ResponseType::LogEntriesResponse(Box::new(log_entries))
+                                }
+                                Err(err) => ResponseType::InvalidResponse(err),
+                            }
+                        }
+                        AnkaiosResponseContent::LogsStopResponse(_) => {
+                            ResponseType::LogsStopResponse
                         }
                     },
                     id: inner_response.request_id,
