@@ -14,13 +14,13 @@
 
 //! This module contains structs and enums that are used to
 //! work with the components of the [Ankaios] application.
-//! 
+//!
 //! [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 
-pub mod workload_mod;
-pub mod workload_state_mod;
-pub mod manifest;
 pub mod complete_state;
+pub mod control_interface;
+pub mod manifest;
 pub mod request;
 pub mod response;
-pub mod control_interface;
+pub mod workload_mod;
+pub mod workload_state_mod;

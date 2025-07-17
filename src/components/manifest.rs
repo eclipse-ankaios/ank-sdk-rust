@@ -14,14 +14,11 @@
 
 //! This module contains the [Manifest] struct.
 
-use std::{
-    path::Path,
-    collections::HashMap,
-};
-use crate::ankaios_api;
-use ankaios_api::ank_base;
-use crate::{Workload, AnkaiosError};
 use super::workload_mod::WORKLOADS_PREFIX;
+use crate::ankaios_api;
+use crate::{AnkaiosError, Workload};
+use ankaios_api::ank_base;
+use std::{collections::HashMap, path::Path};
 
 // Disable this from coverage
 // https://github.com/rust-lang/rust/issues/84605
@@ -49,87 +46,87 @@ pub const CONFIGS_PREFIX: &str = "desiredState.configs";
 /// # Examples
 ///
 /// ## Load a manifest from a file's [Path]:
-/// 
+///
 /// ```rust
 /// let manifest = Manifest::from_file(Path::new("path/to/manifest.yaml")).unwrap();
 /// ```
-/// 
+///
 /// ## Load a manifest from a [String]:
-/// 
+///
 /// ```rust
 /// let manifest = Manifest::from_string("apiVersion: v0.1").unwrap();
 /// ```
-/// 
+///
 /// ## Load a manifest from a [`serde_yaml::Value`]:
-/// 
+///
 /// ```rust
 /// let dict = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
 /// let _manifest = Manifest::from_dict(dict).unwrap();
 /// ```
-/// 
+///
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 #[derive(Debug, Clone)]
-pub struct Manifest{
+pub struct Manifest {
     /// The desired state.
-    desired_state: ank_base::State
+    desired_state: ank_base::State,
 }
 
 impl Manifest {
     /// Create a new `Manifest` object from a [`serde_yaml::Value`].
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `manifest` - A [`serde_yaml::Value`] object representing the manifest.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// A [Manifest] object if the manifest is valid.
-    /// 
+    ///
     /// ## Errors
-    /// 
+    ///
     /// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError) if the manifest is not valid.
     pub fn from_dict(manifest: serde_yaml::Value) -> Result<Manifest, AnkaiosError> {
         Manifest::try_from(manifest)
     }
 
     /// Create a new `Manifest` object from a [String].
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `manifest` - A [String] object representing the manifest.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// A [Manifest] object if the manifest is valid.
-    /// 
+    ///
     /// ## Errors
-    /// 
+    ///
     /// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError) if the manifest is not valid.
     pub fn from_string<T: Into<String>>(manifest: T) -> Result<Manifest, AnkaiosError> {
         Manifest::try_from(manifest.into())
     }
 
     /// Create a new `Manifest` object from a file's [Path].
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `path` - A [Path] object representing the manifest file.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// A [Manifest] object if the manifest is valid.
-    /// 
+    ///
     /// ## Errors
-    /// 
+    ///
     /// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError) if the manifest is not valid.
     pub fn from_file(path: &Path) -> Result<Manifest, AnkaiosError> {
         Manifest::try_from(path)
     }
 
     /// Calculate the masks for the manifest.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// A [vector](Vec) of [strings](String) representing the masks.
     #[must_use]
     pub fn calculate_masks(&self) -> Vec<String> {
@@ -148,9 +145,9 @@ impl Manifest {
     }
 
     /// Get the manifest as a [`ank_base::State`].
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// A [`ank_base::State`] object representing the manifest.
     #[allow(clippy::wrong_self_convention)] // This function must consume self in order to not clone the desired state when returning it.
     pub(crate) fn to_desired_state(self) -> ank_base::State {
@@ -164,17 +161,23 @@ impl TryFrom<serde_yaml::Value> for Manifest {
     fn try_from(manifest: serde_yaml::Value) -> Result<Self, Self::Error> {
         // Extract api version
         let api_version = match manifest.get("apiVersion") {
-            Some(value) => {
-                match value.as_str() {
-                    Some(version) => version.to_owned(),
-                    None => return Err(AnkaiosError::ManifestParsingError("Invalid apiVersion".to_owned())),
+            Some(value) => match value.as_str() {
+                Some(version) => version.to_owned(),
+                None => {
+                    return Err(AnkaiosError::ManifestParsingError(
+                        "Invalid apiVersion".to_owned(),
+                    ))
                 }
             },
-            None => return Err(AnkaiosError::ManifestParsingError("Missing apiVersion".to_owned())),
+            None => {
+                return Err(AnkaiosError::ManifestParsingError(
+                    "Missing apiVersion".to_owned(),
+                ))
+            }
         };
 
         // Extract workloads
-        let mut workloads: ank_base::WorkloadMap = ank_base::WorkloadMap{
+        let mut workloads: ank_base::WorkloadMap = ank_base::WorkloadMap {
             workloads: HashMap::new(),
         };
         if let Some(workloads_value) = manifest.get("workloads") {
@@ -182,17 +185,28 @@ impl TryFrom<serde_yaml::Value> for Manifest {
                 for (key, value) in workloads_mapping {
                     if let Some(key_str) = key.as_str() {
                         if let Some(value_mapping) = value.as_mapping() {
-                            let workload = Workload::new_from_dict(key_str.to_owned(), &value_mapping.clone())?;
-                            workloads.workloads.insert(key_str.to_owned(), workload.to_proto());
+                            let workload = Workload::new_from_dict(
+                                key_str.to_owned(),
+                                &value_mapping.clone(),
+                            )?;
+                            workloads
+                                .workloads
+                                .insert(key_str.to_owned(), workload.to_proto());
                         } else {
-                            return Err(AnkaiosError::ManifestParsingError("Invalid workload mapping".to_owned()));
+                            return Err(AnkaiosError::ManifestParsingError(
+                                "Invalid workload mapping".to_owned(),
+                            ));
                         }
                     } else {
-                        return Err(AnkaiosError::ManifestParsingError("Invalid workload key".to_owned()));
+                        return Err(AnkaiosError::ManifestParsingError(
+                            "Invalid workload key".to_owned(),
+                        ));
                     }
                 }
             } else {
-                return Err(AnkaiosError::ManifestParsingError("Invalid workloads mapping".to_owned()));
+                return Err(AnkaiosError::ManifestParsingError(
+                    "Invalid workloads mapping".to_owned(),
+                ));
             }
         }
 
@@ -203,16 +217,20 @@ impl TryFrom<serde_yaml::Value> for Manifest {
                     Ok(configs) => Some(configs),
                     Err(e) => return Err(AnkaiosError::ManifestParsingError(e.to_string())),
                 }
-            },
+            }
             None => None,
         };
 
         Ok(Self {
             desired_state: ank_base::State {
                 api_version,
-                workloads: if workloads.workloads.is_empty() { None } else { Some(workloads) },
+                workloads: if workloads.workloads.is_empty() {
+                    None
+                } else {
+                    Some(workloads)
+                },
                 configs,
-            }
+            },
         })
     }
 }
@@ -223,7 +241,7 @@ impl TryFrom<String> for Manifest {
     fn try_from(manifest: String) -> Result<Self, Self::Error> {
         match serde_yaml::from_str(&manifest) {
             Ok(man) => Self::from_dict(man),
-            Err(e) => Err(AnkaiosError::ManifestParsingError(e.to_string()))
+            Err(e) => Err(AnkaiosError::ManifestParsingError(e.to_string())),
         }
     }
 }
@@ -234,7 +252,7 @@ impl TryFrom<&Path> for Manifest {
     fn try_from(path: &Path) -> Result<Self, Self::Error> {
         match read_file_to_string(path) {
             Ok(content) => Self::from_string(content),
-            Err(e) => Err(AnkaiosError::ManifestParsingError(e.to_string()))
+            Err(e) => Err(AnkaiosError::ManifestParsingError(e.to_string())),
         }
     }
 }
@@ -281,9 +299,9 @@ pub fn generate_test_manifest() -> Manifest {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-    use serde_yaml;
     use super::{Manifest, MANIFEST_CONTENT};
+    use serde_yaml;
+    use std::path::Path;
 
     #[test]
     fn test_doc_examples() {
@@ -295,7 +313,10 @@ mod tests {
 
         // Load a manifest from a serde_yaml::Value
         let mut map = serde_yaml::Mapping::new();
-        map.insert(serde_yaml::Value::String("apiVersion".to_owned()), serde_yaml::Value::String("v0.1".to_owned()));
+        map.insert(
+            serde_yaml::Value::String("apiVersion".to_owned()),
+            serde_yaml::Value::String("v0.1".to_owned()),
+        );
         let dict = serde_yaml::Value::Mapping(map);
         let _manifest = Manifest::from_dict(dict).unwrap();
     }

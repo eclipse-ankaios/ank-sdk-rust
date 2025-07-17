@@ -24,18 +24,21 @@ async fn print_workload_states(ank: &mut Ankaios) {
 
         // Print the states of the workloads
         for workload_state in workload_states {
-            println!("Workload {} on agent {} has the state {:?}", 
-                workload_state.workload_instance_name.workload_name, 
+            println!(
+                "Workload {} on agent {} has the state {:?}",
+                workload_state.workload_instance_name.workload_name,
                 workload_state.workload_instance_name.agent_name,
                 workload_state.execution_state.state
-            ); 
+            );
         }
     }
 }
 
 #[tokio::main]
 async fn main() {
-    env_logger::builder().filter_level(log::LevelFilter::Debug).init();
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Debug)
+        .init();
 
     // Create a new Ankaios object.
     // The connection to the control interface is automatically done at this step.
@@ -47,18 +50,27 @@ async fn main() {
         .agent_name("agent_Rust_SDK")
         .runtime("podman")
         .restart_policy("NEVER")
-        .runtime_config(
-            "image: docker.io/library/nginx\ncommandOptions: [\"-p\", \"8080:80\"]"
-        ).build().unwrap();
-    
+        .runtime_config("image: docker.io/library/nginx\ncommandOptions: [\"-p\", \"8080:80\"]")
+        .build()
+        .unwrap();
+
     // Run the workload
-    let response = ank.apply_workload(workload).await.expect("Failed to apply workload");
+    let response = ank
+        .apply_workload(workload)
+        .await
+        .expect("Failed to apply workload");
 
     // Get the WorkloadInstanceName to check later if the workload is running
     let workload_instance_name = response.added_workloads[0].clone();
 
     // Wait until the workload reaches the running state
-    match ank.wait_for_workload_to_reach_state(workload_instance_name.clone(), WorkloadStateEnum::Running).await {
+    match ank
+        .wait_for_workload_to_reach_state(
+            workload_instance_name.clone(),
+            WorkloadStateEnum::Running,
+        )
+        .await
+    {
         Ok(_) => {
             println!("Workload reached the RUNNING state.");
         }

@@ -19,7 +19,7 @@
     clippy::needless_pass_by_value,
     clippy::str_to_string,
     clippy::absolute_paths,
-    clippy::shadow_reuse,
+    clippy::shadow_reuse
 )]
 
 pub mod ank_base {

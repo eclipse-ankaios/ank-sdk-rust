@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{str::FromStr, fmt};
+use std::{fmt, str::FromStr};
 
 use crate::ankaios_api;
 use ankaios_api::ank_base;
@@ -79,17 +79,17 @@ pub enum WorkloadSubStateEnum {
 
 impl WorkloadStateEnum {
     /// Creates a new `WorkloadStateEnum` from a [String] value.
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `value` - A [String] that represents the state.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// A [`WorkloadStateEnum`] instance.
-    /// 
+    ///
     /// ## Errors
-    /// 
+    ///
     /// If the value is not a valid state.
     pub fn new_from_str<T: Into<String>>(value: T) -> Result<WorkloadStateEnum, String> {
         match value.into().as_str() {
@@ -100,15 +100,15 @@ impl WorkloadStateEnum {
             "Succeeded" => Ok(WorkloadStateEnum::Succeeded),
             "Failed" => Ok(WorkloadStateEnum::Failed),
             "NotScheduled" => Ok(WorkloadStateEnum::NotScheduled),
-            "Removed" =>Ok( WorkloadStateEnum::Removed),
+            "Removed" => Ok(WorkloadStateEnum::Removed),
             _ => Err("Invalid value for WorkloadStateEnum".to_owned()),
         }
     }
 
     /// Converts the [`WorkloadStateEnum`] to an [i32].
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// An [i32] value representing the [`WorkloadStateEnum`].
     #[must_use]
     pub fn as_i32(&self) -> i32 {
@@ -153,30 +153,38 @@ impl FromStr for WorkloadStateEnum {
 
 impl WorkloadSubStateEnum {
     /// Creates a new `WorkloadSubStateEnum` from a [`WorkloadStateEnum`] and an [i32] value.
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `state` - A [`WorkloadStateEnum`] that represents the state;
     /// * `value` - An [i32] value that represents the substate.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// A [`WorkloadSubStateEnum`] instance.
-    /// 
+    ///
     /// ## Errors
-    /// 
+    ///
     /// If the value is not a valid substate for the given state.
     pub fn new(state: WorkloadStateEnum, value: i32) -> Result<WorkloadSubStateEnum, String> {
         match state {
-            WorkloadStateEnum::AgentDisconnected => match ank_base::AgentDisconnected::from_i32(value) {
-                Some(ank_base::AgentDisconnected::AgentDisconnected) => Ok(WorkloadSubStateEnum::AgentDisconnected),
-                None => Err("Invalid value for state AgentDisconnected".to_owned()),
-            },
+            WorkloadStateEnum::AgentDisconnected => {
+                match ank_base::AgentDisconnected::from_i32(value) {
+                    Some(ank_base::AgentDisconnected::AgentDisconnected) => {
+                        Ok(WorkloadSubStateEnum::AgentDisconnected)
+                    }
+                    None => Err("Invalid value for state AgentDisconnected".to_owned()),
+                }
+            }
             WorkloadStateEnum::Pending => match ank_base::Pending::from_i32(value) {
                 Some(ank_base::Pending::Initial) => Ok(WorkloadSubStateEnum::PendingInitial),
-                Some(ank_base::Pending::WaitingToStart) => Ok(WorkloadSubStateEnum::PendingWaitingToStart),
+                Some(ank_base::Pending::WaitingToStart) => {
+                    Ok(WorkloadSubStateEnum::PendingWaitingToStart)
+                }
                 Some(ank_base::Pending::Starting) => Ok(WorkloadSubStateEnum::PendingStarting),
-                Some(ank_base::Pending::StartingFailed) => Ok(WorkloadSubStateEnum::PendingStartingFailed),
+                Some(ank_base::Pending::StartingFailed) => {
+                    Ok(WorkloadSubStateEnum::PendingStartingFailed)
+                }
                 None => Err("Invalid value for state Pending".to_owned()),
             },
             WorkloadStateEnum::Running => match ank_base::Running::from_i32(value) {
@@ -185,9 +193,15 @@ impl WorkloadSubStateEnum {
             },
             WorkloadStateEnum::Stopping => match ank_base::Stopping::from_i32(value) {
                 Some(ank_base::Stopping::Stopping) => Ok(WorkloadSubStateEnum::Stopping),
-                Some(ank_base::Stopping::WaitingToStop) => Ok(WorkloadSubStateEnum::StoppingWaitingToStop),
-                Some(ank_base::Stopping::RequestedAtRuntime) => Ok(WorkloadSubStateEnum::StoppingRequestedAtRuntime),
-                Some(ank_base::Stopping::DeleteFailed) => Ok(WorkloadSubStateEnum::StoppingDeleteFailed),
+                Some(ank_base::Stopping::WaitingToStop) => {
+                    Ok(WorkloadSubStateEnum::StoppingWaitingToStop)
+                }
+                Some(ank_base::Stopping::RequestedAtRuntime) => {
+                    Ok(WorkloadSubStateEnum::StoppingRequestedAtRuntime)
+                }
+                Some(ank_base::Stopping::DeleteFailed) => {
+                    Ok(WorkloadSubStateEnum::StoppingDeleteFailed)
+                }
                 None => Err("Invalid value for state Stopping".to_owned()),
             },
             WorkloadStateEnum::Succeeded => match ank_base::Succeeded::from_i32(value) {
@@ -201,7 +215,9 @@ impl WorkloadSubStateEnum {
                 None => Err("Invalid value for state Failed".to_owned()),
             },
             WorkloadStateEnum::NotScheduled => match ank_base::NotScheduled::from_i32(value) {
-                Some(ank_base::NotScheduled::NotScheduled) => Ok(WorkloadSubStateEnum::NotScheduled),
+                Some(ank_base::NotScheduled::NotScheduled) => {
+                    Ok(WorkloadSubStateEnum::NotScheduled)
+                }
                 None => Err("Invalid value for state NotScheduled".to_owned()),
             },
             WorkloadStateEnum::Removed => match ank_base::Removed::from_i32(value) {
@@ -212,13 +228,15 @@ impl WorkloadSubStateEnum {
     }
 
     /// Converts the `WorkloadSubStateEnum` to an [i32].
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// An [i32] value representing the [`WorkloadSubStateEnum`].
     pub fn to_i32(self) -> i32 {
         match self {
-            WorkloadSubStateEnum::AgentDisconnected => ank_base::AgentDisconnected::AgentDisconnected as i32,
+            WorkloadSubStateEnum::AgentDisconnected => {
+                ank_base::AgentDisconnected::AgentDisconnected as i32
+            }
             WorkloadSubStateEnum::PendingInitial => ank_base::Pending::Initial as i32,
             WorkloadSubStateEnum::PendingWaitingToStart => ank_base::Pending::WaitingToStart as i32,
             WorkloadSubStateEnum::PendingStarting => ank_base::Pending::Starting as i32,
@@ -226,7 +244,9 @@ impl WorkloadSubStateEnum {
             WorkloadSubStateEnum::RunningOk => ank_base::Running::Ok as i32,
             WorkloadSubStateEnum::Stopping => ank_base::Stopping::Stopping as i32,
             WorkloadSubStateEnum::StoppingWaitingToStop => ank_base::Stopping::WaitingToStop as i32,
-            WorkloadSubStateEnum::StoppingRequestedAtRuntime => ank_base::Stopping::RequestedAtRuntime as i32,
+            WorkloadSubStateEnum::StoppingRequestedAtRuntime => {
+                ank_base::Stopping::RequestedAtRuntime as i32
+            }
             WorkloadSubStateEnum::StoppingDeleteFailed => ank_base::Stopping::DeleteFailed as i32,
             WorkloadSubStateEnum::SucceededOk => ank_base::Succeeded::Ok as i32,
             WorkloadSubStateEnum::FailedExecFailed => ank_base::Failed::ExecFailed as i32,
@@ -319,19 +339,30 @@ mod tests {
                 let state = WorkloadStateEnum::$enum_val;
                 assert_eq!(state.as_i32(), $idx);
                 assert_eq!(state.to_string(), stringify!($enum_val));
-                assert_eq!(state, WorkloadStateEnum::new_from_str(stringify!($enum_val)).unwrap());
+                assert_eq!(
+                    state,
+                    WorkloadStateEnum::new_from_str(stringify!($enum_val)).unwrap()
+                );
                 assert_eq!(state, stringify!($enum_val).parse().unwrap());
             }
         };
     }
 
-    generate_test_for_workload_state_enum!(utest_workload_state_enum_agent_disconnected, AgentDisconnected, 0);
+    generate_test_for_workload_state_enum!(
+        utest_workload_state_enum_agent_disconnected,
+        AgentDisconnected,
+        0
+    );
     generate_test_for_workload_state_enum!(utest_workload_state_enum_pending, Pending, 1);
     generate_test_for_workload_state_enum!(utest_workload_state_enum_running, Running, 2);
     generate_test_for_workload_state_enum!(utest_workload_state_enum_stopping, Stopping, 3);
     generate_test_for_workload_state_enum!(utest_workload_state_enum_succeeded, Succeeded, 4);
     generate_test_for_workload_state_enum!(utest_workload_state_enum_failed, Failed, 5);
-    generate_test_for_workload_state_enum!(utest_workload_state_enum_not_scheduled, NotScheduled, 6);
+    generate_test_for_workload_state_enum!(
+        utest_workload_state_enum_not_scheduled,
+        NotScheduled,
+        6
+    );
     generate_test_for_workload_state_enum!(utest_workload_state_enum_removed, Removed, 7);
 
     #[test]
@@ -351,7 +382,8 @@ mod tests {
         ($test_name:ident, $enum_val:ident, $state_val:ident, $idx:expr) => {
             #[test]
             fn $test_name() {
-                let substate = WorkloadSubStateEnum::new(WorkloadStateEnum::$state_val, $idx).unwrap();
+                let substate =
+                    WorkloadSubStateEnum::new(WorkloadStateEnum::$state_val, $idx).unwrap();
                 assert_eq!(substate.to_i32(), $idx);
                 assert_eq!(substate.to_string(), stringify!($enum_val));
                 assert_eq!(substate, stringify!($enum_val).parse().unwrap());
@@ -359,38 +391,102 @@ mod tests {
         };
     }
 
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_agent_disconnected,
-        AgentDisconnected, AgentDisconnected, ank_base::AgentDisconnected::AgentDisconnected as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_pending_initial,
-        PendingInitial, Pending, ank_base::Pending::Initial as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_pending_waiting_to_start,
-        PendingWaitingToStart, Pending, ank_base::Pending::WaitingToStart as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_pending_starting,
-        PendingStarting, Pending, ank_base::Pending::Starting as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_pending_starting_failed,
-        PendingStartingFailed, Pending, ank_base::Pending::StartingFailed as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_running_ok,
-        RunningOk, Running, ank_base::Running::Ok as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_stopping,
-        Stopping, Stopping, ank_base::Stopping::Stopping as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_stopping_waiting_to_stop,
-        StoppingWaitingToStop, Stopping, ank_base::Stopping::WaitingToStop as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_stopping_requested_at_runtime,
-        StoppingRequestedAtRuntime, Stopping, ank_base::Stopping::RequestedAtRuntime as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_stopping_delete_failed,
-        StoppingDeleteFailed, Stopping, ank_base::Stopping::DeleteFailed as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_succeeded_ok,
-        SucceededOk, Succeeded, ank_base::Succeeded::Ok as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_failed_exec_failed,
-        FailedExecFailed, Failed, ank_base::Failed::ExecFailed as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_failed_unknown,
-        FailedUnknown, Failed, ank_base::Failed::Unknown as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_failed_lost,
-        FailedLost, Failed, ank_base::Failed::Lost as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_not_scheduled,
-        NotScheduled, NotScheduled, ank_base::NotScheduled::NotScheduled as i32);
-    generate_test_for_workload_state_enum!(utest_workload_substate_enum_removed,
-        Removed, Removed, ank_base::Removed::Removed as i32);
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_agent_disconnected,
+        AgentDisconnected,
+        AgentDisconnected,
+        ank_base::AgentDisconnected::AgentDisconnected as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_pending_initial,
+        PendingInitial,
+        Pending,
+        ank_base::Pending::Initial as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_pending_waiting_to_start,
+        PendingWaitingToStart,
+        Pending,
+        ank_base::Pending::WaitingToStart as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_pending_starting,
+        PendingStarting,
+        Pending,
+        ank_base::Pending::Starting as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_pending_starting_failed,
+        PendingStartingFailed,
+        Pending,
+        ank_base::Pending::StartingFailed as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_running_ok,
+        RunningOk,
+        Running,
+        ank_base::Running::Ok as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_stopping,
+        Stopping,
+        Stopping,
+        ank_base::Stopping::Stopping as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_stopping_waiting_to_stop,
+        StoppingWaitingToStop,
+        Stopping,
+        ank_base::Stopping::WaitingToStop as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_stopping_requested_at_runtime,
+        StoppingRequestedAtRuntime,
+        Stopping,
+        ank_base::Stopping::RequestedAtRuntime as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_stopping_delete_failed,
+        StoppingDeleteFailed,
+        Stopping,
+        ank_base::Stopping::DeleteFailed as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_succeeded_ok,
+        SucceededOk,
+        Succeeded,
+        ank_base::Succeeded::Ok as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_failed_exec_failed,
+        FailedExecFailed,
+        Failed,
+        ank_base::Failed::ExecFailed as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_failed_unknown,
+        FailedUnknown,
+        Failed,
+        ank_base::Failed::Unknown as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_failed_lost,
+        FailedLost,
+        Failed,
+        ank_base::Failed::Lost as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_not_scheduled,
+        NotScheduled,
+        NotScheduled,
+        ank_base::NotScheduled::NotScheduled as i32
+    );
+    generate_test_for_workload_state_enum!(
+        utest_workload_substate_enum_removed,
+        Removed,
+        Removed,
+        ank_base::Removed::Removed as i32
+    );
 
     #[test]
     fn utest_workload_substate_enum_err() {

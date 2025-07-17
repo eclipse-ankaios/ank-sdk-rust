@@ -24,11 +24,12 @@ async fn print_workload_states(ank: &mut Ankaios) {
 
         // Print the states of the workloads
         for workload_state in workload_states {
-            println!("Workload {} on agent {} has the state {:?}", 
-                workload_state.workload_instance_name.workload_name, 
+            println!(
+                "Workload {} on agent {} has the state {:?}",
+                workload_state.workload_instance_name.workload_name,
                 workload_state.workload_instance_name.agent_name,
                 workload_state.execution_state.state
-            ); 
+            );
         }
     }
 }

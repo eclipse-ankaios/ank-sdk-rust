@@ -15,7 +15,7 @@
 // use std::thread::sleep;
 
 use ankaios_sdk::Ankaios;
-use tokio::time::{Duration, sleep};
+use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() {

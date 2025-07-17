@@ -1192,7 +1192,7 @@ mod tests {
     use super::Workload;
     use crate::components::workload_mod::file::File;
     use crate::components::workload_mod::test_helpers::{
-        generate_test_runtime_config, generate_test_workload, generate_test_workload_proto
+        generate_test_runtime_config, generate_test_workload, generate_test_workload_proto,
     };
     use std::collections::HashMap;
     use std::path::Path;
