@@ -210,7 +210,7 @@ impl LogsRequest {
     /// * `follow` - A [bool] indicating whether to continuously follow the logs;
     /// * `tail` - An [i32] indicating the number of lines to be output at the end of the logs;
     /// * `since` - An [Option<String>] to show logs after the timestamp in RFC3339 format;
-    /// * `until` - An [Option<String>] to show logs before the timestamp in RFC3339 format.
+    /// * `until` - An [Option<String>] to show logs before the timestamp in RFC3339 format;
     ///
     /// ## Returns
     ///

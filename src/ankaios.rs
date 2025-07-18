@@ -25,6 +25,7 @@ use tokio::time::{sleep, timeout as tokio_timeout, Duration};
 #[cfg_attr(test, mockall_double::double)]
 use crate::components::control_interface::ControlInterface;
 use crate::components::log_types::LogCampaignResponse;
+use crate::components::log_types::LogsRequest as InputLogsRequest;
 use crate::components::manifest::{API_VERSION_PREFIX, CONFIGS_PREFIX};
 use crate::components::request::{
     GetStateRequest, LogsCancelRequest, LogsRequest, Request, UpdateStateRequest,
@@ -978,13 +979,15 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn request_logs(
         &mut self,
-        instance_names: Vec<WorkloadInstanceName>,
-        follow: bool,
-        tail: i32,
-        since: Option<String>,
-        until: Option<String>,
+        logs_request: InputLogsRequest,
     ) -> Result<LogCampaignResponse, AnkaiosError> {
-        let request = LogsRequest::new(instance_names, follow, tail, since, until);
+        let request = LogsRequest::new(
+            logs_request.workload_names,
+            logs_request.follow,
+            logs_request.tail,
+            logs_request.since,
+            logs_request.until,
+        );
         let request_id = request.get_id();
         let response = self.send_request(request).await?;
 

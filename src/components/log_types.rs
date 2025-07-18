@@ -25,6 +25,40 @@ use crate::{
     std_extensions::UnreachableOption,
 };
 
+/// Struct that represents a logs request.
+///
+#[derive(Debug, Clone)]
+pub struct LogsRequest {
+    /// The names of the workloads for which logs are requested.
+    pub workload_names: Vec<WorkloadInstanceName>,
+    /// Enable or disable whether to continuously follow the logs
+    pub follow: bool,
+    /// The number of lines to be output at the end of the logs (default: -1, which means all lines).
+    pub tail: i32,
+    /// Show logs after the timestamp in RFC3339 format (default: None).
+    pub since: Option<String>,
+    /// Show logs before the timestamp in RFC3339 format (default: None).
+    pub until: Option<String>,
+}
+
+impl Default for LogsRequest {
+    #[doc(hidden)]
+    /// Creates a new default `LogsRequest` object.
+    ///
+    /// ## Returns
+    ///
+    /// A new [LogsRequest] with default parameters.
+    fn default() -> Self {
+        LogsRequest {
+            workload_names: vec![],
+            follow: false,
+            tail: -1,
+            since: None,
+            until: None,
+        }
+    }
+}
+
 /// Struct that represents a log entry.
 ///
 #[derive(Debug, Clone)]

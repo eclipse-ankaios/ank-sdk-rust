@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use ankaios_sdk::{Ankaios, LogResponse, Workload};
+use ankaios_sdk::{Ankaios, LogResponse, LogsRequest, Workload};
 
 #[tokio::main]
 async fn main() {
@@ -26,7 +26,7 @@ async fn main() {
         .agent_name("agent_Rust_SDK")
         .runtime("podman")
         .restart_policy("NEVER")
-        .runtime_config("image: ghcr.io/eclipse-ankaios/tests/alpine:latest\ncommandOptions: [ \"--entrypoint\", \"/bin/sh\" ]\ncommandArgs: [ \"-c\", \"echo -e \'1\\n2\\n3\\n4\\n5\'\" ]")
+        .runtime_config("image: ghcr.io/eclipse-ankaios/tests/alpine:latest\ncommandOptions: [ \"--entrypoint\", \"/bin/sh\" ]\ncommandArgs: [ \"-c\", \"echo -e \'1\\n2\\n3\\n4\\n5\\n\'; sleep 20; echo -e 6\" ]")
         .build()
         .expect("Failed to build workload");
 
@@ -39,9 +39,14 @@ async fn main() {
     // Get the WorkloadInstanceName to check later if the workload is running
     let workload_instance_name = response.added_workloads[0].clone();
 
+    let logs_request = LogsRequest {
+        workload_names: vec![workload_instance_name.clone()],
+        ..Default::default()
+    };
+
     // Request the logs from the new workload
     let mut log_campaign_response = ank
-        .request_logs(vec![workload_instance_name.clone()], false, -1, None, None)
+        .request_logs(logs_request)
         .await
         .expect("Failed to request logs");
 
@@ -58,7 +63,7 @@ async fn main() {
         std::process::exit(1);
     }
 
-    // Listen for log entries until stop
+    // Listen for log responses until stop
     while let Some(log_response) = log_campaign_response.logs_receiver.recv().await {
         match log_response {
             LogResponse::LogEntries(log_entries) => {
