@@ -61,7 +61,7 @@ impl Default for LogsRequest {
 
 /// Struct that represents a log entry.
 ///
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LogEntry {
     /// The name of the workload that produced the log entry.
     pub workload_name: WorkloadInstanceName,
@@ -80,7 +80,7 @@ impl From<ankaios_api::ank_base::LogEntry> for LogEntry {
 
 /// Enum that represents the type of log responses that are available in a LogCampaignResponse.
 ///
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum LogResponse {
     /// A response containing log entries.
     LogEntries(Vec<LogEntry>),
