@@ -202,7 +202,7 @@ pub struct LogsRequest {
 }
 
 impl LogsRequest {
-    /// Creates a new `GetStateRequest`.
+    /// Creates a new `LogsRequest`.
     ///
     /// ## Arguments
     ///
@@ -254,6 +254,61 @@ impl Request for LogsRequest {
 }
 
 impl fmt::Display for LogsRequest {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.to_proto())
+    }
+}
+
+/// Struct that represents a request to cancel a log collection from the [Ankaios] application.
+///
+/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
+#[derive(Debug, PartialEq)]
+pub struct LogsCancelRequest {
+    /// The request proto message that will be sent to the cluster.
+    #[allow(clippy::struct_field_names)]
+    pub(crate) request: AnkaiosRequest,
+    /// The unique identifier of the request.
+    #[allow(clippy::struct_field_names)]
+    request_id: String,
+}
+
+impl LogsCancelRequest {
+    /// Creates a new `LogsCancelRequest`.
+    ///
+    /// ## Arguments
+    ///
+    /// * `request_id` - The request id as a [String] of the initial logs request.
+    ///
+    /// ## Returns
+    ///
+    /// A new [`LogsCancelRequest`] object.
+    pub fn new(request_id: String) -> Self {
+        log::debug!("Creating new request of type LogsCancelRequest with id '{request_id}'");
+        Self {
+            request: AnkaiosRequest {
+                request_id: request_id.clone(),
+                request_content: Some(
+                    ankaios_api::ank_base::request::RequestContent::LogsCancelRequest(
+                        ankaios_api::ank_base::LogsCancelRequest {},
+                    ),
+                ),
+            },
+            request_id,
+        }
+    }
+}
+
+impl Request for LogsCancelRequest {
+    fn to_proto(&self) -> AnkaiosRequest {
+        self.request.clone()
+    }
+
+    fn get_id(&self) -> String {
+        self.request_id.clone()
+    }
+}
+
+impl fmt::Display for LogsCancelRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.to_proto())
     }

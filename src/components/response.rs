@@ -39,10 +39,9 @@
 //! ```
 
 use super::workload_state_mod::WorkloadInstanceName;
-use crate::ankaios::CHANNEL_SIZE;
 use crate::ankaios_api::{self};
 use crate::components::complete_state::CompleteState;
-use crate::components::log_entry::LogEntry;
+use crate::components::log_types::LogEntry;
 use crate::std_extensions::UnreachableOption;
 use ankaios_api::ank_base::{
     response::ResponseContent as AnkaiosResponseContent, Error,
@@ -52,7 +51,6 @@ use ankaios_api::control_api::{from_ankaios::FromAnkaiosEnum, FromAnkaios};
 use core::fmt;
 use std::collections::HashMap;
 use std::default;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 /// Enum that represents the type of responses that can be provided by the [Ankaios] cluster.
 ///
@@ -296,49 +294,6 @@ impl fmt::Display for UpdateStateSuccess {
             f,
             "UpdateStateSuccess: added_workloads: {:?}, deleted_workloads: {:?}",
             self.added_workloads, self.deleted_workloads
-        )
-    }
-}
-
-/// Enum that represents the type of log responses that are available in a LogCampaignResponse.
-///
-/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
-#[derive(Debug)]
-pub enum LogResponse {
-    /// A response containing log entries.
-    LogEntries(Vec<LogEntry>),
-    /// A response indicating the stop of log entries for a specific workload.
-    LogsStopResponse(WorkloadInstanceName),
-}
-
-/// Struct that represents a response of a log request.
-///
-#[derive(Debug)]
-pub struct LogCampaignResponse {
-    pub accepted_workload_names: Vec<WorkloadInstanceName>,
-    pub log_entries_receiver: Receiver<LogResponse>,
-}
-
-impl LogCampaignResponse {
-    #[doc(hidden)]
-    /// Creates a new `LogCampaignResponse` object.
-    ///
-    ///
-    /// ## Arguments
-    ///
-    /// * `update_state_success` - The [AnkaiosUpdateStateSuccess](ank_base::UpdateStateSuccess) to create the [`UpdateStateSuccess`] from.
-    ///
-    /// ## Returns
-    ///
-    /// A new [`UpdateStateSuccess`] instance.
-    pub fn new(accepted_workload_names: Vec<WorkloadInstanceName>) -> (Sender<LogResponse>, Self) {
-        let (logs_sender, logs_receiver) = channel(CHANNEL_SIZE);
-        (
-            logs_sender,
-            LogCampaignResponse {
-                accepted_workload_names,
-                log_entries_receiver: logs_receiver,
-            },
         )
     }
 }

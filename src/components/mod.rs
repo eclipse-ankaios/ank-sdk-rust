@@ -19,7 +19,7 @@
 
 pub mod complete_state;
 pub mod control_interface;
-pub mod log_entry;
+pub mod log_types;
 pub mod manifest;
 pub mod request;
 pub mod response;

@@ -32,11 +32,9 @@ use tokio::{
 };
 
 use crate::ankaios_api;
+use crate::components::log_types::LogResponse;
 use crate::components::request::Request;
-use crate::components::{
-    response::LogResponse,
-    response::{Response, ResponseType},
-};
+use crate::components::response::{Response, ResponseType};
 use crate::AnkaiosError;
 use ankaios_api::control_api::{to_ankaios::ToAnkaiosEnum, FromAnkaios, Hello, ToAnkaios};
 
@@ -472,15 +470,25 @@ impl ControlInterface {
         Ok(())
     }
 
-    pub fn add_log_campaign_sender(
-        &mut self,
-        request_id: String,
-        log_entries_sender: mpsc::Sender<LogResponse>,
-    ) {
+    pub fn add_log_campaign(&mut self, request_id: String, logs_sender: mpsc::Sender<LogResponse>) {
+        log::trace!("Add log campaign with request id: '{}'", request_id);
+
         self.request_id_to_logs_sender
             .lock()
             .unwrap_or_else(|_| unreachable!())
-            .insert(request_id, log_entries_sender);
+            .insert(request_id, logs_sender);
+    }
+
+    pub fn remove_log_campaign(&mut self, request_id: String) {
+        if self
+            .request_id_to_logs_sender
+            .lock()
+            .unwrap_or_else(|_| unreachable!())
+            .remove(&request_id)
+            .is_some()
+        {
+            log::trace!("Removed log campaign with request id: '{}'", request_id);
+        }
     }
 
     /// Prepares and sends a hello to the [Ankaios](https://eclipse-ankaios.github.io/ankaios) cluster.

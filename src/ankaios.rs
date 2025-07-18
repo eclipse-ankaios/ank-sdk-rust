@@ -24,11 +24,12 @@ use tokio::time::{sleep, timeout as tokio_timeout, Duration};
 
 #[cfg_attr(test, mockall_double::double)]
 use crate::components::control_interface::ControlInterface;
+use crate::components::log_types::LogCampaignResponse;
 use crate::components::manifest::{API_VERSION_PREFIX, CONFIGS_PREFIX};
-use crate::components::request::{GetStateRequest, LogsRequest, Request, UpdateStateRequest};
-use crate::components::response::{
-    LogCampaignResponse, Response, ResponseType, UpdateStateSuccess,
+use crate::components::request::{
+    GetStateRequest, LogsCancelRequest, LogsRequest, Request, UpdateStateRequest,
 };
+use crate::components::response::{Response, ResponseType, UpdateStateSuccess};
 use crate::components::workload_mod::{Workload, WORKLOADS_PREFIX};
 use crate::components::workload_state_mod::{
     WorkloadExecutionState, WorkloadInstanceName, WorkloadStateCollection, WorkloadStateEnum,
@@ -990,13 +991,53 @@ impl Ankaios {
         match response.content {
             ResponseType::LogsRequestAccepted(accepted_workload_names) => {
                 let (log_entries_sender, log_campaign_response) =
-                    LogCampaignResponse::new(accepted_workload_names);
+                    LogCampaignResponse::new(request_id.clone(), accepted_workload_names);
                 self.control_interface
-                    .add_log_campaign_sender(request_id, log_entries_sender);
+                    .add_log_campaign(request_id, log_entries_sender);
                 Ok(log_campaign_response)
             }
             ResponseType::Error(error) => {
                 log::error!("Error while trying to request logs: {error}");
+                Err(AnkaiosError::AnkaiosResponseError(error))
+            }
+            _ => {
+                log::error!("Received unexpected response type.");
+                Err(AnkaiosError::ResponseError(
+                    "Received unexpected response type.".to_owned(),
+                ))
+            }
+        }
+    }
+
+    /// Stop receiving logs for a log campaign.
+    ///
+    /// ## Arguments
+    ///
+    /// - `log_campaign_response`: A [LogCampaignResponse] to stop receiving logs for;
+    ///
+    /// ## Errors
+    ///
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response or waiting for the state to be reached.
+    /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    pub async fn stop_receiving_logs(
+        &mut self,
+        log_campaign_response: LogCampaignResponse,
+    ) -> Result<(), AnkaiosError> {
+        let logs_cancel_request = LogsCancelRequest::new(log_campaign_response.request_id);
+        let request_id = logs_cancel_request.get_id();
+        let response = self.send_request(logs_cancel_request).await?;
+        self.control_interface.remove_log_campaign(request_id);
+
+        match response.content {
+            ResponseType::LogsCancelAccepted => {
+                log::trace!("Received LogsCancelAccepted: log campaign cancelled successfully.");
+                Ok(())
+            }
+            ResponseType::Error(error) => {
+                log::error!("Error while trying to cancel log campaign: {error}");
                 Err(AnkaiosError::AnkaiosResponseError(error))
             }
             _ => {
