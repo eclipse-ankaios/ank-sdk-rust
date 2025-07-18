@@ -12,8 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use ankaios_sdk::{Ankaios, AnkaiosError, LogResponse, Workload, WorkloadStateEnum};
-use tokio::time::Duration;
+use ankaios_sdk::{Ankaios, LogResponse, Workload};
 
 #[tokio::main]
 async fn main() {

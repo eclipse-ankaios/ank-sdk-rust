@@ -376,6 +376,8 @@ impl ControlInterface {
                                                     "Error while sending log entries: '{err}'"
                                                 );
                                             });
+                                    } else {
+                                        log::debug!("Received log entries message for request id '{}', but no log campaign found.", request_id);
                                     }
                                 } else if let ResponseType::LogsStopResponse(instance_name) =
                                     received_response.content

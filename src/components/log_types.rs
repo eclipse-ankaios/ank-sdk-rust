@@ -59,7 +59,7 @@ pub enum LogResponse {
 #[derive(Debug)]
 pub struct LogCampaignResponse {
     /// The request id as a [String] of the initial logs request.
-    pub request_id: String,
+    request_id: String,
     /// A vector of [WorkloadInstanceName] that were accepted for log collection.
     pub accepted_workload_names: Vec<WorkloadInstanceName>,
     /// A [Receiver] that can be used to receive log responses.
