@@ -540,7 +540,6 @@ mod tests {
         read_protobuf_data, ControlInterface, ControlInterfaceState, ANKAIOS_INPUT_FIFO_PATH,
         ANKAIOS_OUTPUT_FIFO_PATH, ANKAIOS_VERSION,
     };
-    use crate::ankaios::CHANNEL_SIZE;
     use crate::ankaios_api;
     use crate::components::{
         request::{generate_test_request, Request},
@@ -549,6 +548,7 @@ mod tests {
             Response,
         },
     };
+    use crate::{ankaios::CHANNEL_SIZE, LogResponse};
     use ankaios_api::control_api::{to_ankaios::ToAnkaiosEnum, Hello, ToAnkaios};
 
     /// Helper function for getting the state of the control interface.
@@ -556,6 +556,9 @@ mod tests {
         let state = ci.state.lock().unwrap();
         *state
     }
+
+    const REQUEST_ID_1: &str = "request_id_1";
+    const REQUEST_ID_2: &str = "request_id_2";
 
     #[tokio::test(flavor = "multi_thread")]
     async fn utest_read_protobuf_data() {
@@ -844,5 +847,68 @@ mod tests {
         // Disconnect from the control interface
         ci.disconnect().unwrap();
         assert_eq!(get_state(&ci), ControlInterfaceState::Terminated);
+    }
+
+    #[tokio::test]
+    async fn utest_control_interface_add_log_campaign() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        let (response_sender, _) = mpsc::channel::<Response>(CHANNEL_SIZE);
+        let mut ci = ControlInterface::new(response_sender);
+
+        let (logs_sender_1, _) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
+        ci.add_log_campaign(REQUEST_ID_1.to_owned(), logs_sender_1);
+
+        {
+            let map_guard = ci.request_id_to_logs_sender.lock().unwrap();
+            assert_eq!(map_guard.len(), 1);
+            assert!(map_guard.get(REQUEST_ID_1).is_some());
+        }
+
+        let (logs_sender_2, _) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
+        ci.add_log_campaign(REQUEST_ID_2.to_owned(), logs_sender_2);
+
+        {
+            let map_guard = ci.request_id_to_logs_sender.lock().unwrap();
+            assert_eq!(map_guard.len(), 2);
+            assert!(map_guard.get(REQUEST_ID_2).is_some());
+        }
+    }
+
+    #[tokio::test]
+    async fn utest_control_interface_remove_log_campaign() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        let (response_sender, _) = mpsc::channel::<Response>(CHANNEL_SIZE);
+        let mut ci = ControlInterface::new(response_sender);
+
+        let (logs_sender_1, _) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
+        ci.request_id_to_logs_sender
+            .lock()
+            .unwrap()
+            .insert(REQUEST_ID_1.to_owned(), logs_sender_1);
+
+        let (logs_sender_2, _) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
+        ci.request_id_to_logs_sender
+            .lock()
+            .unwrap()
+            .insert(REQUEST_ID_2.to_owned(), logs_sender_2);
+
+        assert_eq!(ci.request_id_to_logs_sender.lock().unwrap().len(), 2);
+
+        ci.remove_log_campaign(REQUEST_ID_1.to_owned());
+
+        {
+            let map_guard = ci.request_id_to_logs_sender.lock().unwrap();
+            assert_eq!(map_guard.len(), 1);
+            assert!(map_guard.get(REQUEST_ID_1).is_none());
+            assert!(map_guard.get(REQUEST_ID_2).is_some());
+        }
+
+        ci.remove_log_campaign(REQUEST_ID_2.to_owned());
+
+        {
+            let map_guard = ci.request_id_to_logs_sender.lock().unwrap();
+            assert_eq!(map_guard.len(), 0);
+            assert!(map_guard.get(REQUEST_ID_2).is_none());
+        }
     }
 }

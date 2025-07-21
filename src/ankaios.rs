@@ -1102,6 +1102,7 @@ mod tests {
         WORKLOAD_STATES_PREFIX,
     };
     use crate::ankaios_api::ank_base::request::RequestContent;
+    use crate::components::request::LogsCancelRequest;
     use crate::components::{
         complete_state::generate_complete_state_proto,
         manifest::generate_test_manifest,
@@ -1109,12 +1110,13 @@ mod tests {
         response::generate_test_response_update_state_success,
         workload_mod::{test_helpers::generate_test_workload, WORKLOADS_PREFIX},
     };
-    use crate::{LogEntry, LogResponse, LogsRequest as InputLogsRequest};
+    use crate::{LogCampaignResponse, LogEntry, LogResponse, LogsRequest as InputLogsRequest};
 
     // Used for synchronizing multiple tests that use the same mock.
     pub static MOCKALL_SYNC: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     const TEST_LOG_MESSAGE: &str = "some log message 1";
+    const REQUEST_ID: &str = "request_id";
 
     #[tokio::test]
     async fn itest_create_ankaios() {
@@ -3063,7 +3065,6 @@ mod tests {
 
     #[tokio::test]
     async fn itest_request_logs_ok() {
-        let _ = env_logger::builder().is_test(true).try_init();
         let _guard = MOCKALL_SYNC.lock().await;
 
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
@@ -3149,7 +3150,6 @@ mod tests {
 
     #[tokio::test]
     async fn itest_request_logs_error() {
-        let _ = env_logger::builder().is_test(true).try_init();
         let _guard = MOCKALL_SYNC.lock().await;
 
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
@@ -3201,7 +3201,6 @@ mod tests {
 
     #[tokio::test]
     async fn itest_request_logs_error_on_unexpected_response_type() {
-        let _ = env_logger::builder().is_test(true).try_init();
         let _guard = MOCKALL_SYNC.lock().await;
 
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
@@ -3249,5 +3248,169 @@ mod tests {
             log_campaign_response.unwrap_err().to_string(),
             "Response error: Received unexpected response type: 'UpdateStateSuccess'"
         );
+    }
+
+    #[tokio::test]
+    async fn itest_stop_receiving_logs_ok() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let instance_name = WorkloadInstanceName::new(
+            "agent_A".to_owned(),
+            "workload_A".to_owned(),
+            "1234".to_owned(),
+        );
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .return_once(move |request: LogsCancelRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+
+        ci_mock
+            .expect_remove_log_campaign()
+            .times(1)
+            .return_const(());
+
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        let accepted_workload_names = vec![instance_name.clone()];
+        let (logs_sender, log_campaign_response) =
+            LogCampaignResponse::new(REQUEST_ID.to_owned(), accepted_workload_names);
+
+        let method_handle =
+            tokio::spawn(async move { ank.stop_receiving_logs(log_campaign_response).await });
+
+        let request = request_receiver.await.unwrap();
+
+        let logs_cancel_accepted = Response {
+            id: request.get_id(),
+            content: super::ResponseType::LogsCancelAccepted,
+        };
+
+        assert!(response_sender.send(logs_cancel_accepted).await.is_ok());
+
+        let result = method_handle.await.unwrap();
+        assert!(result.is_ok());
+
+        assert!(logs_sender.is_closed());
+    }
+
+    #[tokio::test]
+    async fn itest_stop_receiving_logs_response_error() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let instance_name = WorkloadInstanceName::new(
+            "agent_A".to_owned(),
+            "workload_A".to_owned(),
+            "1234".to_owned(),
+        );
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .return_once(move |request: LogsCancelRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+
+        ci_mock
+            .expect_remove_log_campaign()
+            .times(1)
+            .return_const(());
+
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        let accepted_workload_names = vec![instance_name.clone()];
+        let (logs_sender, log_campaign_response) =
+            LogCampaignResponse::new(REQUEST_ID.to_owned(), accepted_workload_names);
+
+        let method_handle =
+            tokio::spawn(async move { ank.stop_receiving_logs(log_campaign_response).await });
+
+        let request = request_receiver.await.unwrap();
+
+        let response_error = Response {
+            id: request.get_id(),
+            content: super::ResponseType::Error("failed to cancel logs".to_owned()),
+        };
+
+        assert!(response_sender.send(response_error).await.is_ok());
+
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Ankaios response error: failed to cancel logs"
+        );
+
+        assert!(logs_sender.is_closed());
+    }
+
+    #[tokio::test]
+    async fn itest_stop_receiving_logs_unexpected_response() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let instance_name = WorkloadInstanceName::new(
+            "agent_A".to_owned(),
+            "workload_A".to_owned(),
+            "1234".to_owned(),
+        );
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .return_once(move |request: LogsCancelRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+
+        ci_mock
+            .expect_remove_log_campaign()
+            .times(1)
+            .return_const(());
+
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        let accepted_workload_names = vec![instance_name.clone()];
+        let (logs_sender, log_campaign_response) =
+            LogCampaignResponse::new(REQUEST_ID.to_owned(), accepted_workload_names);
+
+        let method_handle =
+            tokio::spawn(async move { ank.stop_receiving_logs(log_campaign_response).await });
+
+        let request = request_receiver.await.unwrap();
+
+        let response_error = Response {
+            id: request.get_id(),
+            content: super::ResponseType::UpdateStateSuccess(Box::default()),
+        };
+
+        assert!(response_sender.send(response_error).await.is_ok());
+
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Response error: Received unexpected response type."
+        );
+
+        assert!(logs_sender.is_closed());
     }
 }
