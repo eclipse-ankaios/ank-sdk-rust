@@ -994,8 +994,7 @@ impl Ankaios {
         match response.content {
             ResponseType::LogsRequestAccepted(accepted_workload_names) => {
                 log::trace!(
-                    "Received LogsRequestAccepted: {:?} accepted workloads.",
-                    accepted_workload_names
+                    "Received LogsRequestAccepted: {accepted_workload_names:?} accepted workloads."
                 );
                 let (log_entries_sender, log_campaign_response) =
                     LogCampaignResponse::new(request_id.clone(), accepted_workload_names);

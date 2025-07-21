@@ -434,7 +434,7 @@ impl ControlInterface {
     }
 
     pub fn add_log_campaign(&mut self, request_id: String, logs_sender: mpsc::Sender<LogResponse>) {
-        log::trace!("Add log campaign with request id: '{}'", request_id);
+        log::trace!("Add log campaign with request id: '{request_id}'");
 
         self.request_id_to_logs_sender
             .lock()
@@ -450,7 +450,7 @@ impl ControlInterface {
             .remove(request_id)
             .is_some()
         {
-            log::trace!("Removed log campaign with request id: '{}'", request_id);
+            log::trace!("Removed log campaign with request id: '{request_id}'");
         }
     }
 
@@ -541,8 +541,7 @@ impl ControlInterface {
                 });
         } else {
             log::debug!(
-                "Received log entries message for request id '{}', but no log campaign found.",
-                request_id
+                "Received log entries message for request id '{request_id}', but no log campaign found."
             );
         }
     }
