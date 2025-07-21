@@ -78,7 +78,7 @@ impl From<ankaios_api::ank_base::LogEntry> for LogEntry {
     }
 }
 
-/// Enum that represents the type of log responses that are available in a LogCampaignResponse.
+/// Enum that represents the type of log responses that are available in a `LogCampaignResponse`.
 ///
 #[derive(Debug, PartialEq)]
 pub enum LogResponse {
@@ -94,7 +94,7 @@ pub enum LogResponse {
 pub struct LogCampaignResponse {
     /// The request id as a [String] of the initial logs request.
     request_id: String,
-    /// A vector of [WorkloadInstanceName] that were accepted for log collection.
+    /// A vector of [`WorkloadInstanceName`] that were accepted for log collection.
     pub accepted_workload_names: Vec<WorkloadInstanceName>,
     /// A [Receiver] that can be used to receive log responses.
     pub logs_receiver: Receiver<LogResponse>,
@@ -113,6 +113,7 @@ impl LogCampaignResponse {
     /// ## Returns
     ///
     /// A new [`(Sender<LogsResponse>, LogCampaignResponse)`] tuple.
+    #[must_use]
     pub fn new(
         request_id: String,
         accepted_workload_names: Vec<WorkloadInstanceName>,
@@ -134,6 +135,7 @@ impl LogCampaignResponse {
     /// ## Returns
     ///
     /// The request id as a [String].
+    #[must_use]
     pub fn get_request_id(&self) -> String {
         self.request_id.clone()
     }

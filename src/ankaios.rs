@@ -1010,8 +1010,7 @@ impl Ankaios {
             unexpected_response => {
                 log::error!("Received unexpected response type.");
                 Err(AnkaiosError::ResponseError(format!(
-                    "Received unexpected response type: '{}'",
-                    unexpected_response
+                    "Received unexpected response type: '{unexpected_response}'"
                 )))
             }
         }
@@ -1021,7 +1020,7 @@ impl Ankaios {
     ///
     /// ## Arguments
     ///
-    /// - `log_campaign_response`: A [LogCampaignResponse] to stop receiving logs for;
+    /// - `log_campaign_response`: A [`LogCampaignResponse`] to stop receiving logs for;
     ///
     /// ## Errors
     ///
@@ -1036,7 +1035,7 @@ impl Ankaios {
     ) -> Result<(), AnkaiosError> {
         let logs_cancel_request = LogsCancelRequest::new(log_campaign_response.get_request_id());
         self.control_interface
-            .remove_log_campaign(logs_cancel_request.get_id());
+            .remove_log_campaign(&logs_cancel_request.get_id());
         let response = self.send_request(logs_cancel_request).await?;
 
         match response.content {

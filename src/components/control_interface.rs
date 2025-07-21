@@ -31,11 +31,11 @@ use tokio::{
     time::{sleep, Duration},
 };
 
-use crate::ankaios_api;
-use crate::components::log_types::LogResponse;
 use crate::components::request::Request;
 use crate::components::response::{Response, ResponseType};
+use crate::components::{log_types::LogResponse, workload_state_mod::WorkloadInstanceName};
 use crate::AnkaiosError;
+use crate::{ankaios_api, LogEntry};
 use ankaios_api::control_api::{to_ankaios::ToAnkaiosEnum, FromAnkaios, Hello, ToAnkaios};
 
 #[cfg(test)]
@@ -349,7 +349,9 @@ impl ControlInterface {
                             );
                         }
 
-                        match FromAnkaios::decode(&mut Box::new(binary.as_ref())) {
+                        let decoded_response = FromAnkaios::decode(&mut Box::new(binary.as_ref()));
+
+                        match decoded_response {
                             Ok(from_ankaios) => {
                                 let received_response = Response::new(from_ankaios);
                                 let is_con_closed = matches!(
@@ -357,54 +359,13 @@ impl ControlInterface {
                                     ResponseType::ConnectionClosedReason(_)
                                 );
 
-                                if let ResponseType::LogEntriesResponse(log_entries) =
-                                    received_response.content
-                                {
-                                    let request_id = received_response.id;
-                                    let log_entries_sender = request_id_logs_sender_map
-                                        .lock()
-                                        .unwrap_or_else(|_| unreachable!())
-                                        .get(&request_id)
-                                        .cloned();
+                                Self::handle_decoded_response(
+                                    received_response,
+                                    &response_sender_clone,
+                                    &request_id_logs_sender_map,
+                                )
+                                .await;
 
-                                    if let Some(sender) = log_entries_sender {
-                                        sender
-                                            .send(LogResponse::LogEntries(log_entries))
-                                            .await
-                                            .unwrap_or_else(|err| {
-                                                log::error!(
-                                                    "Error while sending log entries: '{err}'"
-                                                );
-                                            });
-                                    } else {
-                                        log::debug!("Received log entries message for request id '{}', but no log campaign found.", request_id);
-                                    }
-                                } else if let ResponseType::LogsStopResponse(instance_name) =
-                                    received_response.content
-                                {
-                                    let request_id = received_response.id;
-                                    let log_entries_sender = request_id_logs_sender_map
-                                        .lock()
-                                        .unwrap_or_else(|_| unreachable!())
-                                        .remove(&request_id);
-                                    if let Some(sender) = log_entries_sender {
-                                        sender
-                                            .send(LogResponse::LogsStopResponse(instance_name))
-                                            .await
-                                            .unwrap_or_else(|err| {
-                                                log::error!(
-                                                    "Error while sending log stop message: '{err}'"
-                                                );
-                                            });
-                                    }
-                                } else {
-                                    response_sender_clone
-                                        .send(received_response)
-                                        .await
-                                        .unwrap_or_else(|err| {
-                                            log::error!("Error while sending response: '{err}'");
-                                        });
-                                }
                                 if is_con_closed {
                                     log::error!("Connection closed by the agent.");
                                     break;
@@ -481,12 +442,12 @@ impl ControlInterface {
             .insert(request_id, logs_sender);
     }
 
-    pub fn remove_log_campaign(&mut self, request_id: String) {
+    pub fn remove_log_campaign(&mut self, request_id: &str) {
         if self
             .request_id_to_logs_sender
             .lock()
             .unwrap_or_else(|_| unreachable!())
-            .remove(&request_id)
+            .remove(request_id)
             .is_some()
         {
             log::trace!("Removed log campaign with request id: '{}'", request_id);
@@ -511,6 +472,107 @@ impl ControlInterface {
             .unwrap_or_else(|err| {
                 log::error!("Error while sending initial hello message: '{err}'");
             });
+    }
+
+    #[doc(hidden)]
+    /// Handles the decoded response from the control interface and dispatches to the appropriate action.
+    ///
+    /// ## Arguments
+    ///
+    /// * `received_response` - A decoded [`Response`] object from the control interface;
+    /// * `response_sender` - A [`Sender<Response>`] to forward the response;
+    /// * `request_id_logs_sender_map` - A [`Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>`] to forward log entries and stop responses for a log campaign.
+    ///
+    async fn handle_decoded_response(
+        received_response: Response,
+        response_sender: &mpsc::Sender<Response>,
+        request_id_logs_sender_map: &Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>,
+    ) {
+        if let ResponseType::LogEntriesResponse(log_entries) = received_response.content {
+            Self::forward_log_entries(
+                received_response.id,
+                log_entries,
+                request_id_logs_sender_map,
+            )
+            .await;
+        } else if let ResponseType::LogsStopResponse(instance_name) = received_response.content {
+            Self::forward_logs_stop_response(
+                received_response.id,
+                instance_name,
+                request_id_logs_sender_map,
+            )
+            .await;
+        } else {
+            response_sender
+                .send(received_response)
+                .await
+                .unwrap_or_else(|err| {
+                    log::error!("Error while sending response: '{err}'");
+                });
+        }
+    }
+
+    #[doc(hidden)]
+    /// Forwards the log entries to the appropriate log campaign receiver.
+    ///
+    /// ## Arguments
+    ///
+    /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
+    /// * `log_entries` - A [`Vec<LogEntry>`] containing the log entries of workload to be forwarded;
+    /// * `request_id_logs_sender_map` - A [`Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>`] to forward log entries and stop responses for a log campaign.
+    ///
+    async fn forward_log_entries(
+        request_id: String,
+        log_entries: Vec<LogEntry>,
+        request_id_logs_sender_map: &Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>,
+    ) {
+        let log_entries_sender = request_id_logs_sender_map
+            .lock()
+            .unwrap_or_else(|_| unreachable!())
+            .get(&request_id)
+            .cloned();
+
+        if let Some(sender) = log_entries_sender {
+            sender
+                .send(LogResponse::LogEntries(log_entries))
+                .await
+                .unwrap_or_else(|err| {
+                    log::error!("Error while sending log entries: '{err}'");
+                });
+        } else {
+            log::debug!(
+                "Received log entries message for request id '{}', but no log campaign found.",
+                request_id
+            );
+        }
+    }
+
+    #[doc(hidden)]
+    /// Forwards the logs stop response for a workload instance to the appropriate log campaign receiver.
+    ///
+    /// ## Arguments
+    ///
+    /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
+    /// * `instance_name` - A [`WorkloadInstanceName`] for which the logs stop response is sent;
+    /// * `request_id_logs_sender_map` - A [`Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>`] to forward log entries and stop responses for a log campaign.
+    ///
+    async fn forward_logs_stop_response(
+        request_id: String,
+        instance_name: WorkloadInstanceName,
+        request_id_logs_sender_map: &Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>,
+    ) {
+        let log_entries_sender = request_id_logs_sender_map
+            .lock()
+            .unwrap_or_else(|_| unreachable!())
+            .remove(&request_id);
+        if let Some(sender) = log_entries_sender {
+            sender
+                .send(LogResponse::LogsStopResponse(instance_name))
+                .await
+                .unwrap_or_else(|err| {
+                    log::error!("Error while sending log stop message: '{err}'");
+                });
+        }
     }
 }
 
@@ -894,7 +956,7 @@ mod tests {
 
         assert_eq!(ci.request_id_to_logs_sender.lock().unwrap().len(), 2);
 
-        ci.remove_log_campaign(REQUEST_ID_1.to_owned());
+        ci.remove_log_campaign(REQUEST_ID_1);
 
         {
             let map_guard = ci.request_id_to_logs_sender.lock().unwrap();
@@ -903,7 +965,7 @@ mod tests {
             assert!(map_guard.get(REQUEST_ID_2).is_some());
         }
 
-        ci.remove_log_campaign(REQUEST_ID_2.to_owned());
+        ci.remove_log_campaign(REQUEST_ID_2);
 
         {
             let map_guard = ci.request_id_to_logs_sender.lock().unwrap();
