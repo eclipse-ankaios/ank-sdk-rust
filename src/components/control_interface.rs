@@ -67,6 +67,62 @@ pub enum ControlInterfaceState {
     ConnectionClosed = 4,
 }
 
+#[doc(hidden)]
+#[derive(Debug, Default, Clone)]
+struct SynchronizedLogResponseSenderMap {
+    /// A map of request IDs to their corresponding log response sender of the log campaign.
+    request_id_log_senders_map: Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>,
+}
+
+impl SynchronizedLogResponseSenderMap {
+    /// Inserts a new log response sender for a request ID part of a started log campaign.
+    ///
+    /// ## Arguments
+    ///
+    /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
+    /// * `logs_sender` - A [`mpsc::Sender<LogResponse>`] to forward log responses for the log campaign.
+    ///
+    pub fn insert(&mut self, request_id: String, logs_sender: mpsc::Sender<LogResponse>) {
+        self.request_id_log_senders_map
+            .lock()
+            .unwrap_or_else(|_| unreachable!())
+            .insert(request_id, logs_sender);
+    }
+
+    /// Removes a log response sender by its request ID for a log campaign.
+    ///
+    /// ## Arguments
+    ///
+    /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
+    ///
+    /// ## Returns
+    ///
+    /// An [`Option<mpsc::Sender<LogResponse>>`] if the request ID was found and removed, otherwise `None`.
+    pub fn remove(&mut self, request_id: &str) -> Option<mpsc::Sender<LogResponse>> {
+        self.request_id_log_senders_map
+            .lock()
+            .unwrap_or_else(|_| unreachable!())
+            .remove(request_id)
+    }
+
+    /// Gets a cloned log response sender by its request ID for a log campaign.
+    ///
+    /// ## Arguments
+    ///
+    /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
+    ///
+    /// ## Returns
+    ///
+    /// An [`Option<mpsc::Sender<LogResponse>>`] if the request ID was found, otherwise `None`.
+    pub fn get_cloned(&self, request_id: &str) -> Option<mpsc::Sender<LogResponse>> {
+        self.request_id_log_senders_map
+            .lock()
+            .unwrap_or_else(|_| unreachable!())
+            .get(request_id)
+            .cloned()
+    }
+}
+
 /// This struct handles the interaction with the control interface.
 /// It provides means to send and receive messages through the FIFO pipes.
 ///
@@ -88,7 +144,7 @@ pub struct ControlInterface {
     /// Sender for the writer channel.
     writer_ch_sender: Option<mpsc::Sender<ToAnkaios>>,
     /// Request ID to logs sender mapping
-    request_id_to_logs_sender: Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>,
+    log_senders_map: SynchronizedLogResponseSenderMap,
 }
 
 /// Helper function that reads varint data from the input pipe.
@@ -166,7 +222,7 @@ impl ControlInterface {
             state: Arc::new(Mutex::new(ControlInterfaceState::Terminated)),
             response_sender,
             writer_ch_sender: None,
-            request_id_to_logs_sender: Arc::new(Mutex::new(HashMap::new())),
+            log_senders_map: SynchronizedLogResponseSenderMap::default(),
         }
     }
 
@@ -324,10 +380,7 @@ impl ControlInterface {
             .unwrap_or_else(|| unreachable!())
             .clone();
         let state_clone = Arc::<Mutex<ControlInterfaceState>>::clone(&self.state);
-        let request_id_logs_sender_map =
-            Arc::<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>::clone(
-                &self.request_id_to_logs_sender,
-            );
+        let mut request_id_logs_sender_map = self.log_senders_map.clone();
         self.read_thread_handler = Some(spawn(async move {
             let receiver = pipe::OpenOptions::new()
                 .open_receiver(input_path)
@@ -362,7 +415,7 @@ impl ControlInterface {
                                 Self::handle_decoded_response(
                                     received_response,
                                     &response_sender_clone,
-                                    &request_id_logs_sender_map,
+                                    &mut request_id_logs_sender_map,
                                 )
                                 .await;
 
@@ -444,10 +497,7 @@ impl ControlInterface {
     pub fn add_log_campaign(&mut self, request_id: String, logs_sender: mpsc::Sender<LogResponse>) {
         log::trace!("Add log campaign with request id: '{request_id}'");
 
-        self.request_id_to_logs_sender
-            .lock()
-            .unwrap_or_else(|_| unreachable!())
-            .insert(request_id, logs_sender);
+        self.log_senders_map.insert(request_id, logs_sender);
     }
 
     #[doc(hidden)]
@@ -458,13 +508,7 @@ impl ControlInterface {
     /// * `request_id` - A [&str] representing the request ID of the initial logs request of the log campaign;
     ///
     pub fn remove_log_campaign(&mut self, request_id: &str) {
-        if self
-            .request_id_to_logs_sender
-            .lock()
-            .unwrap_or_else(|_| unreachable!())
-            .remove(request_id)
-            .is_some()
-        {
+        if self.log_senders_map.remove(request_id).is_some() {
             log::trace!("Removed log campaign with request id: '{request_id}'");
         }
     }
@@ -496,12 +540,12 @@ impl ControlInterface {
     ///
     /// * `received_response` - A decoded [`Response`] object from the control interface;
     /// * `response_sender` - A [`Sender<Response>`] to forward the response;
-    /// * `request_id_logs_sender_map` - A [`Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>`] to forward log entries and stop responses for a log campaign.
+    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log entries and stop responses for a log campaign.
     ///
     async fn handle_decoded_response(
         received_response: Response,
         response_sender: &mpsc::Sender<Response>,
-        request_id_logs_sender_map: &Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>,
+        request_id_logs_sender_map: &mut SynchronizedLogResponseSenderMap,
     ) {
         if let ResponseType::LogEntriesResponse(log_entries) = received_response.content {
             let request_id = received_response.id;
@@ -527,18 +571,14 @@ impl ControlInterface {
     ///
     /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
     /// * `log_entries` - A [`Vec<LogEntry>`] containing the log entries of workload to be forwarded;
-    /// * `request_id_logs_sender_map` - A [`Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>`] to forward log entries and stop responses for a log campaign.
+    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log entries and stop responses for a log campaign.
     ///
     async fn forward_log_entries(
         request_id: String,
         log_entries: Vec<LogEntry>,
-        request_id_logs_sender_map: &Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>,
+        request_id_logs_sender_map: &SynchronizedLogResponseSenderMap,
     ) {
-        let log_entries_sender = request_id_logs_sender_map
-            .lock()
-            .unwrap_or_else(|_| unreachable!())
-            .get(&request_id)
-            .cloned();
+        let log_entries_sender = request_id_logs_sender_map.get_cloned(&request_id);
 
         if let Some(sender) = log_entries_sender {
             sender
@@ -561,17 +601,14 @@ impl ControlInterface {
     ///
     /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
     /// * `instance_name` - A [`WorkloadInstanceName`] for which the logs stop response is sent;
-    /// * `request_id_logs_sender_map` - A [`Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>`] to forward log entries and stop responses for a log campaign.
+    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log entries and stop responses for a log campaign.
     ///
     async fn forward_logs_stop_response(
         request_id: String,
         instance_name: WorkloadInstanceName,
-        request_id_logs_sender_map: &Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>,
+        request_id_logs_sender_map: &mut SynchronizedLogResponseSenderMap,
     ) {
-        let log_entries_sender = request_id_logs_sender_map
-            .lock()
-            .unwrap_or_else(|_| unreachable!())
-            .remove(&request_id);
+        let log_entries_sender = request_id_logs_sender_map.remove(&request_id);
         if let Some(sender) = log_entries_sender {
             sender
                 .send(LogResponse::LogsStopResponse(instance_name))
@@ -928,7 +965,11 @@ mod tests {
         ci.add_log_campaign(REQUEST_ID_1.to_owned(), logs_sender_1);
 
         {
-            let map_guard = ci.request_id_to_logs_sender.lock().unwrap();
+            let map_guard = ci
+                .log_senders_map
+                .request_id_log_senders_map
+                .lock()
+                .unwrap();
             assert_eq!(map_guard.len(), 1);
             assert!(map_guard.get(REQUEST_ID_1).is_some());
         }
@@ -937,7 +978,11 @@ mod tests {
         ci.add_log_campaign(REQUEST_ID_2.to_owned(), logs_sender_2);
 
         {
-            let map_guard = ci.request_id_to_logs_sender.lock().unwrap();
+            let map_guard = ci
+                .log_senders_map
+                .request_id_log_senders_map
+                .lock()
+                .unwrap();
             assert_eq!(map_guard.len(), 2);
             assert!(map_guard.get(REQUEST_ID_2).is_some());
         }
@@ -950,23 +995,36 @@ mod tests {
         let mut ci = ControlInterface::new(response_sender);
 
         let (logs_sender_1, _) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
-        ci.request_id_to_logs_sender
+        ci.log_senders_map
+            .request_id_log_senders_map
             .lock()
             .unwrap()
             .insert(REQUEST_ID_1.to_owned(), logs_sender_1);
 
         let (logs_sender_2, _) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
-        ci.request_id_to_logs_sender
+        ci.log_senders_map
+            .request_id_log_senders_map
             .lock()
             .unwrap()
             .insert(REQUEST_ID_2.to_owned(), logs_sender_2);
 
-        assert_eq!(ci.request_id_to_logs_sender.lock().unwrap().len(), 2);
+        assert_eq!(
+            ci.log_senders_map
+                .request_id_log_senders_map
+                .lock()
+                .unwrap()
+                .len(),
+            2
+        );
 
         ci.remove_log_campaign(REQUEST_ID_1);
 
         {
-            let map_guard = ci.request_id_to_logs_sender.lock().unwrap();
+            let map_guard = ci
+                .log_senders_map
+                .request_id_log_senders_map
+                .lock()
+                .unwrap();
             assert_eq!(map_guard.len(), 1);
             assert!(map_guard.get(REQUEST_ID_1).is_none());
             assert!(map_guard.get(REQUEST_ID_2).is_some());
@@ -975,7 +1033,11 @@ mod tests {
         ci.remove_log_campaign(REQUEST_ID_2);
 
         {
-            let map_guard = ci.request_id_to_logs_sender.lock().unwrap();
+            let map_guard = ci
+                .log_senders_map
+                .request_id_log_senders_map
+                .lock()
+                .unwrap();
             assert_eq!(map_guard.len(), 0);
             assert!(map_guard.get(REQUEST_ID_2).is_none());
         }
