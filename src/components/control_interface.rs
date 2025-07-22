@@ -433,6 +433,7 @@ impl ControlInterface {
         Ok(())
     }
 
+    #[doc(hidden)]
     /// Adds a log campaign to the control interface.
     ///
     /// ## Arguments
@@ -449,6 +450,7 @@ impl ControlInterface {
             .insert(request_id, logs_sender);
     }
 
+    #[doc(hidden)]
     /// Removes a log campaign from the control interface.
     ///
     /// ## Arguments
