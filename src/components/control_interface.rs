@@ -504,19 +504,12 @@ impl ControlInterface {
         request_id_logs_sender_map: &Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>,
     ) {
         if let ResponseType::LogEntriesResponse(log_entries) = received_response.content {
-            Self::forward_log_entries(
-                received_response.id,
-                log_entries,
-                request_id_logs_sender_map,
-            )
-            .await;
+            let request_id = received_response.id;
+            Self::forward_log_entries(request_id, log_entries, request_id_logs_sender_map).await;
         } else if let ResponseType::LogsStopResponse(instance_name) = received_response.content {
-            Self::forward_logs_stop_response(
-                received_response.id,
-                instance_name,
-                request_id_logs_sender_map,
-            )
-            .await;
+            let request_id = received_response.id;
+            Self::forward_logs_stop_response(request_id, instance_name, request_id_logs_sender_map)
+                .await;
         } else {
             response_sender
                 .send(received_response)
