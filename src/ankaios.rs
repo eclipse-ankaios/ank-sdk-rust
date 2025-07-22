@@ -25,10 +25,11 @@ use tokio::time::{sleep, timeout as tokio_timeout, Duration};
 #[cfg_attr(test, mockall_double::double)]
 use crate::components::control_interface::ControlInterface;
 use crate::components::log_types::LogCampaignResponse;
-use crate::components::log_types::LogsRequest as InputLogsRequest;
+use crate::components::log_types::LogsRequest;
 use crate::components::manifest::{API_VERSION_PREFIX, CONFIGS_PREFIX};
 use crate::components::request::{
-    GetStateRequest, LogsCancelRequest, LogsRequest, Request, UpdateStateRequest,
+    GetStateRequest, LogsCancelRequest, LogsRequest as AnkaiosLogsRequest, Request,
+    UpdateStateRequest,
 };
 use crate::components::response::{Response, ResponseType, UpdateStateSuccess};
 use crate::components::workload_mod::{Workload, WORKLOADS_PREFIX};
@@ -964,11 +965,7 @@ impl Ankaios {
     ///
     /// ## Arguments
     ///
-    /// - `instance_names`: A [Vec] of the [`WorkloadInstanceName`] for which to get logs;
-    /// - `follow`: A [bool] indicating whether to continuously follow the logs;
-    /// - `tail`: An [i32] indicating the number of lines to be output at the end of the logs;
-    /// - `since`: An [Option<String>] to show logs after the timestamp in RFC3339 format;
-    /// - `until`: An [Option<String>] to show logs before the timestamp in RFC3339 format.
+    /// - `logs_request`: A [`LogsRequest`] containing the details to request logs of workloads.
     ///
     /// ## Errors
     ///
@@ -979,9 +976,9 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn request_logs(
         &mut self,
-        logs_request: InputLogsRequest,
+        logs_request: LogsRequest,
     ) -> Result<LogCampaignResponse, AnkaiosError> {
-        let request = LogsRequest::new(
+        let request = AnkaiosLogsRequest::new(
             logs_request.workload_names,
             logs_request.follow,
             logs_request.tail,

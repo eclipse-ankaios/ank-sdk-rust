@@ -433,6 +433,13 @@ impl ControlInterface {
         Ok(())
     }
 
+    /// Adds a log campaign to the control interface.
+    ///
+    /// ## Arguments
+    ///
+    /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
+    /// * `logs_sender` - A [`mpsc::Sender<LogResponse>`] to forward log responses for the log campaign.
+    ///
     pub fn add_log_campaign(&mut self, request_id: String, logs_sender: mpsc::Sender<LogResponse>) {
         log::trace!("Add log campaign with request id: '{request_id}'");
 
@@ -442,6 +449,12 @@ impl ControlInterface {
             .insert(request_id, logs_sender);
     }
 
+    /// Removes a log campaign from the control interface.
+    ///
+    /// ## Arguments
+    ///
+    /// * `request_id` - A [&str] representing the request ID of the initial logs request of the log campaign;
+    ///
     pub fn remove_log_campaign(&mut self, request_id: &str) {
         if self
             .request_id_to_logs_sender
