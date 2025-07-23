@@ -140,3 +140,50 @@ impl LogCampaignResponse {
         self.request_id.clone()
     }
 }
+
+//////////////////////////////////////////////////////////////////////////////
+//                 ########  #######    #########  #########                //
+//                    ##     ##        ##             ##                    //
+//                    ##     #####     #########      ##                    //
+//                    ##     ##                ##     ##                    //
+//                    ##     #######   #########      ##                    //
+//////////////////////////////////////////////////////////////////////////////
+#[cfg(test)]
+mod tests {
+    use super::{ankaios_api, LogCampaignResponse, LogEntry, WorkloadInstanceName};
+
+    const REQUEST_ID: &str = "test_request_id";
+    const AGENT_A: &str = "agent_A";
+    const WORKLOAD_NAME: &str = "workload_A";
+    const WORKLOAD_ID: &str = "id_a";
+    const TEST_LOG_MESSAGE: &str = "test_log_message";
+
+    #[test]
+    fn utest_log_entry_proto_to_sdk_object() {
+        let proto_entry = ankaios_api::ank_base::LogEntry {
+            workload_name: Some(ankaios_api::ank_base::WorkloadInstanceName {
+                agent_name: AGENT_A.to_owned(),
+                workload_name: WORKLOAD_NAME.to_owned(),
+                id: WORKLOAD_ID.to_owned(),
+            }),
+            message: TEST_LOG_MESSAGE.to_owned(),
+        };
+        let sdk_entry = LogEntry::from(proto_entry);
+        assert_eq!(
+            sdk_entry.workload_name,
+            WorkloadInstanceName::new(
+                AGENT_A.to_owned(),
+                WORKLOAD_NAME.to_owned(),
+                WORKLOAD_ID.to_owned()
+            )
+        );
+        assert_eq!(sdk_entry.message, TEST_LOG_MESSAGE.to_owned());
+    }
+
+    #[test]
+    fn utest_log_campaign_response_get_request_id() {
+        let (_logs_sender, log_campaign_response) =
+            LogCampaignResponse::new(REQUEST_ID.to_owned(), Vec::default());
+        assert_eq!(log_campaign_response.get_request_id(), REQUEST_ID);
+    }
+}

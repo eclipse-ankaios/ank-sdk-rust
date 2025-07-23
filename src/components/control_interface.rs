@@ -581,6 +581,9 @@ impl ControlInterface {
         let log_entries_sender = request_id_logs_sender_map.get_cloned(&request_id);
 
         if let Some(sender) = log_entries_sender {
+            log::trace!(
+                "Forwarding log entries for request id '{request_id}' to log campaign receiver."
+            );
             sender
                 .send(LogResponse::LogEntries(log_entries))
                 .await
@@ -589,7 +592,7 @@ impl ControlInterface {
                 });
         } else {
             log::debug!(
-                "Received log entries message for request id '{request_id}', but no log campaign found."
+                "Received log entries response for request id '{request_id}', but no log campaign found."
             );
         }
     }
@@ -610,12 +613,19 @@ impl ControlInterface {
     ) {
         let log_entries_sender = request_id_logs_sender_map.remove(&request_id);
         if let Some(sender) = log_entries_sender {
+            log::trace!(
+                "Forwarding logs stop response for request id '{request_id}' to log campaign receiver."
+            );
             sender
                 .send(LogResponse::LogsStopResponse(instance_name))
                 .await
                 .unwrap_or_else(|err| {
                     log::error!("Error while sending log stop message: '{err}'");
                 });
+        } else {
+            log::debug!(
+                "Received logs stop response for request id '{request_id}', but no log campaign found."
+            );
         }
     }
 }
@@ -646,15 +656,18 @@ mod tests {
         read_protobuf_data, ControlInterface, ControlInterfaceState, ANKAIOS_INPUT_FIFO_PATH,
         ANKAIOS_OUTPUT_FIFO_PATH, ANKAIOS_VERSION,
     };
-    use crate::ankaios_api;
     use crate::components::{
         request::{generate_test_request, Request},
         response::{
-            generate_test_proto_update_state_success, generate_test_response_update_state_success,
-            Response,
+            generate_test_logs_stop_response, generate_test_proto_update_state_success,
+            generate_test_response_update_state_success, Response,
         },
     };
-    use crate::{ankaios::CHANNEL_SIZE, LogResponse};
+    use crate::{
+        ankaios::CHANNEL_SIZE, components::workload_state_mod::WorkloadInstanceName, LogEntry,
+        LogResponse,
+    };
+    use crate::{ankaios_api, components::response::generate_test_proto_log_entries_response};
     use ankaios_api::control_api::{to_ankaios::ToAnkaiosEnum, Hello, ToAnkaios};
 
     /// Helper function for getting the state of the control interface.
@@ -956,8 +969,224 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn utest_control_interface_add_log_campaign() {
+    async fn itest_control_interface_receive_log_entries() {
+        // Crate mpsc channel
+        let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
+
+        // Prepare fifo pipes
+        let tmpdir = tempfile::tempdir().unwrap();
+        let fifo_input = tmpdir.path().join(ANKAIOS_INPUT_FIFO_PATH);
+        let fifo_output = tmpdir.path().join(ANKAIOS_OUTPUT_FIFO_PATH);
+
+        mkfifo(&fifo_input, Mode::S_IRWXU).unwrap();
+        mkfifo(&fifo_output, Mode::S_IRWXU).unwrap();
+
+        // Create control interface
+        let mut ci = ControlInterface::new(response_sender);
+        tmpdir.path().to_str().unwrap().clone_into(&mut ci.path);
+        let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
+        ci.log_senders_map
+            .insert(REQUEST_ID_1.to_owned(), logs_sender);
+
+        // Connect to the control interface - success
+        ci.connect().await.unwrap();
+        assert_eq!(get_state(&ci), ControlInterfaceState::Initialized);
+
+        sleep(Duration::from_millis(20)).await; // the receiver should be available first
+        let mut file_input =
+            BufWriter::new(pipe::OpenOptions::new().open_sender(&fifo_input).unwrap());
+
+        // Send response
+        let response = generate_test_proto_log_entries_response(REQUEST_ID_1.to_owned());
+        file_input
+            .write_all(&response.encode_length_delimited_to_vec())
+            .await
+            .unwrap();
+        file_input.flush().await.unwrap();
+
+        let result = tokio::time::timeout(Duration::from_millis(100), logs_receiver.recv()).await;
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert!(response.is_some());
+
+        let log_response = response.unwrap();
+        let expected_log_entries = LogResponse::LogEntries(vec![
+            LogEntry {
+                workload_name: WorkloadInstanceName::new(
+                    "agent_A".to_owned(),
+                    "workload_A".to_owned(),
+                    "id_a".to_owned(),
+                ),
+                message: "log message 1".to_owned(),
+            },
+            LogEntry {
+                workload_name: WorkloadInstanceName::new(
+                    "agent_B".to_owned(),
+                    "workload_B".to_owned(),
+                    "id_b".to_owned(),
+                ),
+                message: "log message 2".to_owned(),
+            },
+        ]);
+
+        assert_eq!(log_response, expected_log_entries);
+
+        // Disconnect from the control interface
+        ci.remove_log_campaign(REQUEST_ID_1);
+        ci.disconnect().unwrap();
+        assert_eq!(get_state(&ci), ControlInterfaceState::Terminated);
+    }
+
+    #[tokio::test]
+    async fn utest_control_interface_forward_log_entries_response_unable_to_find_log_campaign() {
+        // Crate mpsc channel
+        let (response_sender, mut response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
+
+        // Create control interface
+        let mut ci = ControlInterface::new(response_sender);
+
+        let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
+        ci.log_senders_map
+            .insert(REQUEST_ID_1.to_owned(), logs_sender);
+
+        assert!(ci
+            .log_senders_map
+            .request_id_log_senders_map
+            .lock()
+            .unwrap()
+            .get(REQUEST_ID_2)
+            .is_none());
+
+        let not_existing_log_request_id = REQUEST_ID_2.to_owned();
+        ControlInterface::forward_log_entries(
+            not_existing_log_request_id,
+            Vec::default(),
+            &ci.log_senders_map,
+        )
+        .await;
+
+        sleep(Duration::from_millis(50)).await;
+
+        let result = logs_receiver.try_recv();
+        assert!(result.is_err());
+
+        let result = response_receiver.try_recv();
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn utest_control_interface_receive_logs_stop_response() {
         let _ = env_logger::builder().is_test(true).try_init();
+        // Crate mpsc channel
+        let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
+
+        // Create control interface
+        let mut ci = ControlInterface::new(response_sender);
+
+        let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
+        ci.log_senders_map
+            .insert(REQUEST_ID_1.to_owned(), logs_sender);
+
+        let expected_instance_name = WorkloadInstanceName::new(
+            "agent_A".to_owned(),
+            "workload_A".to_owned(),
+            "id_a".to_owned(),
+        );
+
+        // Send response
+        let response = generate_test_logs_stop_response(
+            REQUEST_ID_1.to_owned(),
+            expected_instance_name.clone(),
+        );
+
+        ControlInterface::handle_decoded_response(
+            response,
+            &ci.response_sender,
+            &mut ci.log_senders_map,
+        )
+        .await;
+
+        let result = tokio::time::timeout(Duration::from_millis(100), logs_receiver.recv()).await;
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert!(response.is_some());
+
+        let log_response = response.unwrap();
+        assert_eq!(
+            log_response,
+            LogResponse::LogsStopResponse(expected_instance_name)
+        );
+
+        assert!(ci
+            .log_senders_map
+            .request_id_log_senders_map
+            .lock()
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn utest_control_interface_forward_logs_stop_response_unable_to_find_log_campaign() {
+        // Crate mpsc channel
+        let (response_sender, mut response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
+
+        // Create control interface
+        let mut ci = ControlInterface::new(response_sender);
+
+        let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
+        ci.log_senders_map
+            .insert(REQUEST_ID_1.to_owned(), logs_sender);
+
+        assert!(ci
+            .log_senders_map
+            .request_id_log_senders_map
+            .lock()
+            .unwrap()
+            .get(REQUEST_ID_2)
+            .is_none());
+
+        assert_eq!(
+            ci.log_senders_map
+                .request_id_log_senders_map
+                .lock()
+                .unwrap()
+                .len(),
+            1
+        );
+
+        let not_existing_log_request_id = REQUEST_ID_2.to_owned();
+        ControlInterface::forward_logs_stop_response(
+            not_existing_log_request_id,
+            WorkloadInstanceName::new(
+                "agent_A".to_owned(),
+                "workload_A".to_owned(),
+                "id_a".to_owned(),
+            ),
+            &mut ci.log_senders_map,
+        )
+        .await;
+
+        sleep(Duration::from_millis(50)).await;
+
+        let result = logs_receiver.try_recv();
+        assert!(result.is_err());
+
+        let result = response_receiver.try_recv();
+        assert!(result.is_err());
+
+        // no remove happened, so len shall be the same as before
+        assert_eq!(
+            ci.log_senders_map
+                .request_id_log_senders_map
+                .lock()
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn utest_control_interface_add_log_campaign() {
         let (response_sender, _) = mpsc::channel::<Response>(CHANNEL_SIZE);
         let mut ci = ControlInterface::new(response_sender);
 
@@ -990,7 +1219,6 @@ mod tests {
 
     #[tokio::test]
     async fn utest_control_interface_remove_log_campaign() {
-        let _ = env_logger::builder().is_test(true).try_init();
         let (response_sender, _) = mpsc::channel::<Response>(CHANNEL_SIZE);
         let mut ci = ControlInterface::new(response_sender);
 
