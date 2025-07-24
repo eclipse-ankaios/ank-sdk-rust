@@ -26,7 +26,7 @@ async fn main() {
         .agent_name("agent_Rust_SDK")
         .runtime("podman")
         .restart_policy("NEVER")
-        .runtime_config("image: ghcr.io/eclipse-ankaios/tests/alpine:latest\ncommandOptions: [ \"--entrypoint\", \"/bin/sh\" ]\ncommandArgs: [ \"-c\", \"echo -e \'1\\n2\\n3\\n4\\n5\\n\'; sleep 20; echo -e 6\" ]")
+        .runtime_config("image: ghcr.io/eclipse-ankaios/tests/alpine:latest\ncommandOptions: [ \"--entrypoint\", \"/bin/sh\" ]\ncommandArgs: [ \"-c\", \"echo -e \'1\\n2\\n3\\n4\\n5\';\" ]")
         .build()
         .expect("Failed to build workload");
 
