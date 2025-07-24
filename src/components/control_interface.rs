@@ -611,10 +611,10 @@ impl ControlInterface {
         instance_name: WorkloadInstanceName,
         request_id_logs_sender_map: &mut SynchronizedLogResponseSenderMap,
     ) {
-        let log_entries_sender = request_id_logs_sender_map.remove(&request_id);
+        let log_entries_sender = request_id_logs_sender_map.get_cloned(&request_id);
         if let Some(sender) = log_entries_sender {
             log::trace!(
-                "Forwarding logs stop response for request id '{request_id}' to log campaign receiver."
+                "Forwarding logs stop response for workload '{instance_name}' of request id '{request_id}' to log campaign receiver."
             );
             sender
                 .send(LogResponse::LogsStopResponse(instance_name))
@@ -1087,17 +1087,20 @@ mod tests {
         ci.log_senders_map
             .insert(REQUEST_ID_1.to_owned(), logs_sender);
 
-        let expected_instance_name = WorkloadInstanceName::new(
+        let instance_name_1 = WorkloadInstanceName::new(
             "agent_A".to_owned(),
             "workload_A".to_owned(),
             "id_a".to_owned(),
         );
 
-        // Send response
-        let response = generate_test_logs_stop_response(
-            REQUEST_ID_1.to_owned(),
-            expected_instance_name.clone(),
+        let instance_name_2 = WorkloadInstanceName::new(
+            "agent_B".to_owned(),
+            "workload_B".to_owned(),
+            "id_b".to_owned(),
         );
+
+        let response =
+            generate_test_logs_stop_response(REQUEST_ID_1.to_owned(), instance_name_1.clone());
 
         ControlInterface::handle_decoded_response(
             response,
@@ -1112,12 +1115,27 @@ mod tests {
         assert!(response.is_some());
 
         let log_response = response.unwrap();
-        assert_eq!(
-            log_response,
-            LogResponse::LogsStopResponse(expected_instance_name)
-        );
+        assert_eq!(log_response, LogResponse::LogsStopResponse(instance_name_1));
 
-        assert!(ci
+        let response =
+            generate_test_logs_stop_response(REQUEST_ID_1.to_owned(), instance_name_2.clone());
+
+        ControlInterface::handle_decoded_response(
+            response,
+            &ci.response_sender,
+            &mut ci.log_senders_map,
+        )
+        .await;
+
+        let result = tokio::time::timeout(Duration::from_millis(100), logs_receiver.recv()).await;
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert!(response.is_some());
+
+        let log_response = response.unwrap();
+        assert_eq!(log_response, LogResponse::LogsStopResponse(instance_name_2));
+
+        assert!(!ci
             .log_senders_map
             .request_id_log_senders_map
             .lock()
