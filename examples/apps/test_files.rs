@@ -16,12 +16,8 @@ use ankaios_sdk::{Ankaios, File, Workload};
 use tokio::time::Duration;
 
 async fn print_workload_states(ank: &mut Ankaios) {
-    if let Ok(complete_state) = ank.get_state(vec!["workloadStates".to_owned()]).await {
-        // Get the workload states present in the complete state
-        let workload_states = Vec::from(complete_state.get_workload_states());
-
-        // Print the states of the workloads
-        for workload_state in workload_states {
+    if let Ok(workload_states) = ank.get_workload_states().await {
+        for workload_state in workload_states.as_list() {
             println!(
                 "Workload {} on agent {} has the state {:?}",
                 workload_state.workload_instance_name.workload_name,
@@ -102,7 +98,7 @@ async fn main() {
 
     // Add initial file
     dynamic_workload
-        .add_file(File::from_data(
+        .add_file(&File::from_data(
             "/usr/share/nginx/html/index.html",
             "<html><body><h1>Initial content</h1></body></html>",
         ));
@@ -140,7 +136,7 @@ async fn main() {
             );
             let wl_files = workload.get_files();
             for file in wl_files {
-                println!("{:?}", file);
+                println!("{:?}", file.to_proto());
             }
         }
     }
