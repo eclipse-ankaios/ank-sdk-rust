@@ -98,52 +98,6 @@ impl File {
         }
     }
 
-    /// Returns the data content if the file contains data.
-    ///
-    /// ## Returns
-    ///
-    /// `Some(&str)` if the file contains data, `None` if it contains binary data.
-    #[must_use]
-    pub fn data_content(&self) -> Option<&str> {
-        match &self.content {
-            FileContent::Data(content) => Some(content),
-            FileContent::BinaryData(_) => None,
-        }
-    }
-
-    /// Returns the binary data content if the file contains binary data.
-    ///
-    /// ## Returns
-    ///
-    /// `Some(&str)` if the file contains binary data, `None` if it contains data.
-    #[must_use]
-    pub fn binary_data_content(&self) -> Option<&str> {
-        match &self.content {
-            FileContent::BinaryData(content) => Some(content),
-            FileContent::Data(_) => None,
-        }
-    }
-
-    /// Returns whether this file contains data content.
-    ///
-    /// ## Returns
-    ///
-    /// `true` if the file contains data content, `false` otherwise.
-    #[must_use]
-    pub fn is_data(&self) -> bool {
-        matches!(self.content, FileContent::Data(_))
-    }
-
-    /// Returns whether this file contains binary data content.
-    ///
-    /// ## Returns
-    ///
-    /// `true` if the file contains binary data content, `false` otherwise.
-    #[must_use]
-    pub fn is_binary_data(&self) -> bool {
-        matches!(self.content, FileContent::BinaryData(_))
-    }
-
     /// Converts the file to a Mapping representation.
     ///
     /// ## Returns
@@ -310,10 +264,7 @@ mod tests {
         let file = File::from_data("/etc/config.txt", "Hello, World!");
         
         assert_eq!(file.mount_point, "/etc/config.txt");
-        assert!(file.is_data());
-        assert!(!file.is_binary_data());
-        assert_eq!(file.data_content(), Some("Hello, World!"));
-        assert_eq!(file.binary_data_content(), None);
+        assert_eq!(file.content, FileContent::Data("Hello, World!".to_owned()));
     }
 
     #[test]
@@ -322,10 +273,7 @@ mod tests {
         let file = File::from_binary_data("/usr/share/app/image.png", base64_data);
         
         assert_eq!(file.mount_point, "/usr/share/app/image.png");
-        assert!(!file.is_data());
-        assert!(file.is_binary_data());
-        assert_eq!(file.data_content(), None);
-        assert_eq!(file.binary_data_content(), Some(base64_data));
+        assert_eq!(file.content, FileContent::BinaryData(base64_data.to_owned()));
     }
 
     #[test]
@@ -333,8 +281,7 @@ mod tests {
         let file = File::from_data("/etc/empty.txt", "");
         
         assert_eq!(file.mount_point, "/etc/empty.txt");
-        assert!(file.is_data());
-        assert_eq!(file.data_content(), Some(""));
+        assert_eq!(file.content, FileContent::Data("".to_owned()));
     }
 
     #[test]
@@ -342,8 +289,7 @@ mod tests {
         let file = File::from_binary_data("/usr/share/empty.bin", "");
         
         assert_eq!(file.mount_point, "/usr/share/empty.bin");
-        assert!(file.is_binary_data());
-        assert_eq!(file.binary_data_content(), Some(""));
+        assert_eq!(file.content, FileContent::BinaryData("".to_owned()));
     }
 
     #[test]
@@ -400,8 +346,7 @@ mod tests {
         let file = File::from_dict(&dict).unwrap();
         
         assert_eq!(file.mount_point, "/etc/config.txt");
-        assert!(file.is_data());
-        assert_eq!(file.data_content(), Some("Hello, World!"));
+        assert_eq!(file.content, FileContent::Data("Hello, World!".to_owned()));
     }
 
     #[test]
@@ -420,8 +365,7 @@ mod tests {
         let file = File::from_dict(&dict).unwrap();
         
         assert_eq!(file.mount_point, "/usr/share/app/image.png");
-        assert!(file.is_binary_data());
-        assert_eq!(file.binary_data_content(), Some(base64_data));
+        assert_eq!(file.content, FileContent::BinaryData(base64_data.to_owned()));
     }
 
     #[test]
@@ -622,8 +566,7 @@ mod tests {
         let file = File::from_proto(proto);
         
         assert_eq!(file.mount_point, "/etc/config.txt");
-        assert!(file.is_data());
-        assert_eq!(file.data_content(), Some("Hello, World!"));
+        assert_eq!(file.content, FileContent::Data("Hello, World!".to_owned()));
     }
 
     #[test]
@@ -637,8 +580,7 @@ mod tests {
         let file = File::from_proto(proto);
         
         assert_eq!(file.mount_point, "/usr/share/app/image.png");
-        assert!(file.is_binary_data());
-        assert_eq!(file.binary_data_content(), Some(base64_data));
+        assert_eq!(file.content, FileContent::BinaryData(base64_data.to_owned()));
     }
 
     #[test]
