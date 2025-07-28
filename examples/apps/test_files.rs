@@ -36,6 +36,8 @@ async fn print_workload_states(ank: &mut Ankaios) {
 async fn main() {
     // Create a new Ankaios object.
     // The connection to the control interface is automatically done at this step.
+    println!("PLEASE PROVIDE VALID FILES' PATHS IF YOU WANT TO FULLY USE THIS EXAMPLE");
+
     let mut ank = Ankaios::new().await.expect("Failed to initialize");
 
     // Create a workload with text file
