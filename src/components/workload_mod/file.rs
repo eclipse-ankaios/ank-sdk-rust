@@ -692,7 +692,7 @@ mod tests {
     #[test]
     fn test_display_file() {
         let file = File::from_data("/etc/config.txt", "Hello, World!");
-        let display_string = format!("{}", file);
+        let display_string = format!("{file}");
         
         assert_eq!(display_string, "File(data): /etc/config.txt -> Hello, World! (13 bytes)");
     }
@@ -710,7 +710,7 @@ mod tests {
     #[test]
     fn test_debug() {
         let file = File::from_data("/etc/config.txt", "Hello, World!");
-        let debug_string = format!("{:?}", file);
+        let debug_string = format!("{file}");
         
         assert!(debug_string.contains("File"));
         assert!(debug_string.contains("/etc/config.txt"));
