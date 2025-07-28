@@ -281,7 +281,7 @@ mod tests {
         let file = File::from_data("/etc/empty.txt", "");
         
         assert_eq!(file.mount_point, "/etc/empty.txt");
-        assert_eq!(file.content, FileContent::Data("".to_owned()));
+        assert_eq!(file.content, FileContent::Data(String::new()));
     }
 
     #[test]
@@ -289,7 +289,7 @@ mod tests {
         let file = File::from_binary_data("/usr/share/empty.bin", "");
         
         assert_eq!(file.mount_point, "/usr/share/empty.bin");
-        assert_eq!(file.content, FileContent::BinaryData("".to_owned()));
+        assert_eq!(file.content, FileContent::BinaryData(String::new()));
     }
 
     #[test]
