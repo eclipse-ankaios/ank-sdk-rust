@@ -382,7 +382,7 @@ mod tests {
                 vec!["desiredState.workloads.workload_B".to_owned()],
             )
             .add_config("alias_test", "config_1")
-            .add_file(File::from_text("mount_point", "Data"))
+            .add_file(File::from_data("mount_point", "Data"))
             .build();
 
         assert!(wl.is_ok());

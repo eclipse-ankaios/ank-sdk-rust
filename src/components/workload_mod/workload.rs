@@ -1099,7 +1099,7 @@ impl Workload {
     /// ## Arguments
     ///
     /// - `file` - A [File] object representing the file to add.
-    pub fn add_file(&mut self, file: File) {
+    pub fn add_file(&mut self, file: &File) {
         if self.workload.files.is_none() {
             self.workload.files = Some(ank_base::Files::default());
             self.add_mask(format!("{}.{FIELD_FILES}", self.main_mask));
@@ -1118,7 +1118,7 @@ impl Workload {
     #[must_use]
     pub fn get_files(&self) -> Vec<File> {
         if let Some(files) = &self.workload.files {
-            files.files.clone().into_iter().map(|f| File::from_proto(f)).collect()
+            files.files.clone().into_iter().map(File::from_proto).collect()
         } else {
             Vec::new()
         }
@@ -1440,8 +1440,8 @@ mod tests {
             .build()
             .unwrap();
 
-        let config_file = File::from_text("/etc/app/config.yaml", "debug: true");
-        let icon_file = File::from_binary("/usr/share/app/icon.png", "iVBORw0KGgoAAAANSUhEUgA...");
+        let config_file = File::from_data("/etc/app/config.yaml", "debug: true");
+        let icon_file = File::from_binary_data("/usr/share/app/icon.png", "iVBORw0KGgoAAAANSUhEUgA...");
 
         wl.add_file(config_file.clone());
         wl.add_file(icon_file.clone());
@@ -1450,15 +1450,15 @@ mod tests {
         assert_eq!(files.len(), 2);
         assert!(files
             .iter()
-            .any(|f| f.mount_point() == "/etc/app/config.yaml"));
+            .any(|f| f.mount_point == "/etc/app/config.yaml"));
         assert!(files
             .iter()
-            .any(|f| f.mount_point() == "/usr/share/app/icon.png"));
+            .any(|f| f.mount_point == "/usr/share/app/icon.png"));
 
         // Test updating file objects
         let new_files = vec![
-            File::from_text("/etc/new_config.yaml", "production: true"),
-            File::from_binary(
+            File::from_data("/etc/new_config.yaml", "production: true"),
+            File::from_binary_data(
                 "/usr/share/binary_data",
                 "AAABAAEAEBAAAAEAIABoBAAAFgAAA...",
             ),
@@ -1469,10 +1469,10 @@ mod tests {
         assert_eq!(updated_files.len(), 2);
         assert!(updated_files
             .iter()
-            .any(|f| f.mount_point() == "/etc/new_config.yaml"));
+            .any(|f| f.mount_point == "/etc/new_config.yaml"));
         assert!(updated_files
             .iter()
-            .any(|f| f.mount_point() == "/usr/share/binary_data"));
+            .any(|f| f.mount_point == "/usr/share/binary_data"));
     }
 
     macro_rules! generate_test_for_mask_generation {
@@ -1602,7 +1602,7 @@ mod tests {
                 vec!["desiredState.workloads.workload_B".to_owned()],
             )
             .add_config("alias_test", "config_1")
-            .add_file(File::from_text("mount_point", "Data"))
+            .add_file(File::from_data("mount_point", "Data"))
             .build();
         assert!(wl.is_ok());
         assert_eq!(

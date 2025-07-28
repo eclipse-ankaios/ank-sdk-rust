@@ -26,16 +26,16 @@ pub const FILE_BINARY_DATA_KEY: &str = "binaryData";
 
 /// Represents a file that can be mounted to a workload.
 ///
-/// A `File` can contain either text data or binary data (base64 encoded), but not both.
+/// A `File` can contain either data or binary data (base64 encoded), but not both.
 ///
 /// # Examples
 ///
-/// ## Create a text file:
+/// ## Create a data file:
 ///
 /// ```rust
 /// use ankaios_sdk::File;
 ///
-/// let text_file = File::from_text("/etc/config.txt", "Hello, World!");
+/// let data_file = File::from_data("/etc/config.txt", "Hello, World!");
 /// ```
 ///
 /// ## Create a binary file:
@@ -43,115 +43,106 @@ pub const FILE_BINARY_DATA_KEY: &str = "binaryData";
 /// ```rust
 /// use ankaios_sdk::File;
 ///
-/// let binary_file = File::from_binary("/usr/share/app/binary_file", "iVBORw0KGgoARYANSUhEUgA...");
+/// let binary_file = File::from_binary_data("/usr/share/app/binary_file", "iVBORw0KGgoARYANSUhEUgA...");
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct File {
     /// The path where the file will be mounted in the container.
     pub mount_point: String,
-    content: FileContent,
+    /// The content of the file.
+    pub content: FileContent,
 }
 
 /// Represents the content type of a [`File`].
 ///
-/// A file can contain either text data or binary data (base64 encoded).
+/// A file can contain either data or binary data (base64 encoded).
 #[derive(Debug, Clone, PartialEq)]
 pub enum FileContent {
-    /// Text content stored as a UTF-8 string.
-    Text(String),
+    /// Data content stored as a UTF-8 string.
+    Data(String),
     /// Binary content stored as a base64-encoded string.
-    Binary(String),
+    BinaryData(String),
 }
 
 impl File {
-    /// Creates a new file with text content.
+    /// Creates a new file with data content.
     ///
     /// ## Arguments
     ///
     /// * `mount_point` - The path where the file will be mounted in the container
-    /// * `content` - The text content of the file
+    /// * `content` - The data content of the file
     ///
     /// ## Returns
     ///
-    /// A new `File` instance with text content.
-    pub fn from_text<T: Into<String>>(mount_point: T, content: T) -> Self {
+    /// A new `File` instance with data content.
+    pub fn from_data<T: Into<String>>(mount_point: T, content: T) -> Self {
         Self {
             mount_point: mount_point.into(),
-            content: FileContent::Text(content.into()),
+            content: FileContent::Data(content.into()),
         }
     }
 
-    /// Creates a new file with binary content.
+    /// Creates a new file with binary data content.
     ///
     /// ## Arguments
     ///
     /// * `mount_point` - The path where the file will be mounted in the container
-    /// * `content` - The base64-encoded binary content of the file
+    /// * `content` - The base64-encoded binary data content of the file
     ///
     /// ## Returns
     ///
-    /// A new `File` instance with binary content.
-    pub fn from_binary<T: Into<String>>(mount_point: T, content: T) -> Self {
+    /// A new `File` instance with binary data content.
+    pub fn from_binary_data<T: Into<String>>(mount_point: T, content: T) -> Self {
         Self {
             mount_point: mount_point.into(),
-            content: FileContent::Binary(content.into()),
+            content: FileContent::BinaryData(content.into()),
         }
     }
 
-    /// Returns the mount point of the file.
+    /// Returns the data content if the file contains data.
     ///
     /// ## Returns
     ///
-    /// A string slice containing the mount point path.
+    /// `Some(&str)` if the file contains data, `None` if it contains binary data.
     #[must_use]
-    pub fn mount_point(&self) -> &str {
-        &self.mount_point
-    }
-
-    /// Returns the text content if the file contains text data.
-    ///
-    /// ## Returns
-    ///
-    /// `Some(&str)` if the file contains text data, `None` if it contains binary data.
-    #[must_use]
-    pub fn text_content(&self) -> Option<&str> {
+    pub fn data_content(&self) -> Option<&str> {
         match &self.content {
-            FileContent::Text(content) => Some(content),
-            FileContent::Binary(_) => None,
+            FileContent::Data(content) => Some(content),
+            FileContent::BinaryData(_) => None,
         }
     }
 
-    /// Returns the binary content if the file contains binary data.
+    /// Returns the binary data content if the file contains binary data.
     ///
     /// ## Returns
     ///
-    /// `Some(&str)` if the file contains binary data, `None` if it contains text data.
+    /// `Some(&str)` if the file contains binary data, `None` if it contains data.
     #[must_use]
-    pub fn binary_content(&self) -> Option<&str> {
+    pub fn binary_data_content(&self) -> Option<&str> {
         match &self.content {
-            FileContent::Binary(content) => Some(content),
-            FileContent::Text(_) => None,
+            FileContent::BinaryData(content) => Some(content),
+            FileContent::Data(_) => None,
         }
     }
 
-    /// Returns whether this file contains text content.
+    /// Returns whether this file contains data content.
     ///
     /// ## Returns
     ///
-    /// `true` if the file contains text content, `false` otherwise.
+    /// `true` if the file contains data content, `false` otherwise.
     #[must_use]
-    pub fn is_text(&self) -> bool {
-        matches!(self.content, FileContent::Text(_))
+    pub fn is_data(&self) -> bool {
+        matches!(self.content, FileContent::Data(_))
     }
 
-    /// Returns whether this file contains binary content.
+    /// Returns whether this file contains binary data content.
     ///
     /// ## Returns
     ///
-    /// `true` if the file contains binary content, `false` otherwise.
+    /// `true` if the file contains binary data content, `false` otherwise.
     #[must_use]
-    pub fn is_binary(&self) -> bool {
-        matches!(self.content, FileContent::Binary(_))
+    pub fn is_binary_data(&self) -> bool {
+        matches!(self.content, FileContent::BinaryData(_))
     }
 
     /// Converts the file to a Mapping representation for backward compatibility.
@@ -159,6 +150,7 @@ impl File {
     /// ## Returns
     ///
     /// A [`serde_yaml::Mapping`] containing the file's mount point and content data.
+    #[must_use]
     pub fn to_dict(&self) -> Mapping {
         let mut dict = Mapping::new();
         dict.insert(
@@ -167,13 +159,13 @@ impl File {
         );
 
         match &self.content {
-            FileContent::Text(content) => {
+            FileContent::Data(content) => {
                 dict.insert(
                     Value::String(FILE_DATA_KEY.to_owned()),
                     Value::String(content.clone()),
                 );
             }
-            FileContent::Binary(content) => {
+            FileContent::BinaryData(content) => {
                 dict.insert(
                     Value::String(FILE_BINARY_DATA_KEY.to_owned()),
                     Value::String(content.clone()),
@@ -188,7 +180,7 @@ impl File {
     ///
     /// ## Arguments
     ///
-    /// * `dict` - A [`serde_yaml::Mapping`] containing the file data with mount_point and either data or binaryData keys
+    /// * `dict` - A [`serde_yaml::Mapping`] containing the file data with `mount_point` and either data or binaryData keys
     ///
     /// ## Returns
     ///
@@ -197,9 +189,9 @@ impl File {
     /// ## Errors
     ///
     /// Returns an [`AnkaiosError`] if:
-    /// - The Mapping is missing the mount_point key
-    /// - The Mapping contains both text and binary content
-    /// - The Mapping contains neither text nor binary content
+    /// - The Mapping is missing the `mount_point` key
+    /// - The Mapping contains both data and binary data content
+    /// - The Mapping contains neither data nor binary data content
     pub fn from_dict(dict: &Mapping) -> Result<Self, AnkaiosError> {
         let mount_point = dict
             .get(Value::String(FILE_MOUNT_POINT_KEY.to_owned()))
@@ -212,10 +204,10 @@ impl File {
             })?
             .to_owned();
 
-        let has_text = dict.contains_key(Value::String(FILE_DATA_KEY.to_owned()));
-        let has_binary = dict.contains_key(Value::String(FILE_BINARY_DATA_KEY.to_owned()));
+        let has_data = dict.contains_key(Value::String(FILE_DATA_KEY.to_owned()));
+        let has_binary_data = dict.contains_key(Value::String(FILE_BINARY_DATA_KEY.to_owned()));
 
-        match (has_text, has_binary) {
+        match (has_data, has_binary_data) {
             (true, false) => {
                 let content = dict
                     .get(Value::String(FILE_DATA_KEY.to_owned()))
@@ -223,11 +215,11 @@ impl File {
                     .ok_or_else(|| {
                         AnkaiosError::WorkloadFieldError(
                             "file".to_owned(),
-                            "Invalid text content".to_owned(),
+                            "Invalid data content".to_owned(),
                         )
                     })?
                     .to_owned();
-                Ok(Self::from_text(mount_point, content))
+                Ok(Self::from_data(mount_point, content))
             }
             (false, true) => {
                 let content = dict
@@ -236,19 +228,19 @@ impl File {
                     .ok_or_else(|| {
                         AnkaiosError::WorkloadFieldError(
                             "file".to_owned(),
-                            "Invalid binary content".to_owned(),
+                            "Invalid binary data content".to_owned(),
                         )
                     })?
                     .to_owned();
-                Ok(Self::from_binary(mount_point, content))
+                Ok(Self::from_binary_data(mount_point, content))
             }
             (true, true) => Err(AnkaiosError::WorkloadFieldError(
                 "file".to_owned(),
-                "File cannot have both text and binary content".to_owned(),
+                "File cannot have both data and binary data content".to_owned(),
             )),
             (false, false) => Err(AnkaiosError::WorkloadFieldError(
                 "file".to_owned(),
-                "File must have either text or binary content".to_owned(),
+                "File must have either data or binary data content".to_owned(),
             )),
         }
     }
@@ -261,8 +253,8 @@ impl File {
     /// An [`ank_base::File`] protobuf message containing the file's mount point and content.
     pub(crate) fn to_proto(&self) -> ank_base::File {
         let file_content = match &self.content {
-            FileContent::Text(data) => Some(ank_base::file::FileContent::Data(data.to_owned())),
-            FileContent::Binary(binary_data) => {
+            FileContent::Data(data) => Some(ank_base::file::FileContent::Data(data.to_owned())),
+            FileContent::BinaryData(binary_data) => {
                 Some(ank_base::file::FileContent::BinaryData(binary_data.to_owned()))
             }
         };
@@ -283,17 +275,17 @@ impl File {
         match file.file_content {
             Some(ank_base::file::FileContent::Data(data)) => File {
                 mount_point: file.mount_point,
-                content: FileContent::Text(data),
+                content: FileContent::Data(data),
             },
             Some(ank_base::file::FileContent::BinaryData(binary_data)) => File {
                 mount_point: file.mount_point,
-                content: FileContent::Binary(binary_data),
+                content: FileContent::BinaryData(binary_data),
             },
             None => {
                 // This case is unreachable in reality as ank_base::File always contains either Data or BinaryData
                 File {
                     mount_point: file.mount_point,
-                    content: FileContent::Text(String::new()),
+                    content: FileContent::Data(String::new()),
                 }
             }
         }
@@ -303,10 +295,10 @@ impl File {
 impl fmt::Display for File {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.content {
-            FileContent::Text(content) => {
+            FileContent::Data(content) => {
                 write!(
                     f,
-                    "File(text): {} -> {} ({} bytes)",
+                    "File(data): {} -> {} ({} bytes)",
                     self.mount_point,
                     if content.len() > 50 {
                         format!("{}...", &content[..50])
@@ -316,14 +308,424 @@ impl fmt::Display for File {
                     content.len()
                 )
             }
-            FileContent::Binary(content) => {
+            FileContent::BinaryData(content) => {
                 write!(
                     f,
-                    "File(binary): {} -> base64 data ({} bytes)",
+                    "File(binary_data): {} -> base64 data ({} bytes)",
                     self.mount_point,
                     content.len()
                 )
             }
         }
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//                 ########  #######    #########  #########                //
+//                    ##     ##        ##             ##                    //
+//                    ##     #####     #########      ##                    //
+//                    ##     ##                ##     ##                    //
+//                    ##     #######   #########      ##                    //
+//////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ankaios_api::ank_base;
+    use serde_yaml::{Mapping, Value};
+
+    #[test]
+    fn test_from_data() {
+        let file = File::from_data("/etc/config.txt", "Hello, World!");
+        
+        assert_eq!(file.mount_point, "/etc/config.txt");
+        assert!(file.is_data());
+        assert!(!file.is_binary_data());
+        assert_eq!(file.data_content(), Some("Hello, World!"));
+        assert_eq!(file.binary_data_content(), None);
+    }
+
+    #[test]
+    fn test_from_binary_data() {
+        let base64_data = "iVBORw0KGgoAAAANSUhEUgA=";
+        let file = File::from_binary_data("/usr/share/app/image.png", base64_data);
+        
+        assert_eq!(file.mount_point, "/usr/share/app/image.png");
+        assert!(!file.is_data());
+        assert!(file.is_binary_data());
+        assert_eq!(file.data_content(), None);
+        assert_eq!(file.binary_data_content(), Some(base64_data));
+    }
+
+    #[test]
+    fn test_from_data_with_empty_content() {
+        let file = File::from_data("/etc/empty.txt", "");
+        
+        assert_eq!(file.mount_point, "/etc/empty.txt");
+        assert!(file.is_data());
+        assert_eq!(file.data_content(), Some(""));
+    }
+
+    #[test]
+    fn test_from_binary_data_with_empty_content() {
+        let file = File::from_binary_data("/usr/share/empty.bin", "");
+        
+        assert_eq!(file.mount_point, "/usr/share/empty.bin");
+        assert!(file.is_binary_data());
+        assert_eq!(file.binary_data_content(), Some(""));
+    }
+
+    #[test]
+    fn test_data_file_to_dict() {
+        let file = File::from_data("/etc/config.txt", "Hello, World!");
+        let dict = file.to_dict();
+        
+        assert_eq!(
+            dict.get(Value::String(FILE_MOUNT_POINT_KEY.to_owned())),
+            Some(&Value::String("/etc/config.txt".to_owned()))
+        );
+        assert_eq!(
+            dict.get(Value::String(FILE_DATA_KEY.to_owned())),
+            Some(&Value::String("Hello, World!".to_owned()))
+        );
+        assert_eq!(
+            dict.get(Value::String(FILE_BINARY_DATA_KEY.to_owned())),
+            None
+        );
+    }
+
+    #[test]
+    fn test_binary_data_file_to_dict() {
+        let base64_data = "iVBORw0KGgoAAAANSUhEUgA=";
+        let file = File::from_binary_data("/usr/share/app/image.png", base64_data);
+        let dict = file.to_dict();
+        
+        assert_eq!(
+            dict.get(Value::String(FILE_MOUNT_POINT_KEY.to_owned())),
+            Some(&Value::String("/usr/share/app/image.png".to_owned()))
+        );
+        assert_eq!(
+            dict.get(Value::String(FILE_DATA_KEY.to_owned())),
+            None
+        );
+        assert_eq!(
+            dict.get(Value::String(FILE_BINARY_DATA_KEY.to_owned())),
+            Some(&Value::String(base64_data.to_owned()))
+        );
+    }
+
+    #[test]
+    fn test_from_dict_with_data_content() {
+        let mut dict = Mapping::new();
+        dict.insert(
+            Value::String(FILE_MOUNT_POINT_KEY.to_owned()),
+            Value::String("/etc/config.txt".to_owned()),
+        );
+        dict.insert(
+            Value::String(FILE_DATA_KEY.to_owned()),
+            Value::String("Hello, World!".to_owned()),
+        );
+        
+        let file = File::from_dict(&dict).unwrap();
+        
+        assert_eq!(file.mount_point, "/etc/config.txt");
+        assert!(file.is_data());
+        assert_eq!(file.data_content(), Some("Hello, World!"));
+    }
+
+    #[test]
+    fn test_from_dict_with_binary_data_content() {
+        let base64_data = "iVBORw0KGgoATMANSUhEUgA=";
+        let mut dict = Mapping::new();
+        dict.insert(
+            Value::String(FILE_MOUNT_POINT_KEY.to_owned()),
+            Value::String("/usr/share/app/image.png".to_owned()),
+        );
+        dict.insert(
+            Value::String(FILE_BINARY_DATA_KEY.to_owned()),
+            Value::String(base64_data.to_owned()),
+        );
+        
+        let file = File::from_dict(&dict).unwrap();
+        
+        assert_eq!(file.mount_point, "/usr/share/app/image.png");
+        assert!(file.is_binary_data());
+        assert_eq!(file.binary_data_content(), Some(base64_data));
+    }
+
+    #[test]
+    fn test_from_dict_missing_mount_point() {
+        let mut dict = Mapping::new();
+        dict.insert(
+            Value::String(FILE_DATA_KEY.to_owned()),
+            Value::String("Hello, World!".to_owned()),
+        );
+        
+        let result = File::from_dict(&dict);
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AnkaiosError::WorkloadFieldError(field, message) => {
+                assert_eq!(field, "file");
+                assert_eq!(message, "Missing mount_point");
+            }
+            _ => panic!("Expected WorkloadFieldError"),
+        }
+    }
+
+    #[test]
+    fn test_from_dict_no_content() {
+        let mut dict = Mapping::new();
+        dict.insert(
+            Value::String(FILE_MOUNT_POINT_KEY.to_owned()),
+            Value::String("/etc/config.txt".to_owned()),
+        );
+        
+        let result = File::from_dict(&dict);
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AnkaiosError::WorkloadFieldError(field, message) => {
+                assert_eq!(field, "file");
+                assert_eq!(message, "File must have either data or binary data content");
+            }
+            _ => panic!("Expected WorkloadFieldError"),
+        }
+    }
+
+    #[test]
+    fn test_from_dict_both_data_and_binary_data_content() {
+        let mut dict = Mapping::new();
+        dict.insert(
+            Value::String(FILE_MOUNT_POINT_KEY.to_owned()),
+            Value::String("/etc/config.txt".to_owned()),
+        );
+        dict.insert(
+            Value::String(FILE_DATA_KEY.to_owned()),
+            Value::String("Hello, World!".to_owned()),
+        );
+        dict.insert(
+            Value::String(FILE_BINARY_DATA_KEY.to_owned()),
+            Value::String("iVBORw0KGgoATMANSUhEUgA=".to_owned()),
+        );
+        
+        let result = File::from_dict(&dict);
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AnkaiosError::WorkloadFieldError(field, message) => {
+                assert_eq!(field, "file");
+                assert_eq!(message, "File cannot have both data and binary data content");
+            }
+            _ => panic!("Expected WorkloadFieldError"),
+        }
+    }
+
+    #[test]
+    fn test_from_dict_invalid_mount_point_type() {
+        let mut dict = Mapping::new();
+        dict.insert(
+            Value::String(FILE_MOUNT_POINT_KEY.to_owned()),
+            Value::Number(42.into()),
+        );
+        dict.insert(
+            Value::String(FILE_DATA_KEY.to_owned()),
+            Value::String("Hello, World!".to_owned()),
+        );
+        
+        let result = File::from_dict(&dict);
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AnkaiosError::WorkloadFieldError(field, message) => {
+                assert_eq!(field, "file");
+                assert_eq!(message, "Missing mount_point");
+            }
+            _ => panic!("Expected WorkloadFieldError"),
+        }
+    }
+
+    #[test]
+    fn test_from_dict_invalid_data_content_type() {
+        let mut dict = Mapping::new();
+        dict.insert(
+            Value::String(FILE_MOUNT_POINT_KEY.to_owned()),
+            Value::String("/etc/config.txt".to_owned()),
+        );
+        dict.insert(
+            Value::String(FILE_DATA_KEY.to_owned()),
+            Value::Number(42.into()),
+        );
+        
+        let result = File::from_dict(&dict);
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AnkaiosError::WorkloadFieldError(field, message) => {
+                assert_eq!(field, "file");
+                assert_eq!(message, "Invalid data content");
+            }
+            _ => panic!("Expected WorkloadFieldError"),
+        }
+    }
+
+    #[test]
+    fn test_from_dict_invalid_binary_data_content_type() {
+        let mut dict = Mapping::new();
+        dict.insert(
+            Value::String(FILE_MOUNT_POINT_KEY.to_owned()),
+            Value::String("/usr/share/app/image.png".to_owned()),
+        );
+        dict.insert(
+            Value::String(FILE_BINARY_DATA_KEY.to_owned()),
+            Value::Number(42.into()),
+        );
+        
+        let result = File::from_dict(&dict);
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            AnkaiosError::WorkloadFieldError(field, message) => {
+                assert_eq!(field, "file");
+                assert_eq!(message, "Invalid binary data content");
+            }
+            _ => panic!("Expected WorkloadFieldError"),
+        }
+    }
+
+    #[test]
+    fn test_data_file_round_trip_dict() {
+        let original_file = File::from_data("/etc/config.txt", "Hello, World!");
+        let dict = original_file.to_dict();
+        let restored_file = File::from_dict(&dict).unwrap();
+        
+        assert_eq!(original_file, restored_file);
+    }
+
+    #[test]
+    fn test_binary_data_file_round_trip_dict() {
+        let base64_data = "iVBORw0KGgoATMANSUhEUgA=";
+        let original_file = File::from_binary_data("/usr/share/app/image.png", base64_data);
+        let dict = original_file.to_dict();
+        let restored_file = File::from_dict(&dict).unwrap();
+        
+        assert_eq!(original_file, restored_file);
+    }
+
+    #[test]
+    fn test_to_proto_data_file() {
+        let file = File::from_data("/etc/config.txt", "Hello, World!");
+        let proto = file.to_proto();
+        
+        assert_eq!(proto.mount_point, "/etc/config.txt");
+        match proto.file_content {
+            Some(ank_base::file::FileContent::Data(content)) => {
+                assert_eq!(content, "Hello, World!");
+            }
+            _ => panic!("Expected data content in proto"),
+        }
+    }
+
+    #[test]
+    fn test_to_proto_binary_data_file() {
+        let base64_data = "iVBORw0KGgoATMANSUhEUgA=";
+        let file = File::from_binary_data("/usr/share/app/image.png", base64_data);
+        let proto = file.to_proto();
+        
+        assert_eq!(proto.mount_point, "/usr/share/app/image.png");
+        match proto.file_content {
+            Some(ank_base::file::FileContent::BinaryData(content)) => {
+                assert_eq!(content, base64_data);
+            }
+            _ => panic!("Expected binary data content in proto"),
+        }
+    }
+
+    #[test]
+    fn test_from_proto_data_file() {
+        let proto = ank_base::File {
+            mount_point: "/etc/config.txt".to_owned(),
+            file_content: Some(ank_base::file::FileContent::Data("Hello, World!".to_owned())),
+        };
+        
+        let file = File::from_proto(proto);
+        
+        assert_eq!(file.mount_point, "/etc/config.txt");
+        assert!(file.is_data());
+        assert_eq!(file.data_content(), Some("Hello, World!"));
+    }
+
+    #[test]
+    fn test_from_proto_binary_data_file() {
+        let base64_data = "iVBORw0KGgoATMANSUhEUgA=";
+        let proto = ank_base::File {
+            mount_point: "/usr/share/app/image.png".to_owned(),
+            file_content: Some(ank_base::file::FileContent::BinaryData(base64_data.to_owned())),
+        };
+        
+        let file = File::from_proto(proto);
+        
+        assert_eq!(file.mount_point, "/usr/share/app/image.png");
+        assert!(file.is_binary_data());
+        assert_eq!(file.binary_data_content(), Some(base64_data));
+    }
+
+    #[test]
+    fn test_round_trip_proto_data_file() {
+        let original_file = File::from_data("/etc/config.txt", "Hello, World!");
+        let proto = original_file.to_proto();
+        let restored_file = File::from_proto(proto);
+        
+        assert_eq!(original_file, restored_file);
+    }
+
+    #[test]
+    fn test_round_trip_proto_binary_data_file() {
+        let base64_data = "iVBORw0KGgoATMANSUhEUgA=";
+        let original_file = File::from_binary_data("/usr/share/app/image.png", base64_data);
+        let proto = original_file.to_proto();
+        let restored_file = File::from_proto(proto);
+        
+        assert_eq!(original_file, restored_file);
+    }
+
+    #[test]
+    fn test_display_file() {
+        let file = File::from_data("/etc/config.txt", "Hello, World!");
+        let display_string = format!("{}", file);
+        
+        assert_eq!(display_string, "File(data): /etc/config.txt -> Hello, World! (13 bytes)");
+    }
+
+    #[test]
+    fn test_clone() {
+        let file = File::from_data("/etc/config.txt", "Hello, World!");
+        let cloned_file = file.clone();
+        
+        assert_eq!(file, cloned_file);
+        assert_eq!(file.mount_point, cloned_file.mount_point);
+        assert_eq!(file.content, cloned_file.content);
+    }
+
+    #[test]
+    fn test_debug() {
+        let file = File::from_data("/etc/config.txt", "Hello, World!");
+        let debug_string = format!("{:?}", file);
+        
+        assert!(debug_string.contains("File"));
+        assert!(debug_string.contains("/etc/config.txt"));
+        assert!(debug_string.contains("Hello, World!"));
+    }
+
+    #[test]
+    fn test_file_content_equality() {
+        let data_content1 = FileContent::Data("Hello".to_owned());
+        let data_content2 = FileContent::Data("Hello".to_owned());
+        let data_content3 = FileContent::Data("World".to_owned());
+        let binary_data_content = FileContent::BinaryData("base64data".to_owned());
+        
+        assert_eq!(data_content1, data_content2);
+        assert_ne!(data_content1, data_content3);
+        assert_ne!(data_content1, binary_data_content);
     }
 }

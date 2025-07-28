@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use ankaios_sdk::{Ankaios, Workload};
+use ankaios_sdk::{Ankaios, File, Workload};
 use tokio::time::Duration;
 
 async fn print_workload_states(ank: &mut Ankaios) {
@@ -22,11 +22,12 @@ async fn print_workload_states(ank: &mut Ankaios) {
 
         // Print the states of the workloads
         for workload_state in workload_states {
-            println!("Workload {} on agent {} has the state {:?}", 
-                workload_state.workload_instance_name.workload_name, 
+            println!(
+                "Workload {} on agent {} has the state {:?}",
+                workload_state.workload_instance_name.workload_name,
                 workload_state.workload_instance_name.agent_name,
                 workload_state.execution_state.state
-            ); 
+            );
         }
     }
 }
@@ -46,8 +47,8 @@ async fn main() {
         .runtime_config(
             "image: docker.io/library/nginx:latest\ncommandOptions: [\"-p\", \"8081:80\"]"
         )
-        .add_file("/usr/share/nginx/html/index.html", Some("<html><body><h1>Hello from Ankaios with text file!</h1></body></html>"), None)
-        .add_file("/etc/nginx/conf.d/custom.conf", Some("server {\n    listen 80;\n    server_name localhost;\n    location / {\n        root /usr/share/nginx/html;\n        index index.html;\n    }\n}"), None)
+        .add_file(File::from_data("/usr/share/nginx/html/index.html", "<html><body><h1>Hello from Ankaios with text file!</h1></body></html>"))
+        .add_file(File::from_data("/etc/nginx/conf.d/custom.conf", "server {\n    listen 80;\n    server_name localhost;\n    location / {\n        root /usr/share/nginx/html;\n        index index.html;\n    }\n}"))
         .build().expect("Failed to build workload with text file");
 
     // Create a workload with binary file (base64 encoded)
@@ -59,15 +60,16 @@ async fn main() {
         .runtime_config(
             "image: docker.io/library/nginx:latest\ncommandOptions: [\"-p\", \"8082:80\"]"
         )
-        // Adding a small binary file (a simple favicon.ico encoded in base64)
-        .add_file("/usr/share/nginx/html/favicon.ico", None, Some("AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAABILAAASCwAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A"))
+        .add_file(File::from_binary_data("/usr/share/nginx/html/favicon.ico", "AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAABILAAASCwAAAAAAAAAAAAD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A////AP///wD///8A"))
         .build().expect("Failed to build workload with binary file");
 
     println!("Testing workload files functionality...");
 
     // Send first workload with text files to Ankaios
     println!("Applying workload with text files...");
-    ank.apply_workload(workload_with_text_file).await.expect("Failed to apply workload with text files");
+    ank.apply_workload(workload_with_text_file)
+        .await
+        .expect("Failed to apply workload with text files");
 
     // Wait and check states
     tokio::time::sleep(Duration::from_secs(5)).await;
@@ -75,7 +77,9 @@ async fn main() {
 
     // Send second workload with binary file to Ankaios
     println!("Applying workload with binary file...");
-    ank.apply_workload(workload_with_binary_file).await.expect("Failed to apply workload with binary file");
+    ank.apply_workload(workload_with_binary_file)
+        .await
+        .expect("Failed to apply workload with binary file");
 
     // Wait and check states
     tokio::time::sleep(Duration::from_secs(5)).await;
@@ -89,39 +93,49 @@ async fn main() {
         .runtime("podman")
         .restart_policy("NEVER")
         .runtime_config(
-            "image: docker.io/library/nginx:latest\ncommandOptions: [\"-p\", \"8083:80\"]"
+            "image: docker.io/library/nginx:latest\ncommandOptions: [\"-p\", \"8083:80\"]",
         )
-        .build().expect("Failed to build dynamic workload");
+        .build()
+        .expect("Failed to build dynamic workload");
 
     // Add initial file
-    dynamic_workload.add_file("/usr/share/nginx/html/index.html", Some("<html><body><h1>Initial content</h1></body></html>"), None)
-        .expect("Failed to add initial file");
+    dynamic_workload
+        .add_file(File::from_data(
+            "/usr/share/nginx/html/index.html",
+            "<html><body><h1>Initial content</h1></body></html>",
+        ));
 
-    ank.apply_workload(dynamic_workload.clone()).await.expect("Failed to apply dynamic workload");
+    ank.apply_workload(dynamic_workload.clone())
+        .await
+        .expect("Failed to apply dynamic workload");
 
     tokio::time::sleep(Duration::from_secs(5)).await;
     print_workload_states(&mut ank).await;
 
     // Update the workload with additional files
     println!("Updating workload with additional files...");
-    dynamic_workload.add_file("/usr/share/nginx/html/about.html", Some("<html><body><h1>About page</h1><p>This is a dynamically added file!</p></body></html>"), None)
-        .expect("Failed to add about file");
-    
-    dynamic_workload.add_file("/usr/share/nginx/html/config.json", Some("{\"version\": \"1.0\", \"environment\": \"test\", \"features\": [\"files\", \"dynamic_updates\"]}"), None)
-        .expect("Failed to add config file");
+    dynamic_workload.update_files(vec![File::from_data("/usr/share/nginx/html/about.html", "<html><body><h1>About page</h1><p>This is a dynamically added file!</p></body></html>"), File::from_data("/usr/share/nginx/html/config.json", "{\"version\": \"1.0\", \"environment\": \"test\", \"features\": [\"files\", \"dynamic_updates\"]}")]);
 
-    ank.apply_workload(dynamic_workload).await.expect("Failed to update dynamic workload");
+    ank.apply_workload(dynamic_workload)
+        .await
+        .expect("Failed to update dynamic workload");
 
     tokio::time::sleep(Duration::from_secs(5)).await;
     print_workload_states(&mut ank).await;
 
     // Test retrieving and displaying file information
     println!("Retrieving file information from workloads...");
-    if let Ok(complete_state) = ank.get_state(vec!["desiredState.workloads".to_owned()]).await {
+    if let Ok(complete_state) = ank
+        .get_state(vec!["desiredState.workloads".to_owned()])
+        .await
+    {
         let workloads = complete_state.get_workloads();
 
         for workload in workloads {
-            println!("The following files are associated with workload {:?}:", workload.name);
+            println!(
+                "The following files are associated with workload {:?}:",
+                workload.name
+            );
             let wl_files = workload.get_files();
             for file in wl_files {
                 println!("{:?}", file);
@@ -131,9 +145,15 @@ async fn main() {
 
     // Clean up - delete workloads
     println!("\nCleaning up workloads...");
-    ank.delete_workload("nginx_with_text_file".to_owned()).await.expect("Failed to delete workload with text file");
-    ank.delete_workload("nginx_with_binary_file".to_owned()).await.expect("Failed to delete workload with binary file");
-    ank.delete_workload("dynamic_file_workload".to_owned()).await.expect("Failed to delete dynamic workload");
+    ank.delete_workload("nginx_with_text_file".to_owned())
+        .await
+        .expect("Failed to delete workload with text file");
+    ank.delete_workload("nginx_with_binary_file".to_owned())
+        .await
+        .expect("Failed to delete workload with binary file");
+    ank.delete_workload("dynamic_file_workload".to_owned())
+        .await
+        .expect("Failed to delete dynamic workload");
 
     // Final state check
     tokio::time::sleep(Duration::from_secs(5)).await;
