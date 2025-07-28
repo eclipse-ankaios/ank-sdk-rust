@@ -15,7 +15,6 @@
 use crate::ankaios_api::ank_base;
 use crate::AnkaiosError;
 use serde_yaml::{Mapping, Value};
-use std::fmt;
 
 /// Key name for mount point of workload file.
 pub const FILE_MOUNT_POINT_KEY: &str = "mount_point";
@@ -287,34 +286,6 @@ impl File {
                     mount_point: file.mount_point,
                     content: FileContent::Data(String::new()),
                 }
-            }
-        }
-    }
-}
-
-impl fmt::Display for File {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.content {
-            FileContent::Data(content) => {
-                write!(
-                    f,
-                    "File(data): {} -> {} ({} bytes)",
-                    self.mount_point,
-                    if content.len() > 50 {
-                        format!("{}...", &content[..50])
-                    } else {
-                        content.clone()
-                    },
-                    content.len()
-                )
-            }
-            FileContent::BinaryData(content) => {
-                write!(
-                    f,
-                    "File(binary_data): {} -> base64 data ({} bytes)",
-                    self.mount_point,
-                    content.len()
-                )
             }
         }
     }
@@ -690,14 +661,6 @@ mod tests {
     }
 
     #[test]
-    fn test_display_file() {
-        let file = File::from_data("/etc/config.txt", "Hello, World!");
-        let display_string = format!("{file}");
-        
-        assert_eq!(display_string, "File(data): /etc/config.txt -> Hello, World! (13 bytes)");
-    }
-
-    #[test]
     fn test_clone() {
         let file = File::from_data("/etc/config.txt", "Hello, World!");
         let cloned_file = file.clone();
@@ -705,16 +668,6 @@ mod tests {
         assert_eq!(file, cloned_file);
         assert_eq!(file.mount_point, cloned_file.mount_point);
         assert_eq!(file.content, cloned_file.content);
-    }
-
-    #[test]
-    fn test_debug() {
-        let file = File::from_data("/etc/config.txt", "Hello, World!");
-        let debug_string = format!("{file}");
-        
-        assert!(debug_string.contains("File"));
-        assert!(debug_string.contains("/etc/config.txt"));
-        assert!(debug_string.contains("Hello, World!"));
     }
 
     #[test]
