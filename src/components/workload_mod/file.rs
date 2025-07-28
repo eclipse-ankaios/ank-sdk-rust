@@ -145,7 +145,7 @@ impl File {
         matches!(self.content, FileContent::BinaryData(_))
     }
 
-    /// Converts the file to a Mapping representation for backward compatibility.
+    /// Converts the file to a Mapping representation.
     ///
     /// ## Returns
     ///
@@ -176,7 +176,7 @@ impl File {
         dict
     }
 
-    /// Creates a File from a Mapping representation for backward compatibility.
+    /// Creates a File from a Mapping representation.
     ///
     /// ## Arguments
     ///
