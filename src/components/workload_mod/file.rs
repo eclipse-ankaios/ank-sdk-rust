@@ -281,7 +281,7 @@ impl File {
                 content: FileContent::BinaryData(binary_data),
             },
             None => {
-                // This case is unreachable in reality as ank_base::File always contains either Data or BinaryData
+                log::warn!("This case is unreachable in reality as ank_base::File always contains either Data or BinaryData");
                 File {
                     mount_point: file.mount_point,
                     content: FileContent::Data(String::new()),
