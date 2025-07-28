@@ -1443,8 +1443,8 @@ mod tests {
         let config_file = File::from_data("/etc/app/config.yaml", "debug: true");
         let icon_file = File::from_binary_data("/usr/share/app/icon.png", "iVBORw0KGgoAAAANSUhEUgA...");
 
-        wl.add_file(config_file.clone());
-        wl.add_file(icon_file.clone());
+        wl.add_file(&config_file);
+        wl.add_file(&icon_file);
 
         let files = wl.get_files();
         assert_eq!(files.len(), 2);
