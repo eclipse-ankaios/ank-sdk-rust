@@ -660,11 +660,12 @@ mod tests {
         request::{generate_test_request, Request},
         response::{
             generate_test_logs_stop_response, generate_test_proto_update_state_success,
-            generate_test_response_update_state_success, Response,
+            generate_test_response_update_state_success,
+            get_test_proto_from_ankaios_log_entries_response, Response,
         },
     };
     use crate::{
-        ankaios::CHANNEL_SIZE, components::workload_state_mod::WorkloadInstanceName, LogEntry,
+        ankaios::CHANNEL_SIZE, components::workload_state_mod::WorkloadInstanceName,
         LogResponse,
     };
     use crate::{ankaios_api, components::response::generate_test_proto_log_entries_response};
@@ -996,10 +997,16 @@ mod tests {
         let mut file_input =
             BufWriter::new(pipe::OpenOptions::new().open_sender(&fifo_input).unwrap());
 
-        // Send response
-        let response = generate_test_proto_log_entries_response(REQUEST_ID_1.to_owned());
+        // Create a test log entries response
+        let log_entries_response = generate_test_proto_log_entries_response();
+        let to_ankaios = get_test_proto_from_ankaios_log_entries_response(
+            REQUEST_ID_1.to_owned(),
+            log_entries_response.clone(),
+        );
+
+        // Mock sending a message from Ankaios
         file_input
-            .write_all(&response.encode_length_delimited_to_vec())
+            .write_all(&to_ankaios.encode_length_delimited_to_vec())
             .await
             .unwrap();
         file_input.flush().await.unwrap();
@@ -1010,24 +1017,13 @@ mod tests {
         assert!(response.is_some());
 
         let log_response = response.unwrap();
-        let expected_log_entries = LogResponse::LogEntries(vec![
-            LogEntry {
-                workload_name: WorkloadInstanceName::new(
-                    "agent_A".to_owned(),
-                    "workload_A".to_owned(),
-                    "id_a".to_owned(),
-                ),
-                message: "log message 1".to_owned(),
-            },
-            LogEntry {
-                workload_name: WorkloadInstanceName::new(
-                    "agent_B".to_owned(),
-                    "workload_B".to_owned(),
-                    "id_b".to_owned(),
-                ),
-                message: "log message 2".to_owned(),
-            },
-        ]);
+        let expected_log_entries = LogResponse::LogEntries(
+            log_entries_response
+                .log_entries
+                .into_iter()
+                .map(|entry| entry.into())
+                .collect(),
+        );
 
         assert_eq!(log_response, expected_log_entries);
 

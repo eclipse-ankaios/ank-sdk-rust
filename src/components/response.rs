@@ -329,35 +329,45 @@ pub fn generate_test_response_update_state_success(req_id: String) -> Response {
 }
 
 #[cfg(test)]
-pub fn generate_test_proto_log_entries_response(request_id: String) -> FromAnkaios {
-    FromAnkaios {
-        from_ankaios_enum: Some(FromAnkaiosEnum::Response(Box::new(
-            ankaios_api::ank_base::Response {
-                request_id,
-                response_content: Some(AnkaiosResponseContent::LogEntriesResponse(
-                    ankaios_api::ank_base::LogEntriesResponse {
-                        log_entries: vec![
-                            ankaios_api::ank_base::LogEntry {
-                                workload_name: Some(ankaios_api::ank_base::WorkloadInstanceName {
-                                    agent_name: "agent_A".to_owned(),
-                                    workload_name: "workload_A".to_owned(),
-                                    id: "id_a".to_owned(),
-                                }),
-                                message: "log message 1".to_owned(),
-                            },
-                            ankaios_api::ank_base::LogEntry {
-                                workload_name: Some(ankaios_api::ank_base::WorkloadInstanceName {
-                                    agent_name: "agent_B".to_owned(),
-                                    workload_name: "workload_B".to_owned(),
-                                    id: "id_b".to_owned(),
-                                }),
-                                message: "log message 2".to_owned(),
-                            },
-                        ],
-                    },
-                )),
+pub fn get_test_proto_from_ankaios_log_entries_response(
+    request_id: String,
+    log_entries_response: ankaios_api::ank_base::LogEntriesResponse,
+) -> FromAnkaios {
+    ankaios_api::control_api::FromAnkaios {
+        from_ankaios_enum: Some(
+            ankaios_api::control_api::from_ankaios::FromAnkaiosEnum::Response(Box::new(
+                ankaios_api::ank_base::Response {
+                    request_id,
+                    response_content: Some(AnkaiosResponseContent::LogEntriesResponse(
+                        log_entries_response,
+                    )),
+                },
+            )),
+        ),
+    }
+}
+
+#[cfg(test)]
+pub fn generate_test_proto_log_entries_response() -> ankaios_api::ank_base::LogEntriesResponse {
+    ankaios_api::ank_base::LogEntriesResponse {
+        log_entries: vec![
+            ankaios_api::ank_base::LogEntry {
+                workload_name: Some(ankaios_api::ank_base::WorkloadInstanceName {
+                    agent_name: "agent_A".to_owned(),
+                    workload_name: "workload_A".to_owned(),
+                    id: "id_a".to_owned(),
+                }),
+                message: "log message 1".to_owned(),
             },
-        ))),
+            ankaios_api::ank_base::LogEntry {
+                workload_name: Some(ankaios_api::ank_base::WorkloadInstanceName {
+                    agent_name: "agent_B".to_owned(),
+                    workload_name: "workload_B".to_owned(),
+                    id: "id_b".to_owned(),
+                }),
+                message: "log message 2".to_owned(),
+            },
+        ],
     }
 }
 
