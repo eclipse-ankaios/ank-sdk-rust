@@ -387,7 +387,12 @@ mod tests {
     use super::{
         generate_test_response_update_state_success, Response, ResponseType, UpdateStateSuccess,
     };
-    use crate::ankaios_api;
+    use crate::components::response::{
+        generate_test_logs_stop_response, generate_test_proto_log_entries_response,
+        get_test_proto_from_ankaios_log_entries_response,
+    };
+    use crate::components::workload_state_mod::WorkloadInstanceName;
+    use crate::{ankaios_api, LogEntry};
     use ankaios_api::ank_base::{
         response::ResponseContent as AnkaiosResponseContent, Response as AnkaiosResponse,
         UpdateStateSuccess as AnkaiosUpdateStateSuccess,
@@ -565,5 +570,143 @@ mod tests {
         );
 
         assert_eq!(format!("{update_state_success}"), "UpdateStateSuccess: added_workloads: [WorkloadInstanceName { agent_name: \"agent_Test\", workload_name: \"workload_new\", workload_id: \"1234\" }], deleted_workloads: [WorkloadInstanceName { agent_name: \"agent_Test\", workload_name: \"workload_old\", workload_id: \"5678\" }]");
+    }
+
+    #[test]
+    fn utest_response_logs_request_accepted() {
+        let workload_names = vec![
+            ankaios_api::ank_base::WorkloadInstanceName {
+                agent_name: "agent_A".to_owned(),
+                workload_name: "workload_A".to_owned(),
+                id: "id_a".to_owned(),
+            },
+            ankaios_api::ank_base::WorkloadInstanceName {
+                agent_name: "agent_B".to_owned(),
+                workload_name: "workload_B".to_owned(),
+                id: "id_b".to_owned(),
+            },
+        ];
+
+        let response = Response::new(FromAnkaios {
+            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
+                AnkaiosResponse {
+                    request_id: String::from("123"),
+                    response_content: Some(AnkaiosResponseContent::LogsRequestAccepted(
+                        ankaios_api::ank_base::LogsRequestAccepted { workload_names },
+                    )),
+                },
+            ))),
+        });
+
+        assert_eq!(response.get_request_id(), "123".to_owned());
+        assert_eq!(
+            format!("{}", response.get_content()),
+            format!("{}", ResponseType::LogsRequestAccepted(Vec::default()))
+        );
+
+        let ResponseType::LogsRequestAccepted(workload_names) = response.get_content() else {
+            panic!("Expected LogsRequestAccepted content");
+        };
+
+        assert_eq!(workload_names.len(), 2);
+        assert_eq!(
+            workload_names[0],
+            WorkloadInstanceName::new(
+                "agent_A".to_owned(),
+                "workload_A".to_owned(),
+                "id_a".to_owned()
+            )
+        );
+        assert_eq!(
+            workload_names[1],
+            WorkloadInstanceName::new(
+                "agent_B".to_owned(),
+                "workload_B".to_owned(),
+                "id_b".to_owned()
+            )
+        );
+    }
+
+    #[test]
+    fn utest_response_logs_cancel_accepted() {
+        let response = Response::new(FromAnkaios {
+            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
+                AnkaiosResponse {
+                    request_id: String::from("123"),
+                    response_content: Some(AnkaiosResponseContent::LogsCancelAccepted(
+                        ankaios_api::ank_base::LogsCancelAccepted {},
+                    )),
+                },
+            ))),
+        });
+        assert_eq!(response.get_request_id(), "123".to_owned());
+        assert_eq!(
+            format!("{}", response.get_content()),
+            format!("{}", ResponseType::LogsCancelAccepted)
+        );
+    }
+
+    #[test]
+    fn utest_response_log_entries_response() {
+        let log_entries_response = generate_test_proto_log_entries_response();
+
+        let response = Response::new(get_test_proto_from_ankaios_log_entries_response(
+            "123".to_owned(),
+            log_entries_response,
+        ));
+        assert_eq!(response.get_request_id(), "123".to_owned());
+        assert_eq!(
+            format!("{}", response.get_content()),
+            format!("{}", ResponseType::LogEntriesResponse(Vec::default()))
+        );
+        let ResponseType::LogEntriesResponse(log_entries) = response.get_content() else {
+            panic!("Expected LogEntriesResponse content");
+        };
+        assert_eq!(log_entries.len(), 2);
+        assert_eq!(
+            log_entries[0],
+            LogEntry {
+                workload_name: WorkloadInstanceName::new(
+                    "agent_A".to_owned(),
+                    "workload_A".to_owned(),
+                    "id_a".to_owned()
+                ),
+                message: "log message 1".to_owned(),
+            }
+        );
+        assert_eq!(
+            log_entries[1],
+            LogEntry {
+                workload_name: WorkloadInstanceName::new(
+                    "agent_B".to_owned(),
+                    "workload_B".to_owned(),
+                    "id_b".to_owned()
+                ),
+                message: "log message 2".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn utest_response_logs_stop_response() {
+        let expected_instance_name = WorkloadInstanceName::new(
+            "agent_A".to_owned(),
+            "workload_A".to_owned(),
+            "id_a".to_owned(),
+        );
+        let response =
+            generate_test_logs_stop_response("123".to_owned(), expected_instance_name.clone());
+        assert_eq!(response.get_request_id(), "123".to_owned());
+        assert_eq!(
+            format!("{}", response.get_content()),
+            format!(
+                "{}",
+                ResponseType::LogsStopResponse(expected_instance_name.clone())
+            )
+        );
+        let ResponseType::LogsStopResponse(instance_name) = response.get_content() else {
+            panic!("Expected LogsStopResponse content");
+        };
+        assert_eq!(instance_name, expected_instance_name);
     }
 }
