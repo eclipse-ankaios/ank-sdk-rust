@@ -656,18 +656,18 @@ mod tests {
         read_protobuf_data, ControlInterface, ControlInterfaceState, ANKAIOS_INPUT_FIFO_PATH,
         ANKAIOS_OUTPUT_FIFO_PATH, ANKAIOS_VERSION,
     };
+    use crate::ankaios_api;
     use crate::components::{
         request::{generate_test_request, Request},
         response::{
-            generate_test_logs_stop_response, generate_test_proto_update_state_success,
-            generate_test_response_update_state_success,
+            generate_test_logs_stop_response, generate_test_proto_log_entries_response,
+            generate_test_proto_update_state_success, generate_test_response_update_state_success,
             get_test_proto_from_ankaios_log_entries_response, Response,
         },
     };
     use crate::{
         ankaios::CHANNEL_SIZE, components::workload_state_mod::WorkloadInstanceName, LogResponse,
     };
-    use crate::{ankaios_api, components::response::generate_test_proto_log_entries_response};
     use ankaios_api::control_api::{to_ankaios::ToAnkaiosEnum, Hello, ToAnkaios};
 
     /// Helper function for getting the state of the control interface.
