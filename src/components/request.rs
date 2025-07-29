@@ -192,7 +192,7 @@ impl fmt::Display for UpdateStateRequest {
 ///
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 #[derive(Debug, PartialEq)]
-pub struct LogsRequest {
+pub struct AnkaiosLogsRequest {
     /// The request proto message that will be sent to the cluster.
     #[allow(clippy::struct_field_names)]
     pub(crate) request: AnkaiosRequest,
@@ -201,8 +201,8 @@ pub struct LogsRequest {
     request_id: String,
 }
 
-impl LogsRequest {
-    /// Creates a new `LogsRequest`.
+impl AnkaiosLogsRequest {
+    /// Creates a new `AnkaiosLogsRequest`.
     ///
     /// ## Arguments
     ///
@@ -214,7 +214,7 @@ impl LogsRequest {
     ///
     /// ## Returns
     ///
-    /// A new [`LogsRequest`] object.
+    /// A new [`AnkaiosLogsRequest`] object.
     pub fn new(
         instance_names: Vec<WorkloadInstanceName>,
         follow: bool,
@@ -243,7 +243,7 @@ impl LogsRequest {
     }
 }
 
-impl Request for LogsRequest {
+impl Request for AnkaiosLogsRequest {
     fn to_proto(&self) -> AnkaiosRequest {
         self.request.clone()
     }
@@ -253,7 +253,7 @@ impl Request for LogsRequest {
     }
 }
 
-impl fmt::Display for LogsRequest {
+impl fmt::Display for AnkaiosLogsRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.to_proto())
     }

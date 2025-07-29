@@ -28,8 +28,7 @@ use crate::components::log_types::LogCampaignResponse;
 use crate::components::log_types::LogsRequest;
 use crate::components::manifest::{API_VERSION_PREFIX, CONFIGS_PREFIX};
 use crate::components::request::{
-    GetStateRequest, LogsCancelRequest, LogsRequest as AnkaiosLogsRequest, Request,
-    UpdateStateRequest,
+    AnkaiosLogsRequest, GetStateRequest, LogsCancelRequest, Request, UpdateStateRequest,
 };
 use crate::components::response::{Response, ResponseType, UpdateStateSuccess};
 use crate::components::workload_mod::{Workload, WORKLOADS_PREFIX};
@@ -1101,7 +1100,7 @@ mod tests {
     use crate::components::{
         complete_state::generate_complete_state_proto,
         manifest::generate_test_manifest,
-        request::{GetStateRequest, LogsRequest, Request, UpdateStateRequest},
+        request::{AnkaiosLogsRequest, GetStateRequest, Request, UpdateStateRequest},
         response::generate_test_response_update_state_success,
         workload_mod::{test_helpers::generate_test_workload, WORKLOADS_PREFIX},
     };
@@ -3076,7 +3075,7 @@ mod tests {
             .expect_write_request()
             .times(1)
             .in_sequence(&mut call_sequence)
-            .return_once(move |request: LogsRequest| {
+            .return_once(move |request: AnkaiosLogsRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3159,7 +3158,7 @@ mod tests {
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: LogsRequest| {
+            .return_once(move |request: AnkaiosLogsRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3210,7 +3209,7 @@ mod tests {
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: LogsRequest| {
+            .return_once(move |request: AnkaiosLogsRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
