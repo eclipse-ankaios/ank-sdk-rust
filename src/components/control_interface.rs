@@ -82,7 +82,7 @@ impl SynchronizedLogResponseSenderMap {
     /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
     /// * `logs_sender` - A [`mpsc::Sender<LogResponse>`] to forward log responses for the log campaign.
     ///
-    pub fn insert(&mut self, request_id: String, logs_sender: mpsc::Sender<LogResponse>) {
+    fn insert(&mut self, request_id: String, logs_sender: mpsc::Sender<LogResponse>) {
         self.request_id_log_senders_map
             .lock()
             .unwrap_or_else(|_| unreachable!())
@@ -98,7 +98,7 @@ impl SynchronizedLogResponseSenderMap {
     /// ## Returns
     ///
     /// An [`Option<mpsc::Sender<LogResponse>>`] if the request ID was found and removed, otherwise `None`.
-    pub fn remove(&mut self, request_id: &str) -> Option<mpsc::Sender<LogResponse>> {
+    fn remove(&mut self, request_id: &str) -> Option<mpsc::Sender<LogResponse>> {
         self.request_id_log_senders_map
             .lock()
             .unwrap_or_else(|_| unreachable!())
@@ -114,7 +114,7 @@ impl SynchronizedLogResponseSenderMap {
     /// ## Returns
     ///
     /// An [`Option<mpsc::Sender<LogResponse>>`] if the request ID was found, otherwise `None`.
-    pub fn get_cloned(&self, request_id: &str) -> Option<mpsc::Sender<LogResponse>> {
+    fn get_cloned(&self, request_id: &str) -> Option<mpsc::Sender<LogResponse>> {
         self.request_id_log_senders_map
             .lock()
             .unwrap_or_else(|_| unreachable!())
