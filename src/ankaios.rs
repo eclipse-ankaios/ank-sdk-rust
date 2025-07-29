@@ -1036,7 +1036,7 @@ impl Ankaios {
 
         match response.content {
             ResponseType::LogsCancelAccepted => {
-                log::trace!("Received LogsCancelAccepted: log campaign cancelled successfully.");
+                log::trace!("Received LogsCancelAccepted: log campaign canceled successfully.");
                 Ok(())
             }
             ResponseType::Error(error) => {
