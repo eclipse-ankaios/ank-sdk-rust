@@ -977,13 +977,7 @@ impl Ankaios {
         &mut self,
         logs_request: LogsRequest,
     ) -> Result<LogCampaignResponse, AnkaiosError> {
-        let request = AnkaiosLogsRequest::new(
-            logs_request.workload_names,
-            logs_request.follow,
-            logs_request.tail,
-            logs_request.since,
-            logs_request.until,
-        );
+        let request = AnkaiosLogsRequest::from(logs_request);
         let request_id = request.get_id();
         let response = self.send_request(request).await?;
 

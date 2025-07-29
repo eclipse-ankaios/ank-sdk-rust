@@ -110,6 +110,15 @@ impl fmt::Display for WorkloadInstanceName {
 }
 
 impl From<ankaios_api::ank_base::WorkloadInstanceName> for WorkloadInstanceName {
+    /// Converts a `ankaios_api::ank_base::WorkloadInstanceName` into a [`WorkloadInstanceName`].
+    ///
+    /// ## Arguments
+    ///
+    /// * `workload_instance_name` - The `ankaios_api::ank_base::WorkloadInstanceName` to convert into a `WorkloadInstanceName`.
+    ///
+    /// ## Returns
+    ///
+    /// A new [`WorkloadInstanceName`] object.
     fn from(workload_instance_name: ankaios_api::ank_base::WorkloadInstanceName) -> Self {
         WorkloadInstanceName {
             agent_name: workload_instance_name.agent_name,
@@ -120,6 +129,15 @@ impl From<ankaios_api::ank_base::WorkloadInstanceName> for WorkloadInstanceName 
 }
 
 impl From<WorkloadInstanceName> for ankaios_api::ank_base::WorkloadInstanceName {
+    /// Converts a `WorkloadInstanceName` into a [`ankaios_api::ank_base::WorkloadInstanceName`].
+    ///
+    /// ## Arguments
+    ///
+    /// * `workload_instance_name` - The `WorkloadInstanceName` to convert into an `ankaios_api::ank_base::WorkloadInstanceName`.
+    ///
+    /// ## Returns
+    ///
+    /// A new [`ankaios_api::ank_base::WorkloadInstanceName`] object.
     fn from(workload_instance_name: WorkloadInstanceName) -> Self {
         ankaios_api::ank_base::WorkloadInstanceName {
             agent_name: workload_instance_name.agent_name,

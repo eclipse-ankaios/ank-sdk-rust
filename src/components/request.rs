@@ -44,8 +44,9 @@
 //! let request = GetStateRequest::new(vec!["desiredState.workloads".to_owned()]);
 //! ```
 
+use crate::ankaios_api;
 use crate::components::complete_state::CompleteState;
-use crate::{ankaios_api, components::workload_state_mod::WorkloadInstanceName};
+use crate::LogsRequest;
 use ankaios_api::ank_base::{
     request::RequestContent, CompleteStateRequest, Request as AnkaiosRequest,
     UpdateStateRequest as AnkaiosUpdateStateRequest,
@@ -201,40 +202,32 @@ pub struct AnkaiosLogsRequest {
     request_id: String,
 }
 
-impl AnkaiosLogsRequest {
-    /// Creates a new `AnkaiosLogsRequest`.
+impl From<LogsRequest> for AnkaiosLogsRequest {
+    /// Converts a `LogsRequest` into a [`AnkaiosLogsRequest`].
     ///
     /// ## Arguments
     ///
-    /// * `instance_names` - A [Vec] of [`WorkloadInstanceName`] for which to get logs;
-    /// * `follow` - A [bool] indicating whether to continuously follow the logs;
-    /// * `tail` - An [i32] indicating the number of lines to be output at the end of the logs;
-    /// * `since` - An [`Option<String>`] to show logs after the timestamp in RFC3339 format;
-    /// * `until` - An [`Option<String>`] to show logs before the timestamp in RFC3339 format;
+    /// * `logs_request` - The `LogsRequest` to convert into an `AnkaiosLogsRequest`.
     ///
     /// ## Returns
     ///
     /// A new [`AnkaiosLogsRequest`] object.
-    pub fn new(
-        instance_names: Vec<WorkloadInstanceName>,
-        follow: bool,
-        tail: i32,
-        since: Option<String>,
-        until: Option<String>,
-    ) -> Self {
+    fn from(logs_request: LogsRequest) -> Self {
         let request_id = Uuid::new_v4().to_string();
-        log::debug!("Creating new request of type LogsRequest with id {request_id}");
-
         Self {
             request: AnkaiosRequest {
                 request_id: request_id.clone(),
                 request_content: Some(RequestContent::LogsRequest(
                     ankaios_api::ank_base::LogsRequest {
-                        workload_names: instance_names.into_iter().map(Into::into).collect(),
-                        follow: Some(follow),
-                        tail: Some(tail),
-                        since,
-                        until,
+                        workload_names: logs_request
+                            .workload_names
+                            .into_iter()
+                            .map(Into::into)
+                            .collect(),
+                        follow: Some(logs_request.follow),
+                        tail: Some(logs_request.tail),
+                        since: logs_request.since,
+                        until: logs_request.until,
                     },
                 )),
             },
