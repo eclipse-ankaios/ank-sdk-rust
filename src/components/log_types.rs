@@ -17,8 +17,7 @@
 //!
 //! [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 
-use crate::ankaios::CHANNEL_SIZE;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::mpsc::Receiver;
 
 use crate::{
     ankaios_api, components::workload_state_mod::WorkloadInstanceName,
@@ -104,29 +103,26 @@ impl LogCampaignResponse {
     #[doc(hidden)]
     /// Creates a new `LogCampaignResponse` object.
     ///
-    ///
     /// ## Arguments
     ///
     /// * `request_id` - The request id as a [String] for the logs request.
     /// * `accepted_workload_names` - A vector of [WorkloadInstanceName] that were accepted for log retrieval.
+    /// * `logs_receiver` - A [Receiver<LogResponse>] that can be used to receive log responses.
     ///
     /// ## Returns
     ///
-    /// A new [`(Sender<LogsResponse>, LogCampaignResponse)`] tuple.
+    /// A new [`LogCampaignResponse`] object.
     #[must_use]
     pub fn new(
         request_id: String,
         accepted_workload_names: Vec<WorkloadInstanceName>,
-    ) -> (Sender<LogResponse>, Self) {
-        let (logs_sender, logs_receiver) = channel(CHANNEL_SIZE);
-        (
-            logs_sender,
-            LogCampaignResponse {
-                request_id,
-                accepted_workload_names,
-                logs_receiver,
-            },
-        )
+        logs_receiver: Receiver<LogResponse>,
+    ) -> Self {
+        LogCampaignResponse {
+            request_id,
+            accepted_workload_names,
+            logs_receiver,
+        }
     }
 
     #[doc(hidden)]
@@ -151,6 +147,7 @@ impl LogCampaignResponse {
 #[cfg(test)]
 mod tests {
     use super::{ankaios_api, LogCampaignResponse, LogEntry, WorkloadInstanceName};
+    use tokio::sync::mpsc;
 
     const REQUEST_ID: &str = "test_request_id";
     const AGENT_A: &str = "agent_A";
@@ -182,8 +179,9 @@ mod tests {
 
     #[test]
     fn utest_log_campaign_response_get_request_id() {
-        let (_logs_sender, log_campaign_response) =
-            LogCampaignResponse::new(REQUEST_ID.to_owned(), Vec::default());
+        let (_logs_sender, logs_receiver) = mpsc::channel(1);
+        let log_campaign_response =
+            LogCampaignResponse::new(REQUEST_ID.to_owned(), Vec::default(), logs_receiver);
         assert_eq!(log_campaign_response.get_request_id(), REQUEST_ID);
     }
 }

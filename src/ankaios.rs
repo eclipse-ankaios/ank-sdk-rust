@@ -986,10 +986,15 @@ impl Ankaios {
                 log::trace!(
                     "Received LogsRequestAccepted: {accepted_workload_names:?} accepted workloads."
                 );
-                let (log_entries_sender, log_campaign_response) =
-                    LogCampaignResponse::new(request_id.clone(), accepted_workload_names);
+
+                let (logs_sender, logs_receiver) = mpsc::channel(CHANNEL_SIZE);
+                let log_campaign_response = LogCampaignResponse::new(
+                    request_id.clone(),
+                    accepted_workload_names,
+                    logs_receiver,
+                );
                 self.control_interface
-                    .add_log_campaign(request_id, log_entries_sender);
+                    .add_log_campaign(request_id, logs_sender);
                 Ok(log_campaign_response)
             }
             ResponseType::Error(error) => {
@@ -1082,7 +1087,10 @@ fn generate_test_ankaios(
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, sync::LazyLock};
-    use tokio::{sync::Mutex, time::Duration};
+    use tokio::{
+        sync::{mpsc, Mutex},
+        time::Duration,
+    };
 
     use super::{
         generate_test_ankaios, Ankaios, AnkaiosError, CompleteState, ControlInterface, Response,
@@ -3269,8 +3277,12 @@ mod tests {
         let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
 
         let accepted_workload_names = vec![instance_name.clone()];
-        let (logs_sender, log_campaign_response) =
-            LogCampaignResponse::new(REQUEST_ID.to_owned(), accepted_workload_names);
+        let (logs_sender, logs_receiver) = mpsc::channel(1);
+        let log_campaign_response = LogCampaignResponse::new(
+            REQUEST_ID.to_owned(),
+            accepted_workload_names,
+            logs_receiver,
+        );
 
         let method_handle =
             tokio::spawn(async move { ank.stop_receiving_logs(log_campaign_response).await });
@@ -3321,8 +3333,12 @@ mod tests {
         let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
 
         let accepted_workload_names = vec![instance_name.clone()];
-        let (logs_sender, log_campaign_response) =
-            LogCampaignResponse::new(REQUEST_ID.to_owned(), accepted_workload_names);
+        let (logs_sender, logs_receiver) = mpsc::channel(1);
+        let log_campaign_response = LogCampaignResponse::new(
+            REQUEST_ID.to_owned(),
+            accepted_workload_names,
+            logs_receiver,
+        );
 
         let method_handle =
             tokio::spawn(async move { ank.stop_receiving_logs(log_campaign_response).await });
@@ -3377,8 +3393,12 @@ mod tests {
         let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
 
         let accepted_workload_names = vec![instance_name.clone()];
-        let (logs_sender, log_campaign_response) =
-            LogCampaignResponse::new(REQUEST_ID.to_owned(), accepted_workload_names);
+        let (logs_sender, logs_receiver) = mpsc::channel(1);
+        let log_campaign_response = LogCampaignResponse::new(
+            REQUEST_ID.to_owned(),
+            accepted_workload_names,
+            logs_receiver,
+        );
 
         let method_handle =
             tokio::spawn(async move { ank.stop_receiving_logs(log_campaign_response).await });
