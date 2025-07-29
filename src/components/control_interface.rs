@@ -720,7 +720,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn itest_control_interface() {
+    async fn utest_control_interface() {
         // Crate mpsc channel
         let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
 
@@ -869,7 +869,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn itest_control_interface_agent_disconnected() {
+    async fn utest_control_interface_agent_disconnected() {
         // Crate mpsc channel
         let (response_sender, _) = mpsc::channel::<Response>(CHANNEL_SIZE);
 
@@ -969,7 +969,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn itest_control_interface_receive_log_entries() {
+    async fn utest_control_interface_receive_log_entries() {
         // Crate mpsc channel
         let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
 
