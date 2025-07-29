@@ -665,8 +665,7 @@ mod tests {
         },
     };
     use crate::{
-        ankaios::CHANNEL_SIZE, components::workload_state_mod::WorkloadInstanceName,
-        LogResponse,
+        ankaios::CHANNEL_SIZE, components::workload_state_mod::WorkloadInstanceName, LogResponse,
     };
     use crate::{ankaios_api, components::response::generate_test_proto_log_entries_response};
     use ankaios_api::control_api::{to_ankaios::ToAnkaiosEnum, Hello, ToAnkaios};
@@ -1021,7 +1020,7 @@ mod tests {
             log_entries_response
                 .log_entries
                 .into_iter()
-                .map(|entry| entry.into())
+                .map(std::convert::Into::into)
                 .collect(),
         );
 
