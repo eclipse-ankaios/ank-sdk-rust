@@ -609,7 +609,7 @@ mod tests {
 
         let workloads = complete_state_dict.get(Value::String("workloads".to_owned())).unwrap().as_mapping().unwrap();
         assert_eq!(workloads.len(), 1);
-        assert_eq!(workloads.get(Value::String("nginx_test".to_owned())).unwrap().as_mapping().unwrap().len(), 8);
+        assert_eq!(workloads.get(Value::String("nginx_test".to_owned())).unwrap().as_mapping().unwrap().len(), 9);
 
         let configs = complete_state_dict.get(Value::String("configs".to_owned())).unwrap().as_mapping().unwrap();
         assert_eq!(configs.len(), 3);

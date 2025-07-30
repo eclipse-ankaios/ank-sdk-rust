@@ -12,9 +12,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, path::Path, vec};
 use crate::AnkaiosError;
 use crate::Workload;
+use std::{collections::HashMap, path::Path, vec};
 
 // Disable this from coverage
 // https://github.com/rust-lang/rust/issues/84605
@@ -29,14 +29,16 @@ fn read_file_to_string(path: &Path) -> Result<String, io::Error> {
 #[cfg(test)]
 use crate::components::workload_mod::test_helpers::read_to_string_mock as read_file_to_string;
 
+use super::file::File;
+
 /// A builder struct for the [Workload] struct.
-/// 
+///
 /// # Example
 ///
 /// ## Create a workload using the [`WorkloadBuilder`]:
-/// 
+///
 /// ```rust
-/// use ankaios_sdk::{Workload, WorkloadBuilder};
+/// use ankaios_sdk::{Workload, WorkloadBuilder, File};
 ///
 /// let workload: Workload = WorkloadBuilder::new()
 ///     .workload_name("example_workload")
@@ -48,6 +50,7 @@ use crate::components::workload_mod::test_helpers::read_to_string_mock as read_f
 ///     .add_dependency("other_workload", "ADD_COND_RUNNING")
 ///     .add_tag("key1", "value1")
 ///     .add_tag("key2", "value2")
+///     .add_file_object(File::text("/etc/config.yaml", "debug: true"))
 ///     .build().unwrap();
 /// ```
 #[must_use] // Added to ensure that the returned Self from the methods is used.
@@ -73,13 +76,15 @@ pub struct WorkloadBuilder {
     pub deny_rules: Vec<(String, Vec<String>)>,
     /// The config aliases.
     pub configs: HashMap<String, String>,
+    /// The workload files.
+    pub files: Vec<File>,
 }
 
-impl WorkloadBuilder{
+impl WorkloadBuilder {
     /// Creates a new [`WorkloadBuilder`] instance.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// A new [`WorkloadBuilder`] instance.
     #[inline]
     pub fn new() -> Self {
@@ -87,13 +92,13 @@ impl WorkloadBuilder{
     }
 
     /// Sets the name of the workload.
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `name` - A [String] that represents the name of the workload.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// The [`WorkloadBuilder`] instance.
     pub fn workload_name<T: Into<String>>(mut self, name: T) -> Self {
         self.wl_name = name.into();
@@ -101,13 +106,13 @@ impl WorkloadBuilder{
     }
 
     /// Sets the name of the agent.
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `name` - A [String] that represents the name of the agent.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// The [`WorkloadBuilder`] instance.
     pub fn agent_name<T: Into<String>>(mut self, name: T) -> Self {
         self.wl_agent_name = name.into();
@@ -115,13 +120,13 @@ impl WorkloadBuilder{
     }
 
     /// Sets the runtime.
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `runtime` - A [String] that represents the runtime.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// The [`WorkloadBuilder`] instance.
     pub fn runtime<T: Into<String>>(mut self, runtime: T) -> Self {
         self.wl_runtime = runtime.into();
@@ -129,13 +134,13 @@ impl WorkloadBuilder{
     }
 
     /// Sets the runtime config.
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `runtime_config` - A [String] that represents the runtime config.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// The [`WorkloadBuilder`] instance.
     pub fn runtime_config<T: Into<String>>(mut self, runtime_config: T) -> Self {
         self.wl_runtime_config = runtime_config.into();
@@ -143,17 +148,17 @@ impl WorkloadBuilder{
     }
 
     /// Sets the runtime config from a file.
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `file_path` - A [Path] object that represents the path to the file.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// The [`WorkloadBuilder`] instance.
-    /// 
+    ///
     /// ## Errors
-    /// 
+    ///
     /// Returns an [`AnkaiosError`]::[`IoError`](AnkaiosError::IoError) if the file can not be read.
     pub fn runtime_config_from_file(self, file_path: &Path) -> Result<Self, AnkaiosError> {
         let runtime_config = read_file_to_string(file_path)?;
@@ -161,13 +166,13 @@ impl WorkloadBuilder{
     }
 
     /// Sets the restart policy.
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `restart_policy` - A [String] that represents the restart policy.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// The [`WorkloadBuilder`] instance.
     pub fn restart_policy<T: Into<String>>(mut self, restart_policy: T) -> Self {
         self.wl_restart_policy = Some(restart_policy.into());
@@ -175,24 +180,25 @@ impl WorkloadBuilder{
     }
 
     /// Adds a dependency.
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `workload_name` - A [String] that represents the name of the workload;
     /// * `condition` - A [String] that represents the condition.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// The [`WorkloadBuilder`] instance.
     pub fn add_dependency<T: Into<String>>(mut self, workload_name: T, condition: T) -> Self {
-        self.dependencies.insert(workload_name.into(), condition.into());
+        self.dependencies
+            .insert(workload_name.into(), condition.into());
         self
     }
 
     /// Adds a tag.
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `key` - A [String] that represents the key of the tag;
     /// * `value` - A [String] that represents the value of the tag.
     ///
@@ -214,7 +220,11 @@ impl WorkloadBuilder{
     /// ## Returns
     ///
     /// The [`WorkloadBuilder`] instance.
-    pub fn add_allow_rule<T: Into<String>>(mut self, operation: T, filter_masks: Vec<String>) -> Self {
+    pub fn add_allow_rule<T: Into<String>>(
+        mut self,
+        operation: T,
+        filter_masks: Vec<String>,
+    ) -> Self {
         self.allow_rules.push((operation.into(), filter_masks));
         self
     }
@@ -229,7 +239,11 @@ impl WorkloadBuilder{
     /// ## Returns
     ///
     /// The [`WorkloadBuilder`] instance.
-    pub fn add_deny_rule<T: Into<String>>(mut self, operation: T, filter_masks: Vec<String>) -> Self {
+    pub fn add_deny_rule<T: Into<String>>(
+        mut self,
+        operation: T,
+        filter_masks: Vec<String>,
+    ) -> Self {
         self.deny_rules.push((operation.into(), filter_masks));
         self
     }
@@ -249,6 +263,21 @@ impl WorkloadBuilder{
         self
     }
 
+    /// Adds a [`File`] object to the workload.
+    ///
+    /// ## Arguments
+    ///
+    /// * `file` - A [`File`] object that represents the file to be added.
+    ///
+    /// ## Returns
+    ///
+    /// The [`WorkloadBuilder`] instance.
+    pub fn add_file(mut self, file: File) -> Self {
+        self.files.push(file);
+
+        self
+    }
+
     /// Creates a new `Workload` instance from a Map.
     ///
     /// # Arguments
@@ -265,18 +294,26 @@ impl WorkloadBuilder{
     /// Returns an [`AnkaiosError`]::[`WorkloadBuilderError`](AnkaiosError::WorkloadBuilderError) if the builder fails to build the workload.
     pub fn build(self) -> Result<Workload, AnkaiosError> {
         if self.wl_name.is_empty() {
-            return Err(AnkaiosError::WorkloadBuilderError("Workload can not be built without a name."));
+            return Err(AnkaiosError::WorkloadBuilderError(
+                "Workload can not be built without a name.",
+            ));
         }
         let mut wl = Workload::new_from_builder(self.wl_name.clone());
 
         if self.wl_agent_name.is_empty() {
-            return Err(AnkaiosError::WorkloadBuilderError("Workload can not be built without an agent name."));
+            return Err(AnkaiosError::WorkloadBuilderError(
+                "Workload can not be built without an agent name.",
+            ));
         }
         if self.wl_runtime.is_empty() {
-            return Err(AnkaiosError::WorkloadBuilderError("Workload can not be built without a runtime."));
+            return Err(AnkaiosError::WorkloadBuilderError(
+                "Workload can not be built without a runtime.",
+            ));
         }
         if self.wl_runtime_config.is_empty() {
-            return Err(AnkaiosError::WorkloadBuilderError("Workload can not be built without a runtime config."));
+            return Err(AnkaiosError::WorkloadBuilderError(
+                "Workload can not be built without a runtime config.",
+            ));
         }
 
         wl.update_agent_name(self.wl_agent_name.clone());
@@ -301,11 +338,13 @@ impl WorkloadBuilder{
         if !self.configs.is_empty() {
             wl.update_configs(self.configs.clone());
         }
+        if !self.files.is_empty() {
+            wl.update_files(self.files.clone());
+        }
 
         Ok(wl)
     }
 }
-
 
 //////////////////////////////////////////////////////////////////////////////
 //                 ########  #######    #########  #########                //
@@ -317,12 +356,13 @@ impl WorkloadBuilder{
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-    use crate::AnkaiosError;
     use super::Workload;
+    use crate::components::workload_mod::file::File;
     use crate::components::workload_mod::test_helpers::{
-        generate_test_workload_proto, generate_test_runtime_config
+        generate_test_runtime_config, generate_test_workload_proto,
     };
+    use crate::AnkaiosError;
+    use std::path::Path;
 
     #[test]
     fn utest_workload_builder() {
@@ -330,17 +370,26 @@ mod tests {
             .workload_name("Test")
             .agent_name("agent_A")
             .runtime("podman")
-            .runtime_config_from_file(Path::new(generate_test_runtime_config().as_str())).unwrap()
+            .runtime_config_from_file(Path::new(generate_test_runtime_config().as_str()))
+            .unwrap()
             .restart_policy("ALWAYS")
             .add_dependency("workload_A", "ADD_COND_SUCCEEDED")
             .add_dependency("workload_C", "ADD_COND_RUNNING")
             .add_tag("key_test", "val_test")
             .add_allow_rule("Read", vec!["desiredState.workloads.workload_A".to_owned()])
-            .add_deny_rule("Write", vec!["desiredState.workloads.workload_B".to_owned()])
+            .add_deny_rule(
+                "Write",
+                vec!["desiredState.workloads.workload_B".to_owned()],
+            )
             .add_config("alias_test", "config_1")
+            .add_file(File::from_data("mount_point", "Data"))
             .build();
+
         assert!(wl.is_ok());
-        assert_eq!(wl.unwrap().to_proto(), generate_test_workload_proto("agent_A".to_owned(), "podman".to_owned()));
+        assert_eq!(
+            wl.unwrap().to_proto(),
+            generate_test_workload_proto("agent_A".to_owned(), "podman".to_owned())
+        );
     }
 
     #[test]
