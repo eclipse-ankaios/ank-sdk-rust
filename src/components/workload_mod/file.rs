@@ -204,7 +204,7 @@ impl File {
     /// ## Returns
     ///
     /// An [`ank_base::File`] protobuf message containing the file's mount point and content.
-    pub(crate) fn to_proto(self) -> ank_base::File {
+    pub(crate) fn into_proto(self) -> ank_base::File {
         let file_content = match self.content {
             FileContent::Data(data) => Some(ank_base::file::FileContent::Data(data)),
             FileContent::BinaryData(binary_data) => {
@@ -530,7 +530,7 @@ mod tests {
     #[test]
     fn test_to_proto_data_file() {
         let file = File::from_data("/etc/config.txt", "Hello, World!");
-        let proto = file.to_proto();
+        let proto = file.into_proto();
         
         assert_eq!(proto.mount_point, "/etc/config.txt");
         match proto.file_content {
@@ -545,7 +545,7 @@ mod tests {
     fn test_to_proto_binary_data_file() {
         let base64_data = "iVBORw0KGgoATMANSUhEUgA=";
         let file = File::from_binary_data("/usr/share/app/image.png", base64_data);
-        let proto = file.to_proto();
+        let proto = file.into_proto();
         
         assert_eq!(proto.mount_point, "/usr/share/app/image.png");
         match proto.file_content {
@@ -586,7 +586,7 @@ mod tests {
     #[test]
     fn test_round_trip_proto_data_file() {
         let original_file = File::from_data("/etc/config.txt", "Hello, World!");
-        let proto = original_file.clone().to_proto();
+        let proto = original_file.clone().into_proto();
         let restored_file = File::from_proto(proto);
         
         assert_eq!(original_file, restored_file);
@@ -596,7 +596,7 @@ mod tests {
     fn test_round_trip_proto_binary_data_file() {
         let base64_data = "iVBORw0KGgoATMANSUhEUgA=";
         let original_file = File::from_binary_data("/usr/share/app/image.png", base64_data);
-        let proto = original_file.clone().to_proto();
+        let proto = original_file.clone().into_proto();
         let restored_file = File::from_proto(proto);
         
         assert_eq!(original_file, restored_file);

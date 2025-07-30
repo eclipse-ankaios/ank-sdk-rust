@@ -1106,7 +1106,7 @@ impl Workload {
         }
 
         if let Some(files) = self.workload.files.as_mut() {
-            files.files.push(file.to_proto());
+            files.files.push(file.into_proto());
         }
     }
 
@@ -1136,7 +1136,7 @@ impl Workload {
             self.workload.files = None;
         } else {
             self.workload.files = Some(ank_base::Files {
-                files: files.into_iter().map(|f| f.to_proto()).collect(),
+                files: files.into_iter().map(super::file::File::into_proto).collect(),
             });
             self.add_mask(format!("{}.{FIELD_FILES}", self.main_mask));
         }
