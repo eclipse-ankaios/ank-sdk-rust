@@ -204,16 +204,16 @@ impl File {
     /// ## Returns
     ///
     /// An [`ank_base::File`] protobuf message containing the file's mount point and content.
-    pub(crate) fn to_proto(&self) -> ank_base::File {
-        let file_content = match &self.content {
-            FileContent::Data(data) => Some(ank_base::file::FileContent::Data(data.to_owned())),
+    pub(crate) fn to_proto(self) -> ank_base::File {
+        let file_content = match self.content {
+            FileContent::Data(data) => Some(ank_base::file::FileContent::Data(data)),
             FileContent::BinaryData(binary_data) => {
-                Some(ank_base::file::FileContent::BinaryData(binary_data.to_owned()))
+                Some(ank_base::file::FileContent::BinaryData(binary_data))
             }
         };
 
         ank_base::File {
-            mount_point: self.mount_point.clone(),
+            mount_point: self.mount_point,
             file_content,
         }
     }
@@ -586,7 +586,7 @@ mod tests {
     #[test]
     fn test_round_trip_proto_data_file() {
         let original_file = File::from_data("/etc/config.txt", "Hello, World!");
-        let proto = original_file.to_proto();
+        let proto = original_file.clone().to_proto();
         let restored_file = File::from_proto(proto);
         
         assert_eq!(original_file, restored_file);
@@ -596,7 +596,7 @@ mod tests {
     fn test_round_trip_proto_binary_data_file() {
         let base64_data = "iVBORw0KGgoATMANSUhEUgA=";
         let original_file = File::from_binary_data("/usr/share/app/image.png", base64_data);
-        let proto = original_file.to_proto();
+        let proto = original_file.clone().to_proto();
         let restored_file = File::from_proto(proto);
         
         assert_eq!(original_file, restored_file);

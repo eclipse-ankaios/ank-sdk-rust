@@ -1099,7 +1099,7 @@ impl Workload {
     /// ## Arguments
     ///
     /// - `file` - A [File] object representing the file to add.
-    pub fn add_file(&mut self, file: &File) {
+    pub fn add_file(&mut self, file: File) {
         if self.workload.files.is_none() {
             self.workload.files = Some(ank_base::Files::default());
             self.add_mask(format!("{}.{FIELD_FILES}", self.main_mask));
@@ -1443,8 +1443,8 @@ mod tests {
         let config_file = File::from_data("/etc/app/config.yaml", "debug: true");
         let icon_file = File::from_binary_data("/usr/share/app/icon.png", "iVBORw0KGgoAAAANSUhEUgA...");
 
-        wl.add_file(&config_file);
-        wl.add_file(&icon_file);
+        wl.add_file(config_file);
+        wl.add_file(icon_file);
 
         let files = wl.get_files();
         assert_eq!(files.len(), 2);

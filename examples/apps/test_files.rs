@@ -98,7 +98,7 @@ async fn main() {
 
     // Add initial file
     dynamic_workload
-        .add_file(&File::from_data(
+        .add_file(File::from_data(
             "/usr/share/nginx/html/index.html",
             "<html><body><h1>Initial content</h1></body></html>",
         ));
@@ -136,7 +136,7 @@ async fn main() {
             );
             let wl_files = workload.get_files();
             for file in wl_files {
-                println!("{:?}", file.to_proto());
+                println!("{:?}", file);
             }
         }
     }
