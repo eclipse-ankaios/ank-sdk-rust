@@ -17,7 +17,7 @@ RUN curl --proto '=https' --tlsv1.2 -sS https://sh.rustup.rs | sh -s -- -y > /de
 COPY . ${WORKSPACE_DIR}/ankaios_sdk
 COPY examples/app/ ${WORKSPACE_DIR}
 WORKDIR ${WORKSPACE_DIR}
-ENV ANKAIOS_VERSION=0.5.0
+ENV ANKAIOS_VERSION=0.6.0
 RUN --mount=type=cache,target=${WORKSPACE_DIR}/target/release cargo build --release \
     && cp ${WORKSPACE_DIR}/target/release/app /usr/local/bin/
 
