@@ -540,7 +540,7 @@ impl ControlInterface {
     ///
     /// * `received_response` - A decoded [`Response`] object from the control interface;
     /// * `response_sender` - A [`Sender<Response>`] to forward the response;
-    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log responses for a log campaign.
+    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log entries and stop responses for a log campaign.
     ///
     async fn handle_decoded_response(
         received_response: Response,
@@ -553,10 +553,6 @@ impl ControlInterface {
         } else if let ResponseType::LogsStopResponse(instance_name) = received_response.content {
             let request_id = received_response.id;
             Self::forward_logs_stop_response(request_id, instance_name, request_id_logs_sender_map)
-                .await;
-        } else if let ResponseType::LogsCancelAccepted = received_response.content {
-            let request_id = received_response.id;
-            Self::forward_logs_cancel_accepted_response(request_id, request_id_logs_sender_map)
                 .await;
         } else {
             response_sender
@@ -575,7 +571,7 @@ impl ControlInterface {
     ///
     /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
     /// * `log_entries` - A [`Vec<LogEntry>`] containing the log entries of workload to be forwarded;
-    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log responses for a log campaign.
+    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log entries and stop responses for a log campaign.
     ///
     async fn forward_log_entries(
         request_id: String,
@@ -608,7 +604,7 @@ impl ControlInterface {
     ///
     /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
     /// * `instance_name` - A [`WorkloadInstanceName`] for which the logs stop response is sent;
-    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log responses for a log campaign.
+    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log entries and stop responses for a log campaign.
     ///
     async fn forward_logs_stop_response(
         request_id: String,
@@ -629,36 +625,6 @@ impl ControlInterface {
         } else {
             log::debug!(
                 "Received logs stop response for request id '{request_id}', but no log campaign found."
-            );
-        }
-    }
-
-    #[doc(hidden)]
-    /// Forwards the logs cancel accepted response to the appropriate log campaign receiver.
-    ///
-    /// ## Arguments
-    ///
-    /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
-    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log responses for a log campaign.
-    ///
-    async fn forward_logs_cancel_accepted_response(
-        request_id: String,
-        request_id_logs_sender_map: &mut SynchronizedLogResponseSenderMap,
-    ) {
-        let log_entries_sender = request_id_logs_sender_map.remove(&request_id);
-        if let Some(sender) = log_entries_sender {
-            log::trace!(
-                "Forwarding logs cancel accepted response for request id '{request_id}' to log campaign receiver."
-            );
-            sender
-                .send(LogResponse::LogsCancelAccepted)
-                .await
-                .unwrap_or_else(|err| {
-                    log::error!("Error while sending log cancel accepted message: '{err}'");
-                });
-        } else {
-            log::debug!(
-                "Received logs cancel accepted response for request id '{request_id}', but no log campaign found."
             );
         }
     }
@@ -694,9 +660,8 @@ mod tests {
     use crate::components::{
         request::{generate_test_request, Request},
         response::{
-            generate_test_logs_cancel_accepted_response, generate_test_logs_stop_response,
-            generate_test_proto_log_entries_response, generate_test_proto_update_state_success,
-            generate_test_response_update_state_success,
+            generate_test_logs_stop_response, generate_test_proto_log_entries_response,
+            generate_test_proto_update_state_success, generate_test_response_update_state_success,
             get_test_proto_from_ankaios_log_entries_response, Response,
         },
     };
@@ -1223,99 +1188,6 @@ mod tests {
         assert!(result.is_err());
 
         // no remove happened, so len shall be the same as before
-        assert_eq!(
-            ci.log_senders_map
-                .request_id_log_senders_map
-                .lock()
-                .unwrap()
-                .len(),
-            1
-        );
-    }
-
-    #[tokio::test]
-    async fn utest_control_interface_receive_logs_cancel_accepted_response() {
-        let _ = env_logger::builder().is_test(true).try_init();
-        // Crate mpsc channel
-        let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
-
-        // Create control interface
-        let mut ci = ControlInterface::new(response_sender);
-
-        let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
-        ci.log_senders_map
-            .insert(REQUEST_ID_1.to_owned(), logs_sender);
-
-        let response = generate_test_logs_cancel_accepted_response(REQUEST_ID_1.to_owned());
-
-        ControlInterface::handle_decoded_response(
-            response,
-            &ci.response_sender,
-            &mut ci.log_senders_map,
-        )
-        .await;
-
-        let result = tokio::time::timeout(Duration::from_millis(100), logs_receiver.recv()).await;
-        assert!(result.is_ok());
-        let response = result.unwrap();
-        assert!(response.is_some());
-
-        assert_eq!(response.unwrap(), LogResponse::LogsCancelAccepted);
-
-        assert!(ci
-            .log_senders_map
-            .request_id_log_senders_map
-            .lock()
-            .unwrap()
-            .is_empty());
-    }
-
-    #[tokio::test]
-    async fn utest_control_interface_receive_logs_cancel_accepted_response_unable_to_find_log_campaign(
-    ) {
-        let _ = env_logger::builder().is_test(true).try_init();
-        // Crate mpsc channel
-        let (response_sender, mut response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
-
-        // Create control interface
-        let mut ci = ControlInterface::new(response_sender);
-
-        let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
-        ci.log_senders_map
-            .insert(REQUEST_ID_1.to_owned(), logs_sender);
-
-        assert!(ci
-            .log_senders_map
-            .request_id_log_senders_map
-            .lock()
-            .unwrap()
-            .get(REQUEST_ID_2)
-            .is_none());
-
-        assert_eq!(
-            ci.log_senders_map
-                .request_id_log_senders_map
-                .lock()
-                .unwrap()
-                .len(),
-            1
-        );
-
-        let not_existing_log_request_id = REQUEST_ID_2.to_owned();
-        ControlInterface::forward_logs_cancel_accepted_response(
-            not_existing_log_request_id,
-            &mut ci.log_senders_map,
-        )
-        .await;
-
-        sleep(Duration::from_millis(50)).await;
-
-        let result = logs_receiver.try_recv();
-        assert!(result.is_err());
-
-        let result = response_receiver.try_recv();
-        assert!(result.is_err());
-
         assert_eq!(
             ci.log_senders_map
                 .request_id_log_senders_map

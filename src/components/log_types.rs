@@ -85,8 +85,6 @@ pub enum LogResponse {
     LogEntries(Vec<LogEntry>),
     /// A response indicating the stop of log entries for a specific workload.
     LogsStopResponse(WorkloadInstanceName),
-    /// A response indicating that the log cancellation was accepted.
-    LogsCancelAccepted,
 }
 
 /// Struct that represents a response of a log request.

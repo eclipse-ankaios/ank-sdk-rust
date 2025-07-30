@@ -78,10 +78,6 @@ async fn main() {
                 );
                 break;
             }
-            LogResponse::LogsCancelAccepted => {
-                println!("Log cancellation accepted.");
-                break;
-            }
         }
     }
 

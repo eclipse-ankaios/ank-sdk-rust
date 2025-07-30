@@ -383,14 +383,6 @@ pub fn generate_test_logs_stop_response(
 }
 
 #[cfg(test)]
-pub fn generate_test_logs_cancel_accepted_response(request_id: String) -> Response {
-    Response {
-        content: ResponseType::LogsCancelAccepted,
-        id: request_id,
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::{
         generate_test_response_update_state_success, Response, ResponseType, UpdateStateSuccess,
