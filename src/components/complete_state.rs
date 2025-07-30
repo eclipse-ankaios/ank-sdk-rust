@@ -75,7 +75,7 @@ const SUPPORTED_API_VERSION: &str = "v0.1";
 /// let manifest = /* */;
 /// let complete_state = CompleteState::from(&manifest).unwrap();
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CompleteState {
     /// The internal proto representation of the `CompleteState`.
     complete_state: ank_base::CompleteState,
