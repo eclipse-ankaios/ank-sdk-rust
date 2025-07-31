@@ -136,7 +136,15 @@ async fn main() {
             );
             let wl_files = workload.get_files();
             for file in wl_files {
-                println!("{:?}", file);
+                match &file.file_content {
+                    ank_base::file::FileContent::Data(data) => {
+                        println!("  Text file: {} - Content: {}", file.mount_point, data);
+                    }
+                    ank_base::file::FileContent::BinaryData(binary_data) => {
+                        println!("  Binary file: {} - Content: {}", file.mount_point, binary_data);
+                    }
+                    _ => unreachable!("Unexpected file content type"),
+                }
             }
         }
     }
