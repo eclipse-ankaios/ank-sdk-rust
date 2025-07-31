@@ -8,7 +8,7 @@
 
 [![Github](https://img.shields.io/badge/github-8da0cb?style=for-the-badge&labelColor=555555&logo=github)](https://github.com/eclipse-ankaios/ank-sdk-rust)
 [![Crates.io](https://img.shields.io/badge/crates.io-fc8d62?style=for-the-badge&labelColor=555555&logo=rust)](https://crates.io/crates/ankaios-sdk)
-[![Docs.rs](https://img.shields.io/badge/docs.rs-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs)](https://docs.rs/ankaios-sdk/0.5.0)
+[![Docs.rs](https://img.shields.io/badge/docs.rs-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs)](https://docs.rs/ankaios-sdk/0.6.0)
 
 [Eclipse Ankaios](https://github.com/eclipse-ankaios/ankaios) provides workload and
 container orchestration for automotive High Performance Computing Platforms (HPCs).
@@ -28,7 +28,7 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-ankaios_sdk = "0.5.0"
+ankaios_sdk = "0.6.0"
 ```
 
 ### Clone and link as vendor
@@ -56,6 +56,7 @@ are using. For information regarding versioning, please refer to this table:
 | -------- | ------- |
 | 0.4.x and below | No Rust SDK available. Please update Ankaios. |
 | 0.5.x | 0.5.x     |
+| 0.6.x | 0.6.x     |
 
 ## Usage
 
@@ -136,7 +137,7 @@ async fn main() {
 For more details, please visit:
 
 * [Ankaios documentation](https://eclipse-ankaios.github.io/ankaios/latest/)
-* [Rust SDK documentation](https://docs.rs/ankaios-sdk/0.5.0)
+* [Rust SDK documentation](https://docs.rs/ankaios-sdk/0.6.0)
 
 ## Contributing
 
