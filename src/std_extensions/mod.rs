@@ -1,4 +1,4 @@
-// Copyright (c) 2024 Elektrobit Automotive GmbH
+// Copyright (c) 2025 Elektrobit Automotive GmbH
 //
 // This program and the accompanying materials are made available under the
 // terms of the Apache License, Version 2.0 which is available at
@@ -12,16 +12,5 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains structs and enums that are used to
-//! work with the components of the [Ankaios] application.
-//!
-//! [Ankaios]: https://eclipse-ankaios.github.io/ankaios
-
-pub mod complete_state;
-pub mod control_interface;
-pub mod log_types;
-pub mod manifest;
-pub mod request;
-pub mod response;
-pub mod workload_mod;
-pub mod workload_state_mod;
+pub mod extended_option;
+pub use extended_option::*;

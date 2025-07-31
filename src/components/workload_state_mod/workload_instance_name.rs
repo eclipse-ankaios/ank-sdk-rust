@@ -12,15 +12,17 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt;
 use serde_yaml::Value;
+use std::fmt;
+
+use crate::ankaios_api;
 
 /// Helper struct that contains information about a Workload instance.
-/// 
+///
 /// # Example
-/// 
+///
 /// ## Create a Workload Instance Name object
-/// 
+///
 /// ```rust
 /// let workload_instance_name = WorkloadInstanceName::new(
 ///     "agent_Test".to_owned(),
@@ -29,7 +31,7 @@ use serde_yaml::Value;
 /// );
 /// ```
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct WorkloadInstanceName{
+pub struct WorkloadInstanceName {
     /// The name of the agent.
     pub agent_name: String,
     /// The name of the workload.
@@ -40,17 +42,21 @@ pub struct WorkloadInstanceName{
 
 impl WorkloadInstanceName {
     /// Creates a new `WorkloadInstanceName` object.
-    /// 
+    ///
     /// ## Arguments
-    /// 
+    ///
     /// * `agent_name` - A [String] containing the name of the agent;
     /// * `workload_name` - A [String] containing the name of the workload;
     /// * `workload_id` - A [String] containing the id of the workload.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// A new [`WorkloadInstanceName`] object.
-    pub fn new(agent_name: String, workload_name: String, workload_id: String) -> WorkloadInstanceName {
+    pub fn new(
+        agent_name: String,
+        workload_name: String,
+        workload_id: String,
+    ) -> WorkloadInstanceName {
         WorkloadInstanceName {
             agent_name,
             workload_name,
@@ -59,31 +65,85 @@ impl WorkloadInstanceName {
     }
 
     /// Converts the `WorkloadInstanceName` to a [Mapping](serde_yaml::Mapping).
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// A [Mapping](serde_yaml::Mapping) containing the `WorkloadInstanceName` information.
     pub fn to_dict(&self) -> serde_yaml::Mapping {
         let mut map = serde_yaml::Mapping::new();
-        map.insert(Value::String("agent_name".to_owned()), Value::String(self.agent_name.clone()));
-        map.insert(Value::String("workload_name".to_owned()), Value::String(self.workload_name.clone()));
-        map.insert(Value::String("workload_id".to_owned()), Value::String(self.workload_id.clone()));
+        map.insert(
+            Value::String("agent_name".to_owned()),
+            Value::String(self.agent_name.clone()),
+        );
+        map.insert(
+            Value::String("workload_name".to_owned()),
+            Value::String(self.workload_name.clone()),
+        );
+        map.insert(
+            Value::String("workload_id".to_owned()),
+            Value::String(self.workload_id.clone()),
+        );
         map
     }
 
     /// Returns the filter mask of the Workload Instance Name.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// A [String] that represents the filter mask.
     pub fn get_filter_mask(&self) -> String {
-        format!("workloadStates.{}.{}.{}", self.agent_name, self.workload_name, self.workload_id)
+        format!(
+            "workloadStates.{}.{}.{}",
+            self.agent_name, self.workload_name, self.workload_id
+        )
     }
 }
 
 impl fmt::Display for WorkloadInstanceName {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}.{}.{}", self.workload_name, self.workload_id, self.agent_name)
+        write!(
+            f,
+            "{}.{}.{}",
+            self.workload_name, self.workload_id, self.agent_name
+        )
+    }
+}
+
+impl From<ankaios_api::ank_base::WorkloadInstanceName> for WorkloadInstanceName {
+    /// Converts a `ankaios_api::ank_base::WorkloadInstanceName` into a [`WorkloadInstanceName`].
+    ///
+    /// ## Arguments
+    ///
+    /// * `workload_instance_name` - The `ankaios_api::ank_base::WorkloadInstanceName` to convert into a `WorkloadInstanceName`.
+    ///
+    /// ## Returns
+    ///
+    /// A new [`WorkloadInstanceName`] object.
+    fn from(workload_instance_name: ankaios_api::ank_base::WorkloadInstanceName) -> Self {
+        WorkloadInstanceName {
+            agent_name: workload_instance_name.agent_name,
+            workload_name: workload_instance_name.workload_name,
+            workload_id: workload_instance_name.id,
+        }
+    }
+}
+
+impl From<WorkloadInstanceName> for ankaios_api::ank_base::WorkloadInstanceName {
+    /// Converts a `WorkloadInstanceName` into a [`ankaios_api::ank_base::WorkloadInstanceName`].
+    ///
+    /// ## Arguments
+    ///
+    /// * `workload_instance_name` - The `WorkloadInstanceName` to convert into an `ankaios_api::ank_base::WorkloadInstanceName`.
+    ///
+    /// ## Returns
+    ///
+    /// A new [`ankaios_api::ank_base::WorkloadInstanceName`] object.
+    fn from(workload_instance_name: WorkloadInstanceName) -> Self {
+        ankaios_api::ank_base::WorkloadInstanceName {
+            agent_name: workload_instance_name.agent_name,
+            workload_name: workload_instance_name.workload_name,
+            id: workload_instance_name.workload_id,
+        }
     }
 }
 
@@ -97,28 +157,47 @@ impl fmt::Display for WorkloadInstanceName {
 
 #[cfg(test)]
 mod tests {
-    use serde_yaml::Value;
     use super::WorkloadInstanceName;
+    use serde_yaml::Value;
 
     #[test]
     fn utest_instance_name() {
         let instance_name = WorkloadInstanceName::new(
-            "agent_Test".to_owned(), "workload_Test".to_owned(), "1234".to_owned()
+            "agent_Test".to_owned(),
+            "workload_Test".to_owned(),
+            "1234".to_owned(),
         );
         assert_eq!(instance_name.agent_name, "agent_Test");
         assert_eq!(instance_name.workload_name, "workload_Test");
         assert_eq!(instance_name.workload_id, "1234");
 
         assert_eq!(instance_name.to_string(), "workload_Test.1234.agent_Test");
-        assert_eq!(instance_name.get_filter_mask(), "workloadStates.agent_Test.workload_Test.1234");
-        assert_eq!(instance_name.to_dict(), serde_yaml::Mapping::from_iter([
-            (Value::String("agent_name".to_owned()), Value::String("agent_Test".to_owned())),
-            (Value::String("workload_name".to_owned()), Value::String("workload_Test".to_owned())),
-            (Value::String("workload_id".to_owned()), Value::String("1234".to_owned())),
-        ]));
+        assert_eq!(
+            instance_name.get_filter_mask(),
+            "workloadStates.agent_Test.workload_Test.1234"
+        );
+        assert_eq!(
+            instance_name.to_dict(),
+            serde_yaml::Mapping::from_iter([
+                (
+                    Value::String("agent_name".to_owned()),
+                    Value::String("agent_Test".to_owned())
+                ),
+                (
+                    Value::String("workload_name".to_owned()),
+                    Value::String("workload_Test".to_owned())
+                ),
+                (
+                    Value::String("workload_id".to_owned()),
+                    Value::String("1234".to_owned())
+                ),
+            ])
+        );
 
         let mut another_instance_name = WorkloadInstanceName::new(
-            "agent_Test".to_owned(), "workload_Test".to_owned(), "1234".to_owned()
+            "agent_Test".to_owned(),
+            "workload_Test".to_owned(),
+            "1234".to_owned(),
         );
         assert_eq!(instance_name, another_instance_name);
         "agent_Test2".clone_into(&mut another_instance_name.agent_name);

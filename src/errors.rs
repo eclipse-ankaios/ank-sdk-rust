@@ -15,7 +15,7 @@
 //! This module contains the definition of the `AnkaiosError` enum, which
 //! represents the different types of errors that can occur in the [Ankaios]
 //! application.
-//! 
+//!
 //! [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 
 use std::io;
@@ -29,7 +29,7 @@ use tokio::time::error::Elapsed;
 /// different type of error that can occur, with associated data providing more
 /// context about the error.
 #[derive(Error, Debug)]
-pub enum AnkaiosError{
+pub enum AnkaiosError {
     /// Represents an I/O error, wrapping a `std::io::Error`.
     #[error("IO Error: {0}")]
     IoError(#[from] io::Error),
@@ -58,5 +58,5 @@ pub enum AnkaiosError{
     /// Represents an error returned by the server in response to a distinct request.
     /// e.g. due to insufficient reading rights by the requester.
     #[error("Ankaios response error: {0}")]
-    AnkaiosResponseError(String)
+    AnkaiosResponseError(String),
 }

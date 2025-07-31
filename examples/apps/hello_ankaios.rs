@@ -27,20 +27,29 @@ async fn main() {
         .agent_name("agent_Rust_SDK")
         .runtime("podman")
         .restart_policy("NEVER")
-        .runtime_config(
-            "image: docker.io/library/nginx\ncommandOptions: [\"-p\", \"8080:80\"]"
-        ).build().expect("Failed to build workload");
-    
+        .runtime_config("image: docker.io/library/nginx\ncommandOptions: [\"-p\", \"8080:80\"]")
+        .build()
+        .expect("Failed to build workload");
+
     // Run the workload
-    let response = ank.apply_workload(workload).await.expect("Failed to apply workload");
+    let response = ank
+        .apply_workload(workload)
+        .await
+        .expect("Failed to apply workload");
 
     // Get the WorkloadInstanceName to check later if the workload is running
     let workload_instance_name = response.added_workloads[0].clone();
 
     // Request the execution state based on the workload instance name
-    match ank.get_execution_state_for_instance_name(&workload_instance_name).await {
+    match ank
+        .get_execution_state_for_instance_name(&workload_instance_name)
+        .await
+    {
         Ok(exec_state) => {
-            println!("State: {:?}, substate: {:?}, info: {:?}", exec_state.state, exec_state.substate, exec_state.additional_info);
+            println!(
+                "State: {:?}, substate: {:?}, info: {:?}",
+                exec_state.state, exec_state.substate, exec_state.additional_info
+            );
         }
         Err(err) => {
             println!("Error while getting workload state: {err:?}");
@@ -48,7 +57,13 @@ async fn main() {
     }
 
     // Wait until the workload reaches the running state
-    match ank.wait_for_workload_to_reach_state(workload_instance_name.clone(), WorkloadStateEnum::Running).await {
+    match ank
+        .wait_for_workload_to_reach_state(
+            workload_instance_name.clone(),
+            WorkloadStateEnum::Running,
+        )
+        .await
+    {
         Ok(()) => {
             println!("Workload reached the RUNNING state.");
         }
@@ -61,22 +76,29 @@ async fn main() {
     }
 
     // Request the state of the system, filtered with the workloadStates
-    let complete_state = ank.get_state(vec!["workloadStates".to_owned()]).await.expect("Failed to get the state");
+    let complete_state = ank
+        .get_state(vec!["workloadStates".to_owned()])
+        .await
+        .expect("Failed to get the state");
 
     // Get the workload states present in the complete state
     let workload_states = Vec::from(complete_state.get_workload_states());
 
     // Print the states of the workloads
     for workload_state in workload_states {
-        println!("Workload {} on agent {} has the state {:?}", 
-            workload_state.workload_instance_name.workload_name, 
+        println!(
+            "Workload {} on agent {} has the state {:?}",
+            workload_state.workload_instance_name.workload_name,
             workload_state.workload_instance_name.agent_name,
             workload_state.execution_state.state
-        ); 
+        );
     }
 
     // Delete the workload
-    let _response = ank.delete_workload(workload_instance_name.workload_name).await.expect("Failed to delete workload");
+    let _response = ank
+        .delete_workload(workload_instance_name.workload_name)
+        .await
+        .expect("Failed to delete workload");
 
     tokio::time::sleep(Duration::from_secs(5)).await;
 }

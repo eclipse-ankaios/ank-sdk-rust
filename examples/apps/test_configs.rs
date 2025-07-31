@@ -24,11 +24,12 @@ async fn print_workload_states(ank: &mut Ankaios) {
 
         // Print the states of the workloads
         for workload_state in workload_states {
-            println!("Workload {} on agent {} has the state {:?}", 
-                workload_state.workload_instance_name.workload_name, 
+            println!(
+                "Workload {} on agent {} has the state {:?}",
+                workload_state.workload_instance_name.workload_name,
                 workload_state.workload_instance_name.agent_name,
                 workload_state.execution_state.state
-            ); 
+            );
         }
     }
 }
@@ -47,36 +48,60 @@ async fn main() {
         .restart_policy("NEVER")
         .add_config("conf", "configuration")
         .runtime_config(
-            "image: docker.io/library/nginx\ncommandOptions: [\"-p\", \"8080:{{conf.port}}\"]"
-        ).build().expect("Failed to build workload");
-    
+            "image: docker.io/library/nginx\ncommandOptions: [\"-p\", \"8080:{{conf.port}}\"]",
+        )
+        .build()
+        .expect("Failed to build workload");
+
     // Create configuration
     let mut port_map = serde_yaml::Mapping::new();
-    port_map.insert(serde_yaml::Value::String("port".to_owned()), serde_yaml::Value::String("80".to_owned()));
-    let mut configs = HashMap::from([("configuration".to_owned(), serde_yaml::Value::Mapping(port_map))]);
-    
+    port_map.insert(
+        serde_yaml::Value::String("port".to_owned()),
+        serde_yaml::Value::String("80".to_owned()),
+    );
+    let mut configs = HashMap::from([(
+        "configuration".to_owned(),
+        serde_yaml::Value::Mapping(port_map),
+    )]);
+
     // Send configuration to Ankaios
-    ank.update_configs(configs.clone()).await.expect("Failed to update configs");
+    ank.update_configs(configs.clone())
+        .await
+        .expect("Failed to update configs");
 
     // Send workload to Ankaios
-    ank.apply_workload(workload).await.expect("Failed to apply workload");
+    ank.apply_workload(workload)
+        .await
+        .expect("Failed to apply workload");
 
     // Get workloads
     sleep(Duration::from_secs(5));
     print_workload_states(&mut ank).await;
 
     // Modify config
-    configs.get_mut("configuration").unwrap().as_mapping_mut().unwrap().insert(serde_yaml::Value::String("port".to_owned()), serde_yaml::Value::String("81".to_owned()));
+    configs
+        .get_mut("configuration")
+        .unwrap()
+        .as_mapping_mut()
+        .unwrap()
+        .insert(
+            serde_yaml::Value::String("port".to_owned()),
+            serde_yaml::Value::String("81".to_owned()),
+        );
 
     // Send updated configuration to Ankaios
-    ank.update_configs(configs).await.expect("Failed to update configs");
+    ank.update_configs(configs)
+        .await
+        .expect("Failed to update configs");
 
     // Get workloads
     sleep(Duration::from_secs(5));
     print_workload_states(&mut ank).await;
 
     // Delete workload
-    ank.delete_workload("dynamic_nginx".to_owned()).await.expect("Failed to delete workload");
+    ank.delete_workload("dynamic_nginx".to_owned())
+        .await
+        .expect("Failed to delete workload");
 
     // Get workloads
     sleep(Duration::from_secs(5));

@@ -24,11 +24,12 @@ async fn print_workload_states(ank: &mut Ankaios) {
 
         // Print the states of the workloads
         for workload_state in workload_states {
-            println!("Workload {} on agent {} has the state {:?}", 
-                workload_state.workload_instance_name.workload_name, 
+            println!(
+                "Workload {} on agent {} has the state {:?}",
+                workload_state.workload_instance_name.workload_name,
                 workload_state.workload_instance_name.agent_name,
                 workload_state.execution_state.state
-            ); 
+            );
         }
     }
 }
@@ -45,20 +46,29 @@ async fn main() {
         .agent_name("agent_Rust_SDK")
         .runtime("podman")
         .restart_policy("NEVER")
-        .runtime_config(
-            "image: docker.io/library/nginx\ncommandOptions: [\"-p\", \"8080:80\"]"
-        ).build().expect("Failed to build workload");
-    
+        .runtime_config("image: docker.io/library/nginx\ncommandOptions: [\"-p\", \"8080:80\"]")
+        .build()
+        .expect("Failed to build workload");
+
     // Run the workload
-    let response = ank.apply_workload(workload).await.expect("Failed to apply workload");
+    let response = ank
+        .apply_workload(workload)
+        .await
+        .expect("Failed to apply workload");
 
     // Get the WorkloadInstanceName to check later if the workload is running
     let workload_instance_name = response.added_workloads[0].clone();
 
     // Request the execution state based on the workload instance name
-    match ank.get_execution_state_for_instance_name(&workload_instance_name).await {
+    match ank
+        .get_execution_state_for_instance_name(&workload_instance_name)
+        .await
+    {
         Ok(exec_state) => {
-            println!("State: {:?}, substate: {:?}, info: {:?}", exec_state.state, exec_state.substate, exec_state.additional_info);
+            println!(
+                "State: {:?}, substate: {:?}, info: {:?}",
+                exec_state.state, exec_state.substate, exec_state.additional_info
+            );
         }
         Err(err) => {
             println!("Error while getting workload state: {err:?}");
@@ -66,7 +76,13 @@ async fn main() {
     }
 
     // Wait until the workload reaches the running state
-    match ank.wait_for_workload_to_reach_state(workload_instance_name.clone(), WorkloadStateEnum::Running).await {
+    match ank
+        .wait_for_workload_to_reach_state(
+            workload_instance_name.clone(),
+            WorkloadStateEnum::Running,
+        )
+        .await
+    {
         Ok(()) => {
             println!("Workload reached the RUNNING state.");
         }
@@ -79,11 +95,16 @@ async fn main() {
     }
 
     // Get the workload
-    let workloads = ank.get_workload(workload_instance_name.clone().workload_name).await.expect("Failed to get workload");
+    let workloads = ank
+        .get_workload(workload_instance_name.clone().workload_name)
+        .await
+        .expect("Failed to get workload");
     let mut workload = workloads[0].clone();
 
     // Modify workload
-    workload.update_restart_policy("ALWAYS").expect("Failed to update restart policy");
+    workload
+        .update_restart_policy("ALWAYS")
+        .expect("Failed to update restart policy");
 
     // Update workload
     match ank.apply_workload(workload.clone()).await {
@@ -96,7 +117,13 @@ async fn main() {
     }
 
     // Wait until the workload reaches the running state
-    match ank.wait_for_workload_to_reach_state(workload_instance_name.clone(), WorkloadStateEnum::Running).await {
+    match ank
+        .wait_for_workload_to_reach_state(
+            workload_instance_name.clone(),
+            WorkloadStateEnum::Running,
+        )
+        .await
+    {
         Ok(()) => {
             println!("Workload reached the RUNNING state.");
         }
@@ -105,11 +132,14 @@ async fn main() {
                 println!("Workload didn't reach the required state in time.");
             }
             _ => println!("Error while waiting for workload to reach state: {err:?}"),
-        }
+        },
     }
 
     // Delete workload
-    match ank.delete_workload(workload_instance_name.workload_name).await {
+    match ank
+        .delete_workload(workload_instance_name.workload_name)
+        .await
+    {
         Ok(response) => {
             println!("Workload deleted: {response:?}");
         }

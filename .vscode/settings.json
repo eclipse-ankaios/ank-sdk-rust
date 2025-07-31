@@ -1,9 +1,28 @@
 {
     "cSpell.words": [
-        "Ankaios", "chrono", "Elektrobit",
-        "prost", "proto", "repr", "serde",
-        "substate", "thiserror", "utest",
-        "varint", "clippy", "oneshot", "mockall",
-        "itest", "withf", "mkfifo", "IRWXU", "unistd",
-    ]
+        "Ankaios",
+        "chrono",
+        "Elektrobit",
+        "prost",
+        "proto",
+        "repr",
+        "serde",
+        "substate",
+        "thiserror",
+        "utest",
+        "varint",
+        "clippy",
+        "oneshot",
+        "mockall",
+        "itest",
+        "withf",
+        "mkfifo",
+        "IRWXU",
+        "unistd",
+    ],
+    "[rust]": {
+        "editor.defaultFormatter": "rust-lang.rust-analyzer",
+        "editor.formatOnSave": true
+    },
+    "rust-analyzer.check.command": "clippy",
 }
