@@ -17,15 +17,17 @@
 set -e
 
 script_dir=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-base_dir="$script_dir"
+base_dir="$script_dir/.."
 sdk_version=""
 ankaios_version=""
 api_version=""
+release=false
 
 usage() {
     echo "Usage: $0 [--sdk <VERSION>] [--ank <VERSION>] [--api <VERSION>] [--help]"
     echo "Update the SDK, Ankaios and API versions."
     echo "You can update all of them at once or one by one."
+    echo "  --release          Set if the update is for a release version."
     echo "  --sdk <VERSION>    The new version of the SDK."
     echo "  --ank <VERSION>    The new version of Ankaios."
     echo "  --api <VERSION>    The new version for the supported API."
@@ -39,6 +41,9 @@ usage() {
 parse_arguments() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
+            --release)
+                release=true   
+                ;;
             --sdk)
                 shift
                 sdk_version="$1"
@@ -77,23 +82,25 @@ fi
 if [ -n "$sdk_version" ]; then
     echo "Updating SDK version to $sdk_version"
     sed -i "s|^version = .*|version = \"$sdk_version\"|" "$base_dir"/Cargo.toml
-    sed -i "s|documentation = \"https://docs.rs/ankaios-sdk/.*|documentation = \"https://docs.rs/ankaios-sdk/$sdk_version\"|" "$base_dir"/Cargo.toml
-    
-    sed -i "s|\(\[!\[Docs\.rs\](https://img\.shields\.io/badge/docs\.rs-66c2a5?style=for-the-badge&labelColor=555555&logo=docs\.rs)\](https://docs\.rs/ankaios-sdk/\)[^)]*|\1$sdk_version|" "$base_dir"/README.md
-    sed -i "s|\* \[Rust SDK documentation\](https://docs\.rs/ankaios-sdk/[^)]*)|* [Rust SDK documentation](https://docs.rs/ankaios-sdk/$sdk_version)|" "$base_dir"/README.md
-    sed -i "s|ankaios_sdk = \"[^\"]*\"|ankaios_sdk = \"$sdk_version\"|" "$base_dir"/README.md
-    
-    sed -i "s|#!\[doc(html_root_url = \"https://docs\.rs/ankaios_sdk/[^\"]*\")\]|#![doc(html_root_url = \"https://docs.rs/ankaios_sdk/$sdk_version\")]|" "$base_dir"/src/lib.rs
-    sed -i "s|//! \[!\[docs-rs\]\](https://docs\.rs/ankaios-sdk/[^)]*)|//! [![docs-rs]](https://docs.rs/ankaios-sdk/$sdk_version)|" "$base_dir"/src/lib.rs
-    sed -i "s|//! ankaios_sdk = \"[^\"]*\"|//! ankaios_sdk = \"$sdk_version\"|" "$base_dir"/src/lib.rs
-    sed -i "s|//! \* \[Rust SDK documentation\](https://docs\.rs/ankaios-sdk/[^)]*)|//! * [Rust SDK documentation](https://docs.rs/ankaios-sdk/$sdk_version)|" "$base_dir"/src/lib.rs
 
-    echo "Please remember to update the SDK versions in the compatibility tables from README.md and src/lib.rs!"
+    if [ "$release" = true ]; then  
+        sed -i "s|documentation = \"https://docs.rs/ankaios-sdk/.*|documentation = \"https://docs.rs/ankaios-sdk/$sdk_version\"|" "$base_dir"/Cargo.toml
+        
+        sed -i "s|\(\[!\[Docs\.rs\](https://img\.shields\.io/badge/docs\.rs-66c2a5?style=for-the-badge&labelColor=555555&logo=docs\.rs)\](https://docs\.rs/ankaios-sdk/\)[^)]*|\1$sdk_version|" "$base_dir"/README.md
+        sed -i "s|\* \[Rust SDK documentation\](https://docs\.rs/ankaios-sdk/[^)]*)|* [Rust SDK documentation](https://docs.rs/ankaios-sdk/$sdk_version)|" "$base_dir"/README.md
+        sed -i "s|ankaios_sdk = \"[^\"]*\"|ankaios_sdk = \"$sdk_version\"|" "$base_dir"/README.md
+        
+        sed -i "s|#!\[doc(html_root_url = \"https://docs\.rs/ankaios_sdk/[^\"]*\")\]|#![doc(html_root_url = \"https://docs.rs/ankaios_sdk/$sdk_version\")]|" "$base_dir"/src/lib.rs
+        sed -i "s|//! \[!\[docs-rs\]\](https://docs\.rs/ankaios-sdk/[^)]*)|//! [![docs-rs]](https://docs.rs/ankaios-sdk/$sdk_version)|" "$base_dir"/src/lib.rs
+        sed -i "s|//! ankaios_sdk = \"[^\"]*\"|//! ankaios_sdk = \"$sdk_version\"|" "$base_dir"/src/lib.rs
+        sed -i "s|//! \* \[Rust SDK documentation\](https://docs\.rs/ankaios-sdk/[^)]*)|//! * [Rust SDK documentation](https://docs.rs/ankaios-sdk/$sdk_version)|" "$base_dir"/src/lib.rs
+
+        echo "Please remember to update the SDK versions in the compatibility tables from README.md and src/lib.rs!"
+    fi
 fi
 
 if [ -n "$ankaios_version" ]; then
     echo "Updating Ankaios version to $ankaios_version"
-    sed -i "s/^ENV ANKAIOS_VERSION=.*/ENV ANKAIOS_VERSION=$ankaios_version/" "$base_dir"/examples/app/Dockerfile
     sed -i "s/const ANKAIOS_VERSION: &str = .*/const ANKAIOS_VERSION: \&str = \"$ankaios_version\";/" "$base_dir"/src/components/control_interface.rs
 fi
 

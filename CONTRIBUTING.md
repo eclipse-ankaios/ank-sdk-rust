@@ -11,7 +11,7 @@ You'll also need to create an [Eclipse Foundation account](https://accounts.ecli
 If you have a bug to report or a feature to suggest, please use the New Issue button on the Issues page to access templates for these items.
 
 Code contributions are to be submitted via pull requests.
-For this fork this repository, apply the suggested changes and create a
+To make a contribution, fork this repository, apply the suggested changes and create a
 pull request to integrate them.
 Before creating the request, please ensure the following which we will check
 besides a technical review:
@@ -20,6 +20,8 @@ besides a technical review:
 - **Docs updated**: Make sure any changes and additions are appropriately included into the design and user documentation.
 - **Rust coding guidelines**: Make sure to follow the [Rust coding guidelines for this project](https://eclipse-ankaios.github.io/ankaios/main/development/rust-coding-guidelines/).
 - **Unit verification strategy**: Unit tests have been created according to the [unit verification strategy](https://eclipse-ankaios.github.io/ankaios/main/development/unit-verification/).
+
+If a version change is required in the PR, use the [update_version.sh](./tools/update_version.sh) script to update the version.
 
 ## Communication
 
