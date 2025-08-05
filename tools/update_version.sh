@@ -74,6 +74,11 @@ fi
 
 parse_arguments "$@"
 
+if [ -n "$release" ] && [ -z "$sdk_version" ]; then
+    echo "Release mode is set, but no SDK version specified. Please provide a version with --sdk."
+    usage
+fi
+
 if [ -z "$sdk_version" ] && [ -z "$ankaios_version" ] && [ -z "$api_version" ]; then
     echo "You must specify at least one version to update."
     usage
