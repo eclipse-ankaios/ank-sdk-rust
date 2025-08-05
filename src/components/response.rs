@@ -44,10 +44,10 @@ use crate::components::complete_state::CompleteState;
 use crate::components::log_types::LogEntry;
 use crate::std_extensions::UnreachableOption;
 use ankaios_api::ank_base::{
-    response::ResponseContent as AnkaiosResponseContent, Error,
-    UpdateStateSuccess as AnkaiosUpdateStateSuccess,
+    Error, UpdateStateSuccess as AnkaiosUpdateStateSuccess,
+    response::ResponseContent as AnkaiosResponseContent,
 };
-use ankaios_api::control_api::{from_ankaios::FromAnkaiosEnum, FromAnkaios};
+use ankaios_api::control_api::{FromAnkaios, from_ankaios::FromAnkaiosEnum};
 use core::fmt;
 use std::collections::HashMap;
 use std::default;
@@ -385,17 +385,17 @@ pub fn generate_test_logs_stop_response(
 #[cfg(test)]
 mod tests {
     use super::{
-        generate_test_response_update_state_success, Response, ResponseType, UpdateStateSuccess,
+        Response, ResponseType, UpdateStateSuccess, generate_test_response_update_state_success,
     };
     use crate::ankaios_api;
     use crate::components::response::{
         generate_test_proto_log_entries_response, get_test_proto_from_ankaios_log_entries_response,
     };
     use ankaios_api::ank_base::{
-        response::ResponseContent as AnkaiosResponseContent, Response as AnkaiosResponse,
-        UpdateStateSuccess as AnkaiosUpdateStateSuccess,
+        Response as AnkaiosResponse, UpdateStateSuccess as AnkaiosUpdateStateSuccess,
+        response::ResponseContent as AnkaiosResponseContent,
     };
-    use ankaios_api::control_api::{from_ankaios, FromAnkaios};
+    use ankaios_api::control_api::{FromAnkaios, from_ankaios};
     use std::collections::HashMap;
 
     #[test]
@@ -567,7 +567,10 @@ mod tests {
             ])
         );
 
-        assert_eq!(format!("{update_state_success}"), "UpdateStateSuccess: added_workloads: [WorkloadInstanceName { agent_name: \"agent_Test\", workload_name: \"workload_new\", workload_id: \"1234\" }], deleted_workloads: [WorkloadInstanceName { agent_name: \"agent_Test\", workload_name: \"workload_old\", workload_id: \"5678\" }]");
+        assert_eq!(
+            format!("{update_state_success}"),
+            "UpdateStateSuccess: added_workloads: [WorkloadInstanceName { agent_name: \"agent_Test\", workload_name: \"workload_new\", workload_id: \"1234\" }], deleted_workloads: [WorkloadInstanceName { agent_name: \"agent_Test\", workload_name: \"workload_old\", workload_id: \"5678\" }]"
+        );
     }
 
     #[test]

@@ -12,8 +12,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ankaios_api::ank_base;
 use crate::AnkaiosError;
+use crate::ankaios_api::ank_base;
 use serde_yaml::{Mapping, Value};
 
 /// Key name for mount point of workload file.
@@ -220,9 +220,9 @@ impl File {
 
     #[doc(hidden)]
     /// Converts an [`ank_base::File`] protobuf message to a [`File`] object.
-    /// 
+    ///
     /// ## Returns
-    /// 
+    ///
     /// A [`File`] object containing its mount point and content.
     pub(crate) fn from_proto(file: ank_base::File) -> Self {
         match file.file_content {
@@ -235,7 +235,9 @@ impl File {
                 content: FileContent::BinaryData(binary_data),
             },
             None => {
-                log::warn!("This case is unreachable in reality as ank_base::File always contains either Data or BinaryData");
+                log::warn!(
+                    "This case is unreachable in reality as ank_base::File always contains either Data or BinaryData"
+                );
                 File {
                     mount_point: file.mount_point,
                     content: FileContent::Data(String::new()),
@@ -262,7 +264,7 @@ mod tests {
     #[test]
     fn test_from_data() {
         let file = File::from_data("/etc/config.txt", "Hello, World!");
-        
+
         assert_eq!(file.mount_point, "/etc/config.txt");
         assert_eq!(file.content, FileContent::Data("Hello, World!".to_owned()));
     }
@@ -271,15 +273,18 @@ mod tests {
     fn test_from_binary_data() {
         let base64_data = "iVBORw0KGgoAAAANSUhEUgA=";
         let file = File::from_binary_data("/usr/share/app/image.png", base64_data);
-        
+
         assert_eq!(file.mount_point, "/usr/share/app/image.png");
-        assert_eq!(file.content, FileContent::BinaryData(base64_data.to_owned()));
+        assert_eq!(
+            file.content,
+            FileContent::BinaryData(base64_data.to_owned())
+        );
     }
 
     #[test]
     fn test_from_data_with_empty_content() {
         let file = File::from_data("/etc/empty.txt", "");
-        
+
         assert_eq!(file.mount_point, "/etc/empty.txt");
         assert_eq!(file.content, FileContent::Data(String::new()));
     }
@@ -287,7 +292,7 @@ mod tests {
     #[test]
     fn test_from_binary_data_with_empty_content() {
         let file = File::from_binary_data("/usr/share/empty.bin", "");
-        
+
         assert_eq!(file.mount_point, "/usr/share/empty.bin");
         assert_eq!(file.content, FileContent::BinaryData(String::new()));
     }
@@ -296,7 +301,7 @@ mod tests {
     fn test_data_file_to_dict() {
         let file = File::from_data("/etc/config.txt", "Hello, World!");
         let dict = file.to_dict();
-        
+
         assert_eq!(
             dict.get(Value::String(FILE_MOUNT_POINT_KEY.to_owned())),
             Some(&Value::String("/etc/config.txt".to_owned()))
@@ -316,15 +321,12 @@ mod tests {
         let base64_data = "iVBORw0KGgoAAAANSUhEUgA=";
         let file = File::from_binary_data("/usr/share/app/image.png", base64_data);
         let dict = file.to_dict();
-        
+
         assert_eq!(
             dict.get(Value::String(FILE_MOUNT_POINT_KEY.to_owned())),
             Some(&Value::String("/usr/share/app/image.png".to_owned()))
         );
-        assert_eq!(
-            dict.get(Value::String(FILE_DATA_KEY.to_owned())),
-            None
-        );
+        assert_eq!(dict.get(Value::String(FILE_DATA_KEY.to_owned())), None);
         assert_eq!(
             dict.get(Value::String(FILE_BINARY_DATA_KEY.to_owned())),
             Some(&Value::String(base64_data.to_owned()))
@@ -342,9 +344,9 @@ mod tests {
             Value::String(FILE_DATA_KEY.to_owned()),
             Value::String("Hello, World!".to_owned()),
         );
-        
+
         let file = File::from_dict(&dict).unwrap();
-        
+
         assert_eq!(file.mount_point, "/etc/config.txt");
         assert_eq!(file.content, FileContent::Data("Hello, World!".to_owned()));
     }
@@ -361,11 +363,14 @@ mod tests {
             Value::String(FILE_BINARY_DATA_KEY.to_owned()),
             Value::String(base64_data.to_owned()),
         );
-        
+
         let file = File::from_dict(&dict).unwrap();
-        
+
         assert_eq!(file.mount_point, "/usr/share/app/image.png");
-        assert_eq!(file.content, FileContent::BinaryData(base64_data.to_owned()));
+        assert_eq!(
+            file.content,
+            FileContent::BinaryData(base64_data.to_owned())
+        );
     }
 
     #[test]
@@ -375,9 +380,9 @@ mod tests {
             Value::String(FILE_DATA_KEY.to_owned()),
             Value::String("Hello, World!".to_owned()),
         );
-        
+
         let result = File::from_dict(&dict);
-        
+
         assert!(result.is_err());
         match result.unwrap_err() {
             AnkaiosError::WorkloadFieldError(field, message) => {
@@ -395,9 +400,9 @@ mod tests {
             Value::String(FILE_MOUNT_POINT_KEY.to_owned()),
             Value::String("/etc/config.txt".to_owned()),
         );
-        
+
         let result = File::from_dict(&dict);
-        
+
         assert!(result.is_err());
         match result.unwrap_err() {
             AnkaiosError::WorkloadFieldError(field, message) => {
@@ -423,14 +428,17 @@ mod tests {
             Value::String(FILE_BINARY_DATA_KEY.to_owned()),
             Value::String("iVBORw0KGgoATMANSUhEUgA=".to_owned()),
         );
-        
+
         let result = File::from_dict(&dict);
-        
+
         assert!(result.is_err());
         match result.unwrap_err() {
             AnkaiosError::WorkloadFieldError(field, message) => {
                 assert_eq!(field, "file");
-                assert_eq!(message, "File cannot have both data and binary data content");
+                assert_eq!(
+                    message,
+                    "File cannot have both data and binary data content"
+                );
             }
             _ => panic!("Expected WorkloadFieldError"),
         }
@@ -447,9 +455,9 @@ mod tests {
             Value::String(FILE_DATA_KEY.to_owned()),
             Value::String("Hello, World!".to_owned()),
         );
-        
+
         let result = File::from_dict(&dict);
-        
+
         assert!(result.is_err());
         match result.unwrap_err() {
             AnkaiosError::WorkloadFieldError(field, message) => {
@@ -471,9 +479,9 @@ mod tests {
             Value::String(FILE_DATA_KEY.to_owned()),
             Value::Number(42.into()),
         );
-        
+
         let result = File::from_dict(&dict);
-        
+
         assert!(result.is_err());
         match result.unwrap_err() {
             AnkaiosError::WorkloadFieldError(field, message) => {
@@ -495,9 +503,9 @@ mod tests {
             Value::String(FILE_BINARY_DATA_KEY.to_owned()),
             Value::Number(42.into()),
         );
-        
+
         let result = File::from_dict(&dict);
-        
+
         assert!(result.is_err());
         match result.unwrap_err() {
             AnkaiosError::WorkloadFieldError(field, message) => {
@@ -513,7 +521,7 @@ mod tests {
         let original_file = File::from_data("/etc/config.txt", "Hello, World!");
         let dict = original_file.to_dict();
         let restored_file = File::from_dict(&dict).unwrap();
-        
+
         assert_eq!(original_file, restored_file);
     }
 
@@ -523,7 +531,7 @@ mod tests {
         let original_file = File::from_binary_data("/usr/share/app/image.png", base64_data);
         let dict = original_file.to_dict();
         let restored_file = File::from_dict(&dict).unwrap();
-        
+
         assert_eq!(original_file, restored_file);
     }
 
@@ -531,7 +539,7 @@ mod tests {
     fn test_to_proto_data_file() {
         let file = File::from_data("/etc/config.txt", "Hello, World!");
         let proto = file.into_proto();
-        
+
         assert_eq!(proto.mount_point, "/etc/config.txt");
         match proto.file_content {
             Some(ank_base::file::FileContent::Data(content)) => {
@@ -546,7 +554,7 @@ mod tests {
         let base64_data = "iVBORw0KGgoATMANSUhEUgA=";
         let file = File::from_binary_data("/usr/share/app/image.png", base64_data);
         let proto = file.into_proto();
-        
+
         assert_eq!(proto.mount_point, "/usr/share/app/image.png");
         match proto.file_content {
             Some(ank_base::file::FileContent::BinaryData(content)) => {
@@ -560,11 +568,13 @@ mod tests {
     fn test_from_proto_data_file() {
         let proto = ank_base::File {
             mount_point: "/etc/config.txt".to_owned(),
-            file_content: Some(ank_base::file::FileContent::Data("Hello, World!".to_owned())),
+            file_content: Some(ank_base::file::FileContent::Data(
+                "Hello, World!".to_owned(),
+            )),
         };
-        
+
         let file = File::from_proto(proto);
-        
+
         assert_eq!(file.mount_point, "/etc/config.txt");
         assert_eq!(file.content, FileContent::Data("Hello, World!".to_owned()));
     }
@@ -574,13 +584,18 @@ mod tests {
         let base64_data = "iVBORw0KGgoATMANSUhEUgA=";
         let proto = ank_base::File {
             mount_point: "/usr/share/app/image.png".to_owned(),
-            file_content: Some(ank_base::file::FileContent::BinaryData(base64_data.to_owned())),
+            file_content: Some(ank_base::file::FileContent::BinaryData(
+                base64_data.to_owned(),
+            )),
         };
-        
+
         let file = File::from_proto(proto);
-        
+
         assert_eq!(file.mount_point, "/usr/share/app/image.png");
-        assert_eq!(file.content, FileContent::BinaryData(base64_data.to_owned()));
+        assert_eq!(
+            file.content,
+            FileContent::BinaryData(base64_data.to_owned())
+        );
     }
 
     #[test]
@@ -588,7 +603,7 @@ mod tests {
         let original_file = File::from_data("/etc/config.txt", "Hello, World!");
         let proto = original_file.clone().into_proto();
         let restored_file = File::from_proto(proto);
-        
+
         assert_eq!(original_file, restored_file);
     }
 
@@ -598,7 +613,7 @@ mod tests {
         let original_file = File::from_binary_data("/usr/share/app/image.png", base64_data);
         let proto = original_file.clone().into_proto();
         let restored_file = File::from_proto(proto);
-        
+
         assert_eq!(original_file, restored_file);
     }
 
@@ -606,7 +621,7 @@ mod tests {
     fn test_clone() {
         let file = File::from_data("/etc/config.txt", "Hello, World!");
         let cloned_file = file.clone();
-        
+
         assert_eq!(file, cloned_file);
         assert_eq!(file.mount_point, cloned_file.mount_point);
         assert_eq!(file.content, cloned_file.content);
@@ -618,7 +633,7 @@ mod tests {
         let data_content2 = FileContent::Data("Hello".to_owned());
         let data_content3 = FileContent::Data("World".to_owned());
         let binary_data_content = FileContent::BinaryData("base64data".to_owned());
-        
+
         assert_eq!(data_content1, data_content2);
         assert_ne!(data_content1, data_content3);
         assert_ne!(data_content1, binary_data_content);

@@ -14,7 +14,7 @@
 
 //! This module contains the [`ControlInterface`] struct and the [`ControlInterfaceState`] enum.
 
-use prost::{encoding::decode_varint, Message};
+use prost::{Message, encoding::decode_varint};
 use std::{
     collections::HashMap,
     fmt,
@@ -28,15 +28,15 @@ use tokio::{
     spawn,
     sync::mpsc,
     task::JoinHandle,
-    time::{sleep, Duration},
+    time::{Duration, sleep},
 };
 
+use crate::AnkaiosError;
 use crate::components::request::Request;
 use crate::components::response::{Response, ResponseType};
 use crate::components::{log_types::LogResponse, workload_state_mod::WorkloadInstanceName};
-use crate::AnkaiosError;
-use crate::{ankaios_api, LogEntry};
-use ankaios_api::control_api::{to_ankaios::ToAnkaiosEnum, FromAnkaios, Hello, ToAnkaios};
+use crate::{LogEntry, ankaios_api};
+use ankaios_api::control_api::{FromAnkaios, Hello, ToAnkaios, to_ankaios::ToAnkaiosEnum};
 
 #[cfg(test)]
 use mockall::automock;
@@ -648,27 +648,27 @@ mod tests {
         io::{AsyncWriteExt, BufReader, BufWriter},
         net::unix::pipe,
         spawn,
-        sync::{mpsc, Barrier},
+        sync::{Barrier, mpsc},
         time::{sleep, timeout as tokio_timeout},
     };
 
     use super::{
-        read_protobuf_data, ControlInterface, ControlInterfaceState, ANKAIOS_INPUT_FIFO_PATH,
-        ANKAIOS_OUTPUT_FIFO_PATH, ANKAIOS_VERSION,
+        ANKAIOS_INPUT_FIFO_PATH, ANKAIOS_OUTPUT_FIFO_PATH, ANKAIOS_VERSION, ControlInterface,
+        ControlInterfaceState, read_protobuf_data,
     };
     use crate::ankaios_api;
     use crate::components::{
-        request::{generate_test_request, Request},
+        request::{Request, generate_test_request},
         response::{
-            generate_test_logs_stop_response, generate_test_proto_log_entries_response,
+            Response, generate_test_logs_stop_response, generate_test_proto_log_entries_response,
             generate_test_proto_update_state_success, generate_test_response_update_state_success,
-            get_test_proto_from_ankaios_log_entries_response, Response,
+            get_test_proto_from_ankaios_log_entries_response,
         },
     };
     use crate::{
-        ankaios::CHANNEL_SIZE, components::workload_state_mod::WorkloadInstanceName, LogResponse,
+        LogResponse, ankaios::CHANNEL_SIZE, components::workload_state_mod::WorkloadInstanceName,
     };
-    use ankaios_api::control_api::{to_ankaios::ToAnkaiosEnum, Hello, ToAnkaios};
+    use ankaios_api::control_api::{Hello, ToAnkaios, to_ankaios::ToAnkaiosEnum};
 
     /// Helper function for getting the state of the control interface.
     fn get_state(ci: &ControlInterface) -> ControlInterfaceState {
@@ -1044,13 +1044,14 @@ mod tests {
         ci.log_senders_map
             .insert(REQUEST_ID_1.to_owned(), logs_sender);
 
-        assert!(ci
-            .log_senders_map
-            .request_id_log_senders_map
-            .lock()
-            .unwrap()
-            .get(REQUEST_ID_2)
-            .is_none());
+        assert!(
+            ci.log_senders_map
+                .request_id_log_senders_map
+                .lock()
+                .unwrap()
+                .get(REQUEST_ID_2)
+                .is_none()
+        );
 
         let not_existing_log_request_id = REQUEST_ID_2.to_owned();
         ControlInterface::forward_log_entries(
@@ -1130,12 +1131,13 @@ mod tests {
         let log_response = response.unwrap();
         assert_eq!(log_response, LogResponse::LogsStopResponse(instance_name_2));
 
-        assert!(!ci
-            .log_senders_map
-            .request_id_log_senders_map
-            .lock()
-            .unwrap()
-            .is_empty());
+        assert!(
+            !ci.log_senders_map
+                .request_id_log_senders_map
+                .lock()
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]
@@ -1150,13 +1152,14 @@ mod tests {
         ci.log_senders_map
             .insert(REQUEST_ID_1.to_owned(), logs_sender);
 
-        assert!(ci
-            .log_senders_map
-            .request_id_log_senders_map
-            .lock()
-            .unwrap()
-            .get(REQUEST_ID_2)
-            .is_none());
+        assert!(
+            ci.log_senders_map
+                .request_id_log_senders_map
+                .lock()
+                .unwrap()
+                .get(REQUEST_ID_2)
+                .is_none()
+        );
 
         assert_eq!(
             ci.log_senders_map

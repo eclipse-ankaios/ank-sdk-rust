@@ -384,8 +384,8 @@ mod tests {
 
     use super::generate_test_workload_states_proto;
     use super::{
-        ank_base, WorkloadExecutionState, WorkloadInstanceName, WorkloadState,
-        WorkloadStateCollection,
+        WorkloadExecutionState, WorkloadInstanceName, WorkloadState, WorkloadStateCollection,
+        ank_base,
     };
 
     #[test]

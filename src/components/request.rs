@@ -44,12 +44,12 @@
 //! let request = GetStateRequest::new(vec!["desiredState.workloads".to_owned()]);
 //! ```
 
+use crate::LogsRequest;
 use crate::ankaios_api;
 use crate::components::complete_state::CompleteState;
-use crate::LogsRequest;
 use ankaios_api::ank_base::{
-    request::RequestContent, CompleteStateRequest, Request as AnkaiosRequest,
-    UpdateStateRequest as AnkaiosUpdateStateRequest,
+    CompleteStateRequest, Request as AnkaiosRequest,
+    UpdateStateRequest as AnkaiosUpdateStateRequest, request::RequestContent,
 };
 use std::fmt;
 use uuid::Uuid;

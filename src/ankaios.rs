@@ -20,7 +20,7 @@
 use std::collections::HashMap;
 use std::vec;
 use tokio::sync::mpsc;
-use tokio::time::{sleep, timeout as tokio_timeout, Duration};
+use tokio::time::{Duration, sleep, timeout as tokio_timeout};
 
 #[cfg_attr(test, mockall_double::double)]
 use crate::components::control_interface::ControlInterface;
@@ -31,7 +31,7 @@ use crate::components::request::{
     AnkaiosLogsRequest, GetStateRequest, LogsCancelRequest, Request, UpdateStateRequest,
 };
 use crate::components::response::{Response, ResponseType, UpdateStateSuccess};
-use crate::components::workload_mod::{Workload, WORKLOADS_PREFIX};
+use crate::components::workload_mod::{WORKLOADS_PREFIX, Workload};
 use crate::components::workload_state_mod::{
     WorkloadExecutionState, WorkloadInstanceName, WorkloadStateCollection, WorkloadStateEnum,
 };
@@ -1088,14 +1088,14 @@ fn generate_test_ankaios(
 mod tests {
     use std::{collections::HashMap, sync::LazyLock};
     use tokio::{
-        sync::{mpsc, Mutex},
+        sync::{Mutex, mpsc},
         time::Duration,
     };
 
     use super::{
-        generate_test_ankaios, Ankaios, AnkaiosError, CompleteState, ControlInterface, Response,
-        WorkloadInstanceName, WorkloadStateEnum, AGENTS_PREFIX, API_VERSION_PREFIX, CONFIGS_PREFIX,
-        WORKLOAD_STATES_PREFIX,
+        AGENTS_PREFIX, API_VERSION_PREFIX, Ankaios, AnkaiosError, CONFIGS_PREFIX, CompleteState,
+        ControlInterface, Response, WORKLOAD_STATES_PREFIX, WorkloadInstanceName,
+        WorkloadStateEnum, generate_test_ankaios,
     };
     use crate::ankaios_api::ank_base::request::RequestContent;
     use crate::components::request::LogsCancelRequest;
@@ -1104,7 +1104,7 @@ mod tests {
         manifest::generate_test_manifest,
         request::{AnkaiosLogsRequest, GetStateRequest, Request, UpdateStateRequest},
         response::generate_test_response_update_state_success,
-        workload_mod::{test_helpers::generate_test_workload, WORKLOADS_PREFIX},
+        workload_mod::{WORKLOADS_PREFIX, test_helpers::generate_test_workload},
     };
     use crate::{LogCampaignResponse, LogEntry, LogResponse, LogsRequest as InputLogsRequest};
 
