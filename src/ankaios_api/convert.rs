@@ -15,7 +15,7 @@
 use std::collections::HashMap;
 
 use crate::ankaios_api;
-use ankaios_api::ank_base::{config_item, ConfigArray, ConfigItem, ConfigObject};
+use ankaios_api::ank_base::{ConfigArray, ConfigItem, ConfigObject, config_item};
 
 impl TryFrom<serde_yaml::Value> for ConfigItem {
     type Error = String;
@@ -93,7 +93,7 @@ mod tests {
     use serde_yaml::Value;
 
     use crate::ankaios_api;
-    use ankaios_api::ank_base::{config_item, ConfigArray, ConfigItem, ConfigObject};
+    use ankaios_api::ank_base::{ConfigArray, ConfigItem, ConfigObject, config_item};
 
     const YAML_CONFIG_EXAMPLE: &str = r"
 - string_value

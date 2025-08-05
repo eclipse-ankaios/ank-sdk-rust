@@ -12,10 +12,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ankaios_api;
 use crate::AnkaiosError;
-use crate::WorkloadBuilder;
 use crate::File;
+use crate::WorkloadBuilder;
+use crate::ankaios_api;
 use ankaios_api::ank_base;
 use serde_yaml::Value;
 use std::{borrow::ToOwned, collections::HashMap, convert::Into, fmt, path::Path, vec};
@@ -718,7 +718,7 @@ impl Workload {
                     return Err(AnkaiosError::WorkloadFieldError(
                         FIELD_RESTART_POLICY.to_owned(),
                         restart_policy_str,
-                    ))
+                    ));
                 }
             };
         self.add_mask(format!("{}.{FIELD_RESTART_POLICY}", self.main_mask));
@@ -766,7 +766,7 @@ impl Workload {
                     return Err(AnkaiosError::WorkloadFieldError(
                         "dependency condition".to_owned(),
                         cond,
-                    ))
+                    ));
                 }
             };
             if let Some(deps) = self.workload.dependencies.as_mut() {
@@ -872,7 +872,7 @@ impl Workload {
                                 return Err(AnkaiosError::WorkloadFieldError(
                                     SUBFIELD_ACCESS_OPERATION.to_owned(),
                                     operation.to_owned(),
-                                ))
+                                ));
                             }
                         },
                         filter_masks,
@@ -909,14 +909,14 @@ impl Workload {
                         return Err(AnkaiosError::WorkloadFieldError(
                             SUBFIELD_ACCESS_OPERATION.to_owned(),
                             rule.operation.to_string(),
-                        ))
+                        ));
                     }
                 },
                 _ => {
                     return Err(AnkaiosError::WorkloadFieldError(
                         SUBFIELD_ACCESS_OPERATION.to_owned(),
                         rule.operation.to_string(),
-                    ))
+                    ));
                 }
             },
             rule.filter_masks.clone(),
@@ -1118,7 +1118,12 @@ impl Workload {
     #[must_use]
     pub fn get_files(&self) -> Vec<File> {
         if let Some(files) = &self.workload.files {
-            files.files.clone().into_iter().map(File::from_proto).collect()
+            files
+                .files
+                .clone()
+                .into_iter()
+                .map(File::from_proto)
+                .collect()
         } else {
             Vec::new()
         }
@@ -1136,7 +1141,10 @@ impl Workload {
             self.workload.files = None;
         } else {
             self.workload.files = Some(ank_base::Files {
-                files: files.into_iter().map(super::file::File::into_proto).collect(),
+                files: files
+                    .into_iter()
+                    .map(super::file::File::into_proto)
+                    .collect(),
             });
             self.add_mask(format!("{}.{FIELD_FILES}", self.main_mask));
         }
@@ -1317,9 +1325,10 @@ mod tests {
         assert!(wl.update_dependencies(deps).is_ok());
         assert_eq!(wl.get_dependencies().len(), 1);
 
-        assert!(wl
-            .update_dependencies(HashMap::from([("workload_A", "Dance")]))
-            .is_err());
+        assert!(
+            wl.update_dependencies(HashMap::from([("workload_A", "Dance")]))
+                .is_err()
+        );
     }
 
     #[test]
@@ -1358,12 +1367,13 @@ mod tests {
         assert!(wl.update_allow_rules(allow_rules).is_ok());
         assert_eq!(wl.get_allow_rules().unwrap().len(), 2);
 
-        assert!(wl
-            .update_allow_rules(vec![(
+        assert!(
+            wl.update_allow_rules(vec![(
                 "Dance".to_owned(),
                 vec!["desiredState.workloads.workload_A".to_owned()]
             )])
-            .is_err());
+            .is_err()
+        );
 
         let mut deny_rules = wl.get_deny_rules().unwrap();
         assert_eq!(deny_rules.len(), 1);
@@ -1375,12 +1385,13 @@ mod tests {
         assert!(wl.update_deny_rules(deny_rules).is_ok());
         assert_eq!(wl.get_deny_rules().unwrap().len(), 2);
 
-        assert!(wl
-            .update_deny_rules(vec![(
+        assert!(
+            wl.update_deny_rules(vec![(
                 "Dance".to_owned(),
                 vec!["desiredState.workloads.workload_A".to_owned()]
             )])
-            .is_err());
+            .is_err()
+        );
     }
 
     #[test]
@@ -1441,38 +1452,44 @@ mod tests {
             .unwrap();
 
         let config_file = File::from_data("/etc/app/config.yaml", "debug: true");
-        let icon_file = File::from_binary_data("/usr/share/app/icon.png", "iVBORw0KGgoAAAANSUhEUgA...");
+        let icon_file =
+            File::from_binary_data("/usr/share/app/icon.png", "iVBORw0KGgoAAAANSUhEUgA...");
 
         wl.add_file(config_file);
         wl.add_file(icon_file);
 
         let files = wl.get_files();
         assert_eq!(files.len(), 2);
-        assert!(files
-            .iter()
-            .any(|f| f.mount_point == "/etc/app/config.yaml"));
-        assert!(files
-            .iter()
-            .any(|f| f.mount_point == "/usr/share/app/icon.png"));
+        assert!(
+            files
+                .iter()
+                .any(|f| f.mount_point == "/etc/app/config.yaml")
+        );
+        assert!(
+            files
+                .iter()
+                .any(|f| f.mount_point == "/usr/share/app/icon.png")
+        );
 
         // Test updating file objects
         let new_files = vec![
             File::from_data("/etc/new_config.yaml", "production: true"),
-            File::from_binary_data(
-                "/usr/share/binary_data",
-                "AAABAAEAEBAAAAEAIABoBAAAFgAAA...",
-            ),
+            File::from_binary_data("/usr/share/binary_data", "AAABAAEAEBAAAAEAIABoBAAAFgAAA..."),
         ];
 
         wl.update_files(new_files);
         let updated_files = wl.get_files();
         assert_eq!(updated_files.len(), 2);
-        assert!(updated_files
-            .iter()
-            .any(|f| f.mount_point == "/etc/new_config.yaml"));
-        assert!(updated_files
-            .iter()
-            .any(|f| f.mount_point == "/usr/share/binary_data"));
+        assert!(
+            updated_files
+                .iter()
+                .any(|f| f.mount_point == "/etc/new_config.yaml")
+        );
+        assert!(
+            updated_files
+                .iter()
+                .any(|f| f.mount_point == "/usr/share/binary_data")
+        );
     }
 
     macro_rules! generate_test_for_mask_generation {
@@ -1614,36 +1631,44 @@ mod tests {
     #[test]
     fn utest_build_return_err() {
         // No workload name
-        assert!(Workload::builder()
-            .agent_name("agent_A")
-            .runtime("podman")
-            .runtime_config("config")
-            .build()
-            .is_err());
+        assert!(
+            Workload::builder()
+                .agent_name("agent_A")
+                .runtime("podman")
+                .runtime_config("config")
+                .build()
+                .is_err()
+        );
 
         // No agent
-        assert!(Workload::builder()
-            .workload_name("Test")
-            .runtime("podman")
-            .runtime_config("config")
-            .build()
-            .is_err());
+        assert!(
+            Workload::builder()
+                .workload_name("Test")
+                .runtime("podman")
+                .runtime_config("config")
+                .build()
+                .is_err()
+        );
 
         // No runtime
-        assert!(Workload::builder()
-            .workload_name("Test")
-            .agent_name("agent_A")
-            .runtime_config("config")
-            .build()
-            .is_err());
+        assert!(
+            Workload::builder()
+                .workload_name("Test")
+                .agent_name("agent_A")
+                .runtime_config("config")
+                .build()
+                .is_err()
+        );
 
         // No runtime config
-        assert!(Workload::builder()
-            .workload_name("Test")
-            .agent_name("agent_A")
-            .runtime("podman")
-            .build()
-            .is_err());
+        assert!(
+            Workload::builder()
+                .workload_name("Test")
+                .agent_name("agent_A")
+                .runtime("podman")
+                .build()
+                .is_err()
+        );
     }
 
     #[test]
@@ -1655,6 +1680,9 @@ mod tests {
             .runtime_config("config")
             .build()
             .unwrap();
-        assert_eq!(format!("{wl}"), "Workload Test: Workload { agent: Some(\"agent_A\"), restart_policy: None, dependencies: None, tags: None, runtime: Some(\"podman\"), runtime_config: Some(\"config\"), control_interface_access: None, configs: None, files: None }");
+        assert_eq!(
+            format!("{wl}"),
+            "Workload Test: Workload { agent: Some(\"agent_A\"), restart_policy: None, dependencies: None, tags: None, runtime: Some(\"podman\"), runtime_config: Some(\"config\"), control_interface_access: None, configs: None, files: None }"
+        );
     }
 }

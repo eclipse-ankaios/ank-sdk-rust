@@ -357,11 +357,11 @@ impl WorkloadBuilder {
 #[cfg(test)]
 mod tests {
     use super::Workload;
+    use crate::AnkaiosError;
     use crate::components::workload_mod::file::File;
     use crate::components::workload_mod::test_helpers::{
         generate_test_runtime_config, generate_test_workload_proto,
     };
-    use crate::AnkaiosError;
     use std::path::Path;
 
     #[test]

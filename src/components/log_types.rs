@@ -146,7 +146,7 @@ impl LogCampaignResponse {
 //////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 mod tests {
-    use super::{ankaios_api, LogCampaignResponse, LogEntry, WorkloadInstanceName};
+    use super::{LogCampaignResponse, LogEntry, WorkloadInstanceName, ankaios_api};
     use tokio::sync::mpsc;
 
     const REQUEST_ID: &str = "test_request_id";

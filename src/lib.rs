@@ -219,7 +219,7 @@ pub use components::complete_state::CompleteState;
 pub use components::control_interface::ControlInterfaceState;
 pub use components::log_types::{LogCampaignResponse, LogEntry, LogResponse, LogsRequest};
 pub use components::manifest::Manifest;
-pub use components::workload_mod::{Workload, WorkloadBuilder, File, FileContent};
+pub use components::workload_mod::{File, FileContent, Workload, WorkloadBuilder};
 pub use components::workload_state_mod::{
     WorkloadState, WorkloadStateCollection, WorkloadStateEnum,
 };

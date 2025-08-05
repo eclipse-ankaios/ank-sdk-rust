@@ -571,7 +571,7 @@ mod tests {
     use serde_yaml::Value;
     use std::collections::HashMap;
 
-    use super::{generate_complete_state_proto, CompleteState, SUPPORTED_API_VERSION};
+    use super::{CompleteState, SUPPORTED_API_VERSION, generate_complete_state_proto};
     use crate::components::manifest::generate_test_manifest;
     use crate::components::workload_mod::test_helpers::generate_test_workload;
     use crate::components::workload_state_mod::WorkloadInstanceName;
@@ -733,8 +733,10 @@ mod tests {
         let workload_states = complete_state.get_workload_states();
         let workload_instance_name =
             WorkloadInstanceName::new("agent_A".to_owned(), "nginx".to_owned(), "1234".to_owned());
-        assert!(workload_states
-            .get_for_instance_name(&workload_instance_name)
-            .is_some());
+        assert!(
+            workload_states
+                .get_for_instance_name(&workload_instance_name)
+                .is_some()
+        );
     }
 }
