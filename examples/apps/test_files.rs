@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use ankaios_sdk::{Ankaios, File, Workload};
+use ankaios_sdk::{Ankaios, File, FileContent, Workload};
 use tokio::time::Duration;
 
 async fn print_workload_states(ank: &mut Ankaios) {
@@ -97,11 +97,10 @@ async fn main() {
         .expect("Failed to build dynamic workload");
 
     // Add initial file
-    dynamic_workload
-        .add_file(File::from_data(
-            "/usr/share/nginx/html/index.html",
-            "<html><body><h1>Initial content</h1></body></html>",
-        ));
+    dynamic_workload.add_file(File::from_data(
+        "/usr/share/nginx/html/index.html",
+        "<html><body><h1>Initial content</h1></body></html>",
+    ));
 
     ank.apply_workload(dynamic_workload.clone())
         .await
@@ -136,12 +135,15 @@ async fn main() {
             );
             let wl_files = workload.get_files();
             for file in wl_files {
-                match &file.file_content {
-                    ank_base::file::FileContent::Data(data) => {
+                match &file.content {
+                    FileContent::Data(data) => {
                         println!("  Text file: {} - Content: {}", file.mount_point, data);
                     }
-                    ank_base::file::FileContent::BinaryData(binary_data) => {
-                        println!("  Binary file: {} - Content: {}", file.mount_point, binary_data);
+                    FileContent::BinaryData(binary_data) => {
+                        println!(
+                            "  Binary file: {} - Content: {}",
+                            file.mount_point, binary_data
+                        );
                     }
                     _ => unreachable!("Unexpected file content type"),
                 }
