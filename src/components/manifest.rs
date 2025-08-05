@@ -166,13 +166,13 @@ impl TryFrom<serde_yaml::Value> for Manifest {
                 None => {
                     return Err(AnkaiosError::ManifestParsingError(
                         "Invalid apiVersion".to_owned(),
-                    ))
+                    ));
                 }
             },
             None => {
                 return Err(AnkaiosError::ManifestParsingError(
                     "Missing apiVersion".to_owned(),
-                ))
+                ));
             }
         };
 
@@ -299,7 +299,7 @@ pub fn generate_test_manifest() -> Manifest {
 
 #[cfg(test)]
 mod tests {
-    use super::{Manifest, MANIFEST_CONTENT};
+    use super::{MANIFEST_CONTENT, Manifest};
     use serde_yaml;
     use std::path::Path;
 

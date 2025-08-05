@@ -12,8 +12,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ankaios_api;
 use crate::Workload;
+use crate::ankaios_api;
 use ankaios_api::ank_base;
 use std::collections::HashMap;
 use std::path::Path;

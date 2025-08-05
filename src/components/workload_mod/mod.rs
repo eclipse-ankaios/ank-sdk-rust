@@ -22,7 +22,7 @@ mod workload;
 mod workload_builder;
 
 pub use file::{File, FileContent};
-pub use workload::{Workload, WORKLOADS_PREFIX};
+pub use workload::{WORKLOADS_PREFIX, Workload};
 pub use workload_builder::WorkloadBuilder;
 
 #[cfg(test)]
