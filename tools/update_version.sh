@@ -74,7 +74,7 @@ fi
 
 parse_arguments "$@"
 
-if [ -n "$release" ] && [ -z "$sdk_version" ]; then
+if [ "$release" = true ] && [ -z "$sdk_version" ]; then
     echo "Release mode is set, but no SDK version specified. Please provide a version with --sdk."
     usage
 fi
