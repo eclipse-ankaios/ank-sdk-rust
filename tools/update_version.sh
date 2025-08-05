@@ -24,7 +24,7 @@ api_version=""
 release=false
 
 usage() {
-    echo "Usage: $0 [--sdk <VERSION>] [--ank <VERSION>] [--api <VERSION>] [--help]"
+    echo "Usage: $0 [--release] [--sdk <VERSION>] [--ank <VERSION>] [--api <VERSION>] [--help]"
     echo "Update the SDK, Ankaios and API versions."
     echo "You can update all of them at once or one by one."
     echo "  --release          Set if the update is for a release version."
