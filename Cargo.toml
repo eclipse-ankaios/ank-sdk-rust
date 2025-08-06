@@ -9,7 +9,7 @@ documentation = "https://docs.rs/ankaios-sdk/0.6.0"
 repository = "https://github.com/eclipse-ankaios/ank-sdk-rust"
 readme = "README.md"
 keywords = ["ankaios", "automotive", "sdk", "container", "orchestration"]
-categories = ["virtualization", "api-bindings"]  # https://crates.io/category_slugs
+categories = ["automotive", "virtualization", "api-bindings"]  # https://crates.io/category_slugs
 exclude = ["/tests", "/.github"]
 
 [lib]
