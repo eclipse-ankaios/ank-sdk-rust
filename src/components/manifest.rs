@@ -33,8 +33,6 @@ fn read_file_to_string(path: &Path) -> Result<String, io::Error> {
 #[cfg(test)]
 use self::read_to_string_mock as read_file_to_string;
 
-/// The prefix for the api version in the desired state.
-pub const API_VERSION_PREFIX: &str = "desiredState.apiVersion";
 /// The prefix for the configs in the desired state.
 pub const CONFIGS_PREFIX: &str = "desiredState.configs";
 
