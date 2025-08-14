@@ -36,3 +36,22 @@ impl<T> UnreachableOption<T> for Option<T> {
         }
     }
 }
+
+//////////////////////////////////////////////////////////////////////////////
+//                 ########  #######    #########  #########                //
+//                    ##     ##        ##             ##                    //
+//                    ##     #####     #########      ##                    //
+//                    ##     ##                ##     ##                    //
+//                    ##     #######   #########      ##                    //
+//////////////////////////////////////////////////////////////////////////////
+
+mod tests {
+    #[allow(unused_imports)]
+    use super::UnreachableOption;
+
+    #[test]
+    #[should_panic(expected = "internal error: entered unreachable code")]
+    fn test_unreachable_case() {
+        let _ = None::<&str>.unwrap_or_unreachable();
+    }
+}
