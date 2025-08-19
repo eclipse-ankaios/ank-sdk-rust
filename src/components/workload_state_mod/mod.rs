@@ -22,15 +22,21 @@
 //! ## Get all workload states:
 //!
 //! ```rust
+//! use ankaios_sdk::WorkloadStateCollection;
+//!
 //! let workload_state_collection = WorkloadStateCollection::new();
-//! let workload_states_list = workload_state_collection.get_as_list();
-//! let workload_states_map = workload_state_collection.get_as_dict();
+//! let workload_states_list = workload_state_collection.as_list();
+//! # let workload_state_collection = WorkloadStateCollection::new();
+//! let workload_states_map = workload_state_collection.as_dict();
 //! ```
 //!
 //! ## Unpack a workload state
 //!
 //! ```rust
-//! let workload_state: WorkloadState = /* */;
+//! # use ankaios_sdk::WorkloadState;
+//! #
+//! let workload_state: WorkloadState;
+//! # let workload_state = WorkloadState::default();
 //! let agent_name = workload_state.workload_instance_name.agent_name;
 //! let workload_name = workload_state.workload_instance_name.workload_name;
 //! let workload_id = workload_state.workload_instance_name.workload_id;
@@ -42,7 +48,10 @@
 //! ## Get the workload instance name as a dictionary:
 //!
 //! ```rust
-//! let workload_instance_name = /* */;
+//! # use ankaios_sdk::WorkloadInstanceName;
+//! #
+//! let workload_instance_name: WorkloadInstanceName;
+//! # let workload_instance_name = WorkloadInstanceName::default();
 //! let instance_name_dict = workload_instance_name.to_dict();
 //! ```
 

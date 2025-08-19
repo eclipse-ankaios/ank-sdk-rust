@@ -23,7 +23,11 @@ clippy:
 
 # Run tests using cargo nextest if installed
 test:
-    bash -c 'if which cargo-nextest > /dev/null 2>&1; then cargo nextest run; else cargo test; fi'
+    bash -c 'if which cargo-nextest > /dev/null 2>&1; then cargo nextest run; else cargo test --tests; fi'
+
+# Run documentation tests
+doctest:
+    cargo test --doc
 
 # Run code coverage
 cov:

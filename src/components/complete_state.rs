@@ -36,44 +36,71 @@ const SUPPORTED_API_VERSION: &str = "v0.1";
 /// ## Create a new `CompleteState` object:
 ///
 /// ```rust
+/// # use ankaios_sdk::CompleteState;
+/// #
 /// let complete_state = CompleteState::new();
 /// ```
 ///
 /// ## Get the API version of the complete state:
 ///
-/// ```rust
+/// ```rust,no_run
+/// # use ankaios_sdk::CompleteState;
+/// #
+/// # let complete_state = CompleteState::new();
+/// #
 /// let api_version = complete_state.get_api_version();
 /// ```
 ///
 /// ## Get a workload from the complete state:
 ///
-/// ```rust
+/// ```rust,no_run
+/// # use ankaios_sdk::CompleteState;
+/// #
+/// # let complete_state = CompleteState::new();
+/// #
 /// let workload = complete_state.get_workload("workload_name");
 /// ```
 ///
 /// ## Get the entire list of workloads from the complete state:
 ///
-/// ```rust
+/// ```rust,no_run
+/// # use ankaios_sdk::CompleteState;
+/// #
+/// # let complete_state = CompleteState::new();
+/// #
 /// let workloads = complete_state.get_workloads();
 /// ```
 ///
 /// ## Get the connected agents:
 ///
-/// ```rust
+/// ```rust,no_run
+/// # use ankaios_sdk::CompleteState;
+/// #
+/// # let complete_state = CompleteState::new();
+/// #
 /// let agents = complete_state.get_agents();
 /// ```
 ///
 /// ## Get the workload states:
 ///
-/// ```rust
+/// ```rust,no_run
+/// # use ankaios_sdk::CompleteState;
+/// #
+/// # let complete_state = CompleteState::new();
+/// #
 /// let workload_states = complete_state.get_workload_states();
 /// ```
 ///
 /// ## Create a `CompleteState` object from a `Manifest`:
 ///
-/// ```rust
-/// let manifest = /* */;
-/// let complete_state = CompleteState::from(&manifest).unwrap();
+/// ```rust,no_run
+/// # use ankaios_sdk::{CompleteState, Manifest};
+/// #
+/// # let complete_state = CompleteState::new();
+/// #
+/// let manifest: Manifest;
+/// # let manifest = Manifest::from_string("").unwrap();
+/// let complete_state = CompleteState::new_from_manifest(manifest);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompleteState {
@@ -271,12 +298,12 @@ impl CompleteState {
     /// A [Workload] instance if found, otherwise `None`.
     pub fn get_workload<T: Into<String>>(&self, workload_name: T) -> Option<Workload> {
         let workload_name_str = workload_name.into();
-        if let Some(desired_state) = self.complete_state.desired_state.as_ref() {
-            if let Some(workloads) = desired_state.workloads.as_ref() {
-                for (name, workload) in &workloads.workloads {
-                    if workload_name_str == *name {
-                        return Some(Workload::new_from_proto(name, workload.clone()));
-                    }
+        if let Some(desired_state) = self.complete_state.desired_state.as_ref()
+            && let Some(workloads) = desired_state.workloads.as_ref()
+        {
+            for (name, workload) in &workloads.workloads {
+                if workload_name_str == *name {
+                    return Some(Workload::new_from_proto(name, workload.clone()));
                 }
             }
         }
@@ -291,11 +318,11 @@ impl CompleteState {
     #[must_use]
     pub fn get_workloads(&self) -> Vec<Workload> {
         let mut workloads_vec = Vec::new();
-        if let Some(desired_state) = self.complete_state.desired_state.as_ref() {
-            if let Some(workloads) = desired_state.workloads.as_ref() {
-                for (workload_name, workload) in &workloads.workloads {
-                    workloads_vec.push(Workload::new_from_proto(workload_name, workload.clone()));
-                }
+        if let Some(desired_state) = self.complete_state.desired_state.as_ref()
+            && let Some(workloads) = desired_state.workloads.as_ref()
+        {
+            for (workload_name, workload) in &workloads.workloads {
+                workloads_vec.push(Workload::new_from_proto(workload_name, workload.clone()));
             }
         }
         workloads_vec
@@ -415,14 +442,14 @@ impl CompleteState {
                 None => Value::Null,
             }
         }
-        if let Some(desired_state) = self.complete_state.desired_state.as_ref() {
-            if let Some(configs) = desired_state.configs.as_ref() {
-                return configs
-                    .configs
-                    .iter()
-                    .map(|(k, v)| (k.clone(), from_config_item(v)))
-                    .collect();
-            }
+        if let Some(desired_state) = self.complete_state.desired_state.as_ref()
+            && let Some(configs) = desired_state.configs.as_ref()
+        {
+            return configs
+                .configs
+                .iter()
+                .map(|(k, v)| (k.clone(), from_config_item(v)))
+                .collect();
         }
         HashMap::new()
     }
