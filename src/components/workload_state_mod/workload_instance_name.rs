@@ -24,6 +24,8 @@ use crate::ankaios_api;
 /// ## Create a Workload Instance Name object
 ///
 /// ```rust
+/// use ankaios_sdk::WorkloadInstanceName;
+/// 
 /// let workload_instance_name = WorkloadInstanceName::new(
 ///     "agent_Test".to_owned(),
 ///     "workload_Test".to_owned(),
@@ -52,6 +54,7 @@ impl WorkloadInstanceName {
     /// ## Returns
     ///
     /// A new [`WorkloadInstanceName`] object.
+    #[must_use]
     pub fn new(
         agent_name: String,
         workload_name: String,
@@ -69,6 +72,7 @@ impl WorkloadInstanceName {
     /// ## Returns
     ///
     /// A [Mapping](serde_yaml::Mapping) containing the `WorkloadInstanceName` information.
+    #[must_use]
     pub fn to_dict(&self) -> serde_yaml::Mapping {
         let mut map = serde_yaml::Mapping::new();
         map.insert(
@@ -91,6 +95,7 @@ impl WorkloadInstanceName {
     /// ## Returns
     ///
     /// A [String] that represents the filter mask.
+    #[must_use]
     pub fn get_filter_mask(&self) -> String {
         format!(
             "workloadStates.{}.{}.{}",

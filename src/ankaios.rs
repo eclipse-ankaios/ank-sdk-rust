@@ -56,105 +56,197 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 ///
 /// ## Create an Ankaios object, connect and disconnect from the control interface:
 ///
-/// ```rust
+/// ```rust,no_run
+/// use ankaios_sdk::Ankaios;
+/// # use tokio::runtime::Runtime;
+/// #
+/// # Runtime::new().unwrap().block_on(async {
+/// 
 /// let ankaios = Ankaios::new().await.unwrap();
 /// /* */
 /// drop(ankaios);
+/// # })
 /// ```
 ///
 /// ## Create an Ankaios object and set the default timeout for requests:
 ///
-/// ```rust
+/// ```rust,no_run
+/// # use ankaios_sdk::Ankaios;
+/// # use tokio::time::Duration;
+/// # use tokio::runtime::Runtime;
+/// #
+/// # Runtime::new().unwrap().block_on(async {
+/// #
 /// let ankaios = Ankaios::new_with_timeout(Duration::from_secs(5)).await.unwrap();
+/// # })
 /// ```
 ///
 /// ## Apply a manifest:
 ///
-/// ```rust
-/// let manifest = /* */;
+/// ```rust,no_run
+/// # use ankaios_sdk::{Ankaios, Manifest};
+/// # use tokio::runtime::Runtime;
+/// #
+/// # Runtime::new().unwrap().block_on(async {
+/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// #
+/// let manifest: Manifest;
+/// # let manifest = Manifest::from_string("").unwrap();
 /// let update_state_success = ankaios.apply_manifest(manifest).await.unwrap();
 /// println!("{:?}", update_state_success);
+/// # })
 /// ```
 ///
 /// ## Delete a manifest:
 ///
-/// ```rust
-/// let manifest = /* */;
+/// ```rust,no_run
+/// # use ankaios_sdk::{Ankaios, Manifest};
+/// # use tokio::runtime::Runtime;
+/// #
+/// # Runtime::new().unwrap().block_on(async {
+/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// #
+/// let manifest: Manifest;
+/// # let manifest = Manifest::from_string("").unwrap();
 /// let update_state_success = ankaios.delete_manifest(manifest).await.unwrap();
 /// println!("{:?}", update_state_success);
+/// # })
 /// ```
 ///
 /// ## Run a workload:
 ///
-/// ```rust
-/// let workload = /* */;
+/// ```rust,no_run
+/// # use ankaios_sdk::{Ankaios, Workload};
+/// # use tokio::runtime::Runtime;
+/// #
+/// # Runtime::new().unwrap().block_on(async {
+/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// #
+/// let workload: Workload;
+/// # let workload = Workload::builder().build().unwrap();
 /// let update_state_success = ankaios.apply_workload(workload).await.unwrap();
 /// println!("{:?}", update_state_success);
+/// # })
 /// ```
 ///
 /// ## Get a workload:
 ///
-/// ```rust
-/// let workload_name: String = /* */;
+/// ```rust,no_run
+/// # use ankaios_sdk::Ankaios;
+/// # use tokio::runtime::Runtime;
+/// #
+/// # Runtime::new().unwrap().block_on(async {
+/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// #
+/// let workload_name: String;
+/// # let workload_name = String::new();
 /// let workload = ankaios.get_workload(workload_name).await.unwrap();
 /// println!("{:?}", workload);
+/// # })
 /// ```
 ///
 /// ## Delete a workload:
 ///
-/// ```rust
-/// let workload_name: String = /* */;
+/// ```rust,no_run
+/// # use ankaios_sdk::Ankaios;
+/// # use tokio::runtime::Runtime;
+/// # Runtime::new().unwrap().block_on(async {
+/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// #
+/// let workload_name: String;
+/// # let workload_name = String::new();
 /// let update_state_success = ankaios.delete_workload(workload_name).await.unwrap();
 /// println!("{:?}", update_state_success);
+/// # })
 /// ```
 ///
 /// ## Get the state:
 ///
-/// ```rust
+/// ```rust,no_run
+/// # use ankaios_sdk::Ankaios;
+/// # use tokio::runtime::Runtime;
+/// # Runtime::new().unwrap().block_on(async {
+/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// #
 /// let state = ankaios.get_state(Vec::default()).await.unwrap();
 /// println!("{:?}", state);
+/// # })
 /// ```
 ///
 /// ## Get the agents:
 ///
-/// ```rust
+/// ```rust,no_run
+/// # use ankaios_sdk::Ankaios;
+/// # use tokio::runtime::Runtime;
+/// # Runtime::new().unwrap().block_on(async {
+/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// #
 /// let agents = ankaios.get_agents().await.unwrap();
 /// println!("{:?}", agents);
+/// # })
 /// ```
 ///
 /// ## Get the workload states:
 ///
-/// ```rust
+/// ```rust,no_run
+/// # use ankaios_sdk::Ankaios;
+/// # use tokio::runtime::Runtime;
+/// # Runtime::new().unwrap().block_on(async {
+/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// #
 /// let workload_states_collection = ankaios.get_workload_states().await.unwrap();
-/// let workload_states = workload_states_collection.get_as_list();
+/// let workload_states = workload_states_collection.as_list();
+/// # })
 /// ```
 ///
 /// ## Get the workload states for a specific agent:
 ///
-/// ```rust
-/// let agent_name: String = /* */;
+/// ```rust,no_run
+/// # use ankaios_sdk::Ankaios;
+/// # use tokio::runtime::Runtime;
+/// # Runtime::new().unwrap().block_on(async {
+/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// #
+/// let agent_name: String;
+/// # let agent_name = String::new();
 /// let workload_states_collection = ankaios.get_workload_states_on_agent(agent_name).await.unwrap();
-/// let workload_states = workload_states_collection.get_as_list();
+/// let workload_states = workload_states_collection.as_list();
+/// # })
 /// ```
 ///
 /// ## Get the workload execution state for an instance name:
 ///
-/// ```rust
-/// let workload_instance_name: WorkloadInstanceName = /* */;
+/// ```rust,no_run
+/// # use ankaios_sdk::{Ankaios, WorkloadInstanceName};
+/// # use tokio::runtime::Runtime;
+/// # Runtime::new().unwrap().block_on(async {
+/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// #
+/// let workload_instance_name: WorkloadInstanceName;
+/// # let workload_instance_name = WorkloadInstanceName::default();
 /// let workload_state = ankaios.get_execution_state_for_instance_name(&workload_instance_name).await.unwrap();
 /// println!("{:?}", workload_state);
+/// # })
 /// ```
 ///
 /// ## Wait for a workload to reach a state:
 ///
-/// ```rust
-/// let workload_instance_name: WorkloadInstanceName = /* */;
-/// let expected_state: WorkloadStateEnum = /* */;
+/// ```rust,no_run
+/// # use ankaios_sdk::{Ankaios, AnkaiosError, WorkloadInstanceName, WorkloadStateEnum};
+/// # use tokio::runtime::Runtime;
+/// # Runtime::new().unwrap().block_on(async {
+/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// #
+/// let workload_instance_name: WorkloadInstanceName;
+/// # let workload_instance_name = WorkloadInstanceName::default();
+/// let expected_state: WorkloadStateEnum;
+/// # let expected_state = WorkloadStateEnum::Running;
 /// match ankaios.wait_for_workload_to_reach_state(workload_instance_name, expected_state).await {
 ///     Ok(_) => println!("Workload reached the expected state."),
 ///     Err(AnkaiosError::TimeoutError(_)) => println!("Timeout while waiting for workload to reach state."),
 ///     Err(err) => println!("Error while waiting for workload to reach state: {}", err),
 /// }
+/// # })
 /// ```
 pub struct Ankaios {
     /// The receiver end of the channel used to receive responses from the Control Interface.

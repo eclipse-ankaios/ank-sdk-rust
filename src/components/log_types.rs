@@ -13,15 +13,77 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module contains structs and enums that are used to
-//! work with the components of the [Ankaios] application.
+//! represent log requests and responses in the Ankaios SDK.
 //!
-//! [Ankaios]: https://eclipse-ankaios.github.io/ankaios
+//! # Example
+//!
+//! ## Create a logs request:
+//!
+//! ```rust
+//! use ankaios_sdk::LogsRequest;
+//! # use ankaios_sdk::WorkloadInstanceName;
+//!
+//! let workload: WorkloadInstanceName;
+//! # let workload = WorkloadInstanceName::default();
+//! let logs_request = LogsRequest {
+//!    workload_names: vec![workload],
+//!    ..Default::default()
+//! };
+//! ```
+//!
+//! ## Check accepted workloads in a log campaign response:
+//!
+//! ```rust
+//! # use tokio::sync::mpsc;
+//! # use ankaios_sdk::{WorkloadInstanceName, LogCampaignResponse};
+//! #
+//! let log_campaign: LogCampaignResponse;
+//! # let (_logs_sender, logs_receiver) = mpsc::channel(1);
+//! # let log_campaign = LogCampaignResponse::new(String::default(), Vec::default(), logs_receiver);
+//! for workload in log_campaign.accepted_workload_names {
+//!     println!("Accepted workload: {}", workload);
+//! }
+//! ```
+//!
+//! ## Listen for log responses in a log campaign response:
+//!
+//! ```rust,no_run
+//! # use ankaios_sdk::{WorkloadInstanceName, LogCampaignResponse};
+//! # use tokio::{sync::mpsc, runtime::Runtime};
+//! use ankaios_sdk::LogResponse;
+//! #
+//! # Runtime::new().unwrap().block_on(async {
+//! #
+//! let log_campaign: LogCampaignResponse;
+//! # let (_logs_sender, logs_receiver) = mpsc::channel(1);
+//! # let mut log_campaign = LogCampaignResponse::new(String::default(), Vec::default(), logs_receiver);
+//! while let Some(log_response) = log_campaign.logs_receiver.recv().await {
+//!     match log_response {
+//!         LogResponse::LogEntries(log_entries) => {
+//!         }
+//!         LogResponse::LogsStopResponse(workload_name) => {
+//!         }
+//!     }
+//! }
+//! # })
+//! ```
+//!
+//! ## Extract the log and workload name from a log entry:
+//!
+//! ```rust
+//! # use ankaios_sdk::LogEntry;
+//!
+//! let log_entries: LogEntry;
+//! # let log_entries = LogEntry::default();
+//! let workload_name = log_entries.workload_name;
+//! let log_message = log_entries.message;
+//! ```
 
 use tokio::sync::mpsc::Receiver;
 
 use crate::{
     ankaios_api, components::workload_state_mod::WorkloadInstanceName,
-    std_extensions::UnreachableOption,
+    extensions::UnreachableOption,
 };
 
 /// Struct that represents a logs request.
@@ -60,7 +122,7 @@ impl Default for LogsRequest {
 
 /// Struct that represents a log entry.
 ///
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct LogEntry {
     /// The name of the workload that produced the log entry.
     pub workload_name: WorkloadInstanceName,

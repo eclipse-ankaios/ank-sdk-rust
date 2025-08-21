@@ -22,6 +22,8 @@
 //! ## Create a request for updating the state:
 //!
 //! ```rust
+//! use ankaios_sdk::{CompleteState, UpdateStateRequest};
+//! 
 //! let complete_state = CompleteState::new();
 //! let _request = UpdateStateRequest::new(&complete_state, Vec::default());
 //! ```
@@ -29,18 +31,25 @@
 //! ## Create a request for getting the state:
 //!
 //! ```rust
+//! use ankaios_sdk::GetStateRequest;
+//! 
 //! let mut request = GetStateRequest::new(Vec::default());
 //! ```
 //!
 //! ## Get the request ID:
 //!
 //! ```rust
+//! # use ankaios_sdk::{GetStateRequest, Request};
+//! #
+//! # let mut request = GetStateRequest::new(Vec::default());
 //! let request_id = request.get_id();
 //! ```
 //!
 //! ## Create a request for getting the complete state filtered according to the provided field masks:
 //!
 //! ```rust
+//! # use ankaios_sdk::GetStateRequest;
+//! #
 //! let request = GetStateRequest::new(vec!["desiredState.workloads".to_owned()]);
 //! ```
 
@@ -109,6 +118,7 @@ impl GetStateRequest {
     /// ## Returns
     ///
     /// A new [`GetStateRequest`] object.
+    #[must_use]
     pub fn new(masks: Vec<String>) -> Self {
         let request_id = Uuid::new_v4().to_string();
         log::debug!("Creating new request of type GetStateRequest with id {request_id}");
@@ -152,6 +162,7 @@ impl UpdateStateRequest {
     /// ## Returns
     ///
     /// A new [`UpdateStateRequest`] object.
+    #[must_use]
     pub fn new(complete_state: &CompleteState, masks: Vec<String>) -> Self {
         let request_id = Uuid::new_v4().to_string();
         log::debug!("Creating new request of type UpdateStateRequest with id {request_id}");

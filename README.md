@@ -1,8 +1,10 @@
+<!-- markdownlint-disable MD041 MD033 -->
 <picture style="padding-bottom: 1em;">
   <source media="(prefers-color-scheme: dark)" srcset="https://github.com/eclipse-ankaios/ankaios/raw/main/logo/Ankaios__logo_for_dark_bgrd_clipped.png">
   <source media="(prefers-color-scheme: light)" srcset="https://github.com/eclipse-ankaios/ankaios/raw/main/logo/Ankaios__logo_for_light_bgrd_clipped.png">
   <img alt="Shows Ankaios logo" src="https://github.com/eclipse-ankaios/ankaios/raw/main/logo/Ankaios__logo_for_light_bgrd_clipped.png">
 </picture>
+<!-- markdownlint-enable MD041 MD033 -->
 
 # Rust SDK for Eclipse Ankaios
 
@@ -95,8 +97,7 @@ async fn main() {
 
     // Request the execution state based on the workload instance name
     match ank.get_execution_state_for_instance_name(&workload_instance_name).await {
-        Ok(state) => {
-            let exec_state = state.execution_state;
+        Ok(exec_state) => {
             println!("State: {:?}, substate: {:?}, info: {:?}", exec_state.state, exec_state.substate, exec_state.additional_info);
         }
         Err(err) => {
@@ -121,7 +122,7 @@ async fn main() {
     let complete_state = ank.get_state(vec!["workloadStates".to_owned()]).await.expect("Failed to get the state");
 
     // Get the workload states present in the complete state
-    let workload_states_dict = complete_state.get_workload_states().get_as_list();
+    let workload_states_dict = complete_state.get_workload_states().as_list();
 
     // Print the states of the workloads
     for workload_state in workload_states_dict {

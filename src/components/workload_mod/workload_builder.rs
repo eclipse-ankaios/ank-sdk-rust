@@ -50,7 +50,7 @@ use super::file::File;
 ///     .add_dependency("other_workload", "ADD_COND_RUNNING")
 ///     .add_tag("key1", "value1")
 ///     .add_tag("key2", "value2")
-///     .add_file_object(File::text("/etc/config.yaml", "debug: true"))
+///     .add_file(File::from_data("/etc/config.yaml", "debug: true"))
 ///     .build().unwrap();
 /// ```
 #[must_use] // Added to ensure that the returned Self from the methods is used.
