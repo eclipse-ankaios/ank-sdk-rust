@@ -19,13 +19,19 @@
 //! ## Get response content:
 //!
 //! ```rust
-//! let response = /* */;
+//! # use ankaios_sdk::Response;
+//! #
+//! let response: Response;
+//! # let response = Response::default();
 //! let content = response.get_content();
 //! ```
 //!
 //! ## Check if the `request_id` matches
 //!
 //! ```rust
+//! # use ankaios_sdk::Response;
+//! #
+//! # let response = Response::default();
 //! if response.get_request_id() == "1234" {
 //!     println!("Request ID matches.");
 //! }
@@ -34,7 +40,10 @@
 //! ## Convert the update state success to a dictionary
 //!
 //! ```rust
-//! let update_state_success = /* */;
+//! # use ankaios_sdk::UpdateStateSuccess;
+//! #
+//! let update_state_success: UpdateStateSuccess;
+//! # let update_state_success = UpdateStateSuccess::default();
 //! let dict = update_state_success.to_dict();
 //! ```
 
@@ -42,7 +51,7 @@ use super::workload_state_mod::WorkloadInstanceName;
 use crate::ankaios_api::{self};
 use crate::components::complete_state::CompleteState;
 use crate::components::log_types::LogEntry;
-use crate::std_extensions::UnreachableOption;
+use crate::extensions::UnreachableOption;
 use ankaios_api::ank_base::{
     Error, UpdateStateSuccess as AnkaiosUpdateStateSuccess,
     response::ResponseContent as AnkaiosResponseContent,
@@ -129,6 +138,7 @@ impl Response {
     /// ## Returns
     ///
     /// A new [Response] instance.
+    #[must_use]
     pub fn new(response: FromAnkaios) -> Self {
         Self::from(response)
     }
@@ -138,6 +148,7 @@ impl Response {
     /// ## Returns
     ///
     /// A [String] containing the request ID of the response.
+    #[must_use]
     pub fn get_request_id(&self) -> String {
         self.id.clone()
     }
@@ -147,6 +158,7 @@ impl Response {
     /// ## Returns
     ///
     /// A [`ResponseType`] containing the content of the response.
+    #[must_use]
     #[allow(dead_code)]
     pub fn get_content(&self) -> ResponseType {
         self.content.clone()

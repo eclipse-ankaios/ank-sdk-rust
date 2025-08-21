@@ -12,23 +12,28 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-pub trait UnreachableOption<T> {
-    fn unwrap_or_unreachable(self) -> T;
-}
+//! This module contains extensions to the standard library
+//! that are used throughout the project.
 
-impl<T> UnreachableOption<T> for Option<T> {
+/// Trait that provides a method to unwrap an `Option<T>` for cases where
+/// the `Option` is expected to always contain a value.
+pub trait UnreachableOption<T> {
     /// Returns the contained [`Some`] value or panics
     /// by executing the unreachable! macro.
     ///
     /// # Examples
     ///
-    /// ```should_panic
-    /// use common::std_extensions::extended_option::UnreachableOption;
+    /// ```rust,should_panic
+    /// use ankaios_sdk::extensions::UnreachableOption;
     /// assert_eq!(Some::<&str>("foo").unwrap_or_unreachable(), "foo");
     ///
     /// // shall panic because unreachable is hit
     /// None::<&str>.unwrap_or_unreachable();
     /// ```
+    fn unwrap_or_unreachable(self) -> T;
+}
+
+impl<T> UnreachableOption<T> for Option<T> {
     fn unwrap_or_unreachable(self) -> T {
         match self {
             Some(value) => value,

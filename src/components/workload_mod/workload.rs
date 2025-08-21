@@ -100,13 +100,31 @@ const FIELD_FILES: &str = "files";
 ///
 /// ## Update fields of the workload:
 ///
-/// ```
+/// ```rust
+/// # use ankaios_sdk::Workload;
+/// #
+/// # let mut workload = Workload::builder()
+/// #   .workload_name("example_workload")
+/// #   .agent_name("agent_A")
+/// #   .runtime("podman")
+/// #   .runtime_config("image: docker.io/library/nginx\n
+/// #                    commandOptions: [\"-p\", \"8080:80\"]")
+/// #   .build().unwrap();
 /// workload.update_agent_name("agent_B");
 /// ```
 ///
 /// ## Update dependencies:
 ///
 /// ```rust
+/// # use ankaios_sdk::Workload;
+/// #
+/// # let mut workload = Workload::builder()
+/// #   .workload_name("example_workload")
+/// #   .agent_name("agent_A")
+/// #   .runtime("podman")
+/// #   .runtime_config("image: docker.io/library/nginx\n
+/// #                    commandOptions: [\"-p\", \"8080:80\"]")
+/// #   .build().unwrap();
 /// let mut deps = workload.get_dependencies();
 /// if let Some(value) = deps.get_mut("other_workload") {
 ///    *value = "ADD_COND_SUCCEEDED".to_owned();
@@ -117,6 +135,15 @@ const FIELD_FILES: &str = "files";
 /// ## Update tags:
 ///
 /// ```rust
+/// # use ankaios_sdk::Workload;
+/// #
+/// # let mut workload = Workload::builder()
+/// #   .workload_name("example_workload")
+/// #   .agent_name("agent_A")
+/// #   .runtime("podman")
+/// #   .runtime_config("image: docker.io/library/nginx\n
+/// #                    commandOptions: [\"-p\", \"8080:80\"]")
+/// #   .build().unwrap();
 /// let mut tags = workload.get_tags();
 /// tags.push(vec!["key3".to_owned(), "value3".to_owned()]);
 /// workload.update_tags(&tags);
@@ -125,6 +152,15 @@ const FIELD_FILES: &str = "files";
 /// ## Print the updated workload:
 ///
 /// ```rust
+/// # use ankaios_sdk::Workload;
+/// #
+/// # let mut workload = Workload::builder()
+/// #   .workload_name("example_workload")
+/// #   .agent_name("agent_A")
+/// #   .runtime("podman")
+/// #   .runtime_config("image: docker.io/library/nginx\n
+/// #                    commandOptions: [\"-p\", \"8080:80\"]")
+/// #   .build().unwrap();
 /// println!("{}", workload);
 /// ```
 #[derive(Debug, Clone)]
@@ -480,13 +516,13 @@ impl Workload {
                 Value::String(runtime_config),
             );
         }
-        if let Some(restart_policy) = self.workload.restart_policy {
-            if let Some(ank_restart_policy) = ank_base::RestartPolicy::from_i32(restart_policy) {
-                dict.insert(
-                    Value::String(FIELD_RESTART_POLICY.to_owned()),
-                    Value::String(ank_restart_policy.as_str_name().to_owned()),
-                );
-            }
+        if let Some(restart_policy) = self.workload.restart_policy
+            && let Some(ank_restart_policy) = ank_base::RestartPolicy::from_i32(restart_policy)
+        {
+            dict.insert(
+                Value::String(FIELD_RESTART_POLICY.to_owned()),
+                Value::String(ank_restart_policy.as_str_name().to_owned()),
+            );
         }
         if let Some(dependencies) = self.workload.dependencies.clone() {
             let mut deps = serde_yaml::Mapping::new();
@@ -1172,7 +1208,6 @@ impl Workload {
                 }
                 self.masks.push(configs_mask);
             } else if mask.starts_with(&configs_mask) && self.masks.contains(&configs_mask) {
-                return;
             } else {
                 self.masks.push(mask);
             }

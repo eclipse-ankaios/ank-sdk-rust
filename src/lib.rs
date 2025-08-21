@@ -124,7 +124,7 @@
 //! Ankaios with configured control interface access. This can also be tested from the
 //! examples folder by running `./run_example.sh hello_ankaios`.
 //!
-//! ```rust
+//! ```rust,no_run
 //! use ankaios_sdk::{Ankaios, AnkaiosError, Workload, WorkloadStateEnum};
 //! use tokio::time::Duration;
 //!
@@ -152,8 +152,7 @@
 //!
 //!     // Request the execution state based on the workload instance name
 //!     match ank.get_execution_state_for_instance_name(&workload_instance_name).await {
-//!         Ok(state) => {
-//!             let exec_state = state.execution_state;
+//!         Ok(exec_state) => {
 //!             println!("State: {:?}, substate: {:?}, info: {:?}", exec_state.state, exec_state.substate, exec_state.additional_info);
 //!         }
 //!         Err(err) => {
@@ -178,7 +177,7 @@
 //!     let complete_state = ank.get_state(vec!["workloadStates".to_owned()]).await.expect("Failed to get the state");
 //!
 //!     // Get the workload states present in the complete state
-//!     let workload_states_dict = complete_state.get_workload_states().get_as_list();
+//!     let workload_states_dict = complete_state.get_workload_states().as_list();
 //!
 //!     // Print the states of the workloads
 //!     for workload_state in workload_states_dict {
@@ -208,7 +207,7 @@
 
 mod ankaios_api;
 mod docs;
-mod std_extensions;
+pub mod extensions;
 
 mod errors;
 pub use errors::AnkaiosError;
@@ -219,9 +218,11 @@ pub use components::complete_state::CompleteState;
 pub use components::control_interface::ControlInterfaceState;
 pub use components::log_types::{LogCampaignResponse, LogEntry, LogResponse, LogsRequest};
 pub use components::manifest::Manifest;
+pub use components::request::{GetStateRequest, Request, UpdateStateRequest};
+pub use components::response::{Response, UpdateStateSuccess};
 pub use components::workload_mod::{File, FileContent, Workload, WorkloadBuilder};
 pub use components::workload_state_mod::{
-    WorkloadState, WorkloadStateCollection, WorkloadStateEnum,
+    WorkloadInstanceName, WorkloadState, WorkloadStateCollection, WorkloadStateEnum,
 };
 
 mod ankaios;

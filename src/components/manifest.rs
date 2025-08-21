@@ -45,19 +45,26 @@ pub const CONFIGS_PREFIX: &str = "desiredState.configs";
 ///
 /// ## Load a manifest from a file's [Path]:
 ///
-/// ```rust
+/// ```rust,no_run
+/// # use std::path::Path;
+/// # use ankaios_sdk::Manifest;
+/// #
 /// let manifest = Manifest::from_file(Path::new("path/to/manifest.yaml")).unwrap();
 /// ```
 ///
 /// ## Load a manifest from a [String]:
 ///
 /// ```rust
+/// # use ankaios_sdk::Manifest;
+/// #
 /// let manifest = Manifest::from_string("apiVersion: v0.1").unwrap();
 /// ```
 ///
 /// ## Load a manifest from a [`serde_yaml::Value`]:
 ///
-/// ```rust
+/// ```rust,no_run
+/// # use ankaios_sdk::Manifest;
+/// #
 /// let dict = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
 /// let _manifest = Manifest::from_dict(dict).unwrap();
 /// ```
