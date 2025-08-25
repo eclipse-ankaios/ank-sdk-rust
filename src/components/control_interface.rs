@@ -481,6 +481,7 @@ impl ControlInterface {
     ///
     /// ## Arguments
     ///
+    /// * `state` - A reference to the current state;
     /// * `received_response` - A decoded [`Response`] object from the control interface;
     /// * `response_sender` - A [`Sender<Response>`] to forward the response;
     /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log entries and stop responses for a log campaign.
@@ -497,7 +498,7 @@ impl ControlInterface {
         match state_value {
             ControlInterfaceState::Initialized => {
                 if received_response.content == ResponseType::ControlInterfaceAccepted {
-                    log::debug!("Control interface accepted.");
+                    log::debug!("Received control interface accepted response.");
                     ControlInterface::change_state(state, ControlInterfaceState::Connected);
                 }
             }
