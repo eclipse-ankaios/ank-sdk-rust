@@ -26,7 +26,7 @@ use tokio::time::{Duration, sleep, timeout as tokio_timeout};
 use crate::components::control_interface::ControlInterface;
 use crate::components::log_types::LogCampaignResponse;
 use crate::components::log_types::LogsRequest;
-use crate::components::manifest::{API_VERSION_PREFIX, CONFIGS_PREFIX};
+use crate::components::manifest::CONFIGS_PREFIX;
 use crate::components::request::{
     AnkaiosLogsRequest, GetStateRequest, LogsCancelRequest, Request, UpdateStateRequest,
 };
@@ -253,8 +253,6 @@ pub struct Ankaios {
     response_receiver: mpsc::Receiver<Response>,
     /// The control interface instance that is used to communicate with the Control Interface.
     control_interface: ControlInterface,
-    /// Flag used to correct the connection checks, will be removed in the near future
-    connection_established: bool,
     /// The timeout used for the requests.
     pub timeout: Duration,
 }
@@ -287,23 +285,15 @@ impl Ankaios {
     /// ## Errors
     ///
     /// [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if an error occurred when connecting.
-    /// [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if a timeout occurred when testing the connection.
     pub async fn new_with_timeout(timeout: Duration) -> Result<Self, AnkaiosError> {
         let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
         let mut object = Self {
             response_receiver,
             control_interface: ControlInterface::new(response_sender),
-            connection_established: false,
             timeout,
         };
 
-        object.control_interface.connect().await?;
-
-        // Test connection
-        object
-            .get_state(vec![API_VERSION_PREFIX.to_owned()])
-            .await?;
-
+        object.control_interface.connect(timeout).await?;
         Ok(object)
     }
 
@@ -847,21 +837,10 @@ impl Ankaios {
         let response = self.send_request(request).await?;
 
         match response.content {
-            ResponseType::CompleteState(complete_state) => {
-                self.connection_established = true;
-
-                Ok(*complete_state)
-            }
+            ResponseType::CompleteState(complete_state) => Ok(*complete_state),
             ResponseType::Error(error) => {
-                if self.connection_established {
-                    log::error!("Error while trying to get the state: {error}");
-                    return Err(AnkaiosError::AnkaiosResponseError(error));
-                }
-
-                // flag connection as established, will be removed in the near future
-                self.connection_established = true;
-
-                Ok(CompleteState::default())
+                log::error!("Error while trying to get the state: {error}");
+                Err(AnkaiosError::AnkaiosResponseError(error))
             }
             _ => {
                 log::error!("Received unexpected response type.");
@@ -1169,7 +1148,6 @@ fn generate_test_ankaios(
         Ankaios {
             response_receiver,
             control_interface: mock_control_interface,
-            connection_established: true,
             timeout: Duration::from_millis(50),
         },
         response_sender,
@@ -1185,9 +1163,9 @@ mod tests {
     };
 
     use super::{
-        AGENTS_PREFIX, API_VERSION_PREFIX, Ankaios, AnkaiosError, CONFIGS_PREFIX, CompleteState,
-        ControlInterface, Response, WORKLOAD_STATES_PREFIX, WorkloadInstanceName,
-        WorkloadStateEnum, generate_test_ankaios,
+        AGENTS_PREFIX, Ankaios, AnkaiosError, CONFIGS_PREFIX, CompleteState, ControlInterface,
+        DEFAULT_TIMEOUT, Response, WORKLOAD_STATES_PREFIX, WorkloadInstanceName, WorkloadStateEnum,
+        generate_test_ankaios,
     };
     use crate::ankaios_api::ank_base::request::RequestContent;
     use crate::components::request::LogsCancelRequest;
@@ -1210,54 +1188,21 @@ mod tests {
     async fn itest_create_ankaios() {
         let _guard = MOCKALL_SYNC.lock().await;
 
-        // Prepare channel to send the created response sender from the ControlInterface
-        let (response_sender_store, response_sender_recv) = tokio::sync::oneshot::channel();
-        // Prepare channel to intercept the request that is being created to check the connection
-        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
-
         let ci_new_context = ControlInterface::new_context();
         let mut ci_mock = ControlInterface::default();
 
-        ci_mock.expect_connect().times(1).returning(|| Ok(()));
         ci_mock
-            .expect_write_request()
+            .expect_connect()
             .times(1)
-            .withf(
-                move |request: &GetStateRequest| match &request.request.request_content {
-                    Some(RequestContent::CompleteStateRequest(content)) => {
-                        content.field_mask == vec![API_VERSION_PREFIX.to_owned()]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(move |request: GetStateRequest| {
-                request_sender.send(request).unwrap();
-                Ok(())
-            });
+            .with(mockall::predicate::eq(Duration::from_millis(50)))
+            .returning(|_| Ok(()));
+
         ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
 
-        ci_new_context.expect().return_once(move |sender| {
-            response_sender_store.send(sender).unwrap();
-            ci_mock
-        });
+        ci_new_context.expect().return_once(move |_| ci_mock);
 
         // Create Ankaios handle
         let ankaios_handle = tokio::spawn(Ankaios::new_with_timeout(Duration::from_millis(50)));
-
-        // Get the response sender from the ControlInterface creation
-        let response_sender = response_sender_recv.await.unwrap();
-
-        // Get the request from the ControlInterface
-        let request = request_receiver.await.unwrap();
-
-        // Fabricate a response
-        let response = Response {
-            content: super::ResponseType::CompleteState(Box::default()),
-            id: request.get_id(),
-        };
-
-        // Send the response
-        response_sender.send(response).await.unwrap();
 
         // Create Ankaios fully and check the connection
         let ankaios = ankaios_handle.await.unwrap();
@@ -1265,56 +1210,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn itest_connection_closed() {
+    async fn itest_timeout_while_connecting() {
         let _guard = MOCKALL_SYNC.lock().await;
-
-        // Prepare channel to send the created response sender from the ControlInterface
-        let (response_sender_store, response_sender_recv) = tokio::sync::oneshot::channel();
-        // Prepare channel to intercept the request that is being created to check the connection
-        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
         let ci_new_context = ControlInterface::new_context();
         let mut ci_mock = ControlInterface::default();
 
-        ci_mock.expect_connect().times(1).returning(|| Ok(()));
         ci_mock
-            .expect_write_request()
+            .expect_connect()
+            .with(mockall::predicate::eq(Duration::from_secs(DEFAULT_TIMEOUT)))
             .times(1)
-            .return_once(move |request: GetStateRequest| {
-                request_sender.send(request).unwrap();
-                Ok(())
-            });
+            .returning(|_| Err(AnkaiosError::ControlInterfaceError(String::default())));
         ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
 
-        ci_new_context.expect().return_once(move |sender| {
-            response_sender_store.send(sender).unwrap();
-            ci_mock
-        });
+        ci_new_context.expect().return_once(move |_| ci_mock);
 
         // Create Ankaios handle
         let ankaios_handle = tokio::spawn(Ankaios::new());
-
-        // Get the response sender from the ControlInterface creation
-        let response_sender = response_sender_recv.await.unwrap();
-
-        // Get the request from the ControlInterface
-        let request = request_receiver.await.unwrap();
-
-        // Fabricate a response
-        let response = Response {
-            content: super::ResponseType::ConnectionClosedReason(String::default()),
-            id: request.get_id(),
-        };
-
-        // Send the response
-        response_sender.send(response).await.unwrap();
 
         // Create Ankaios fully and check the connection
         let result = ankaios_handle.await.unwrap();
         assert!(result.is_err());
         assert!(matches!(
             result,
-            Err(AnkaiosError::ConnectionClosedError(_))
+            Err(AnkaiosError::ControlInterfaceError(_))
         ));
     }
 

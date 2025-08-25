@@ -28,7 +28,7 @@ use tokio::{
     spawn,
     sync::mpsc,
     task::JoinHandle,
-    time::{Duration, sleep},
+    time::{Duration, sleep, timeout as tokio_timeout},
 };
 
 use crate::AnkaiosError;
@@ -57,14 +57,16 @@ const MAX_VARINT_SIZE: usize = 19;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(i32)]
 pub enum ControlInterfaceState {
-    /// The control interface is initialized.
+    /// The control interface was initialized.
     Initialized = 1,
+    /// The control interface is established.
+    Connected = 2,
     /// The control interface is terminated.
-    Terminated = 2,
+    Terminated = 3,
     /// The agent is disconnected.
-    AgentDisconnected = 3,
+    AgentDisconnected = 4,
     /// The connection is closed. This state is unrecoverable.
-    ConnectionClosed = 4,
+    ConnectionClosed = 5,
 }
 
 #[doc(hidden)]
@@ -194,6 +196,7 @@ impl fmt::Display for ControlInterfaceState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let res_str = match *self {
             ControlInterfaceState::Initialized => "Initialized",
+            ControlInterfaceState::Connected => "Connected",
             ControlInterfaceState::Terminated => "Terminated",
             ControlInterfaceState::AgentDisconnected => "AgentDisconnected",
             ControlInterfaceState::ConnectionClosed => "ConnectionClosed",
@@ -231,10 +234,11 @@ impl ControlInterface {
     /// ## Returns
     ///
     /// An [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if the connection fails.
-    pub async fn connect(&mut self) -> Result<(), AnkaiosError> {
-        if *self.state.lock().unwrap_or_else(|_| unreachable!())
-            == ControlInterfaceState::Initialized
-        {
+    pub async fn connect(&mut self, timeout: Duration) -> Result<(), AnkaiosError> {
+        if matches!(
+            *self.state.lock().unwrap_or_else(|_| unreachable!()),
+            ControlInterfaceState::Initialized | ControlInterfaceState::Connected
+        ) {
             return Err(AnkaiosError::ControlInterfaceError(
                 "Already connected.".to_owned(),
             ));
@@ -260,6 +264,24 @@ impl ControlInterface {
         )
         .await;
 
+        // Wait for the connection to be established
+        let state_clone = Arc::<Mutex<ControlInterfaceState>>::clone(&self.state);
+        if (tokio_timeout(timeout, async {
+            while *state_clone.lock().unwrap_or_else(|_| unreachable!())
+                != ControlInterfaceState::Connected
+            {
+                sleep(Duration::from_millis(100)).await;
+            }
+        })
+        .await)
+            .is_err()
+        {
+            log::error!("Connection to the control interface timed out.");
+            return Err(AnkaiosError::ControlInterfaceError(
+                "Connection to the control interface timed out.".to_owned(),
+            ));
+        }
+
         log::trace!("Connected to the control interface.");
         Ok(())
     }
@@ -270,9 +292,10 @@ impl ControlInterface {
     ///
     /// An [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if the disconnection fails.
     pub fn disconnect(&mut self) -> Result<(), AnkaiosError> {
-        if *self.state.lock().unwrap_or_else(|_| unreachable!())
-            != ControlInterfaceState::Initialized
-        {
+        if !matches!(
+            *self.state.lock().unwrap_or_else(|_| unreachable!()),
+            ControlInterfaceState::Initialized | ControlInterfaceState::Connected
+        ) {
             return Err(AnkaiosError::ControlInterfaceError(
                 "Already disconnected.".to_owned(),
             ));
@@ -336,7 +359,7 @@ impl ControlInterface {
                 if let Err(err) = output_file.flush().await {
                     if err.kind() == ErrorKind::BrokenPipe {
                         if *state_clone.lock().unwrap_or_else(|_| unreachable!())
-                            == ControlInterfaceState::Initialized
+                            == ControlInterfaceState::Connected
                         {
                             ControlInterface::change_state(
                                 &state_clone,
@@ -396,10 +419,7 @@ impl ControlInterface {
                             == ControlInterfaceState::AgentDisconnected
                         {
                             log::info!("Agent reconnected successfully.");
-                            ControlInterface::change_state(
-                                &state_clone,
-                                ControlInterfaceState::Initialized,
-                            );
+                            Self::change_state(&state_clone, ControlInterfaceState::Initialized);
                         }
 
                         let decoded_response = FromAnkaios::decode(&mut Box::new(binary.as_ref()));
@@ -413,6 +433,7 @@ impl ControlInterface {
                                 );
 
                                 Self::handle_decoded_response(
+                                    &state_clone,
                                     received_response,
                                     &response_sender_clone,
                                     &mut request_id_logs_sender_map,
@@ -421,6 +442,10 @@ impl ControlInterface {
 
                                 if is_con_closed {
                                     log::error!("Connection closed by the agent.");
+                                    Self::change_state(
+                                        &state_clone,
+                                        ControlInterfaceState::ConnectionClosed,
+                                    );
                                     break;
                                 }
                             }
@@ -429,22 +454,19 @@ impl ControlInterface {
                     }
                     Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
                         if *state_clone.lock().unwrap_or_else(|_| unreachable!())
-                            == ControlInterfaceState::Initialized
+                            == ControlInterfaceState::Connected
                         {
-                            ControlInterface::change_state(
+                            Self::change_state(
                                 &state_clone,
                                 ControlInterfaceState::AgentDisconnected,
                             );
-                            ControlInterface::send_initial_hello(&writer_ch_sender_clone).await;
+                            Self::send_initial_hello(&writer_ch_sender_clone).await;
                         }
                         sleep(Duration::from_millis(SLEEP_DURATION)).await;
                     }
                     Err(err) => {
                         log::error!("Error while reading from input fifo: '{err}'");
-                        ControlInterface::change_state(
-                            &state_clone,
-                            ControlInterfaceState::Terminated,
-                        );
+                        Self::change_state(&state_clone, ControlInterfaceState::Terminated);
                         break;
                     }
                 }
@@ -452,6 +474,69 @@ impl ControlInterface {
 
             Ok(())
         }));
+    }
+
+    #[doc(hidden)]
+    /// Handles the decoded response from the control interface and dispatches to the appropriate action.
+    ///
+    /// ## Arguments
+    ///
+    /// * `state` - A reference to the current state;
+    /// * `received_response` - A decoded [`Response`] object from the control interface;
+    /// * `response_sender` - A [`Sender<Response>`] to forward the response;
+    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log entries and stop responses for a log campaign.
+    ///
+    async fn handle_decoded_response(
+        state: &Arc<Mutex<ControlInterfaceState>>,
+        received_response: Response,
+        response_sender: &mpsc::Sender<Response>,
+        request_id_logs_sender_map: &mut SynchronizedLogResponseSenderMap,
+    ) {
+        // The state needs to be locked outside of the match because otherwise the temporary created guard
+        // will be dropped only at the end, repetitive locking inside the match not being allowed.
+        let state_value = *state.lock().unwrap_or_else(|_| unreachable!());
+        match state_value {
+            ControlInterfaceState::Initialized => {
+                if received_response.content == ResponseType::ControlInterfaceAccepted {
+                    log::debug!("Received control interface accepted response.");
+                    ControlInterface::change_state(state, ControlInterfaceState::Connected);
+                }
+            }
+            ControlInterfaceState::Connected => match received_response.content {
+                ResponseType::LogEntriesResponse(log_entries) => {
+                    Self::forward_log_entries(
+                        received_response.id,
+                        log_entries,
+                        request_id_logs_sender_map,
+                    )
+                    .await;
+                }
+                ResponseType::LogsStopResponse(instance_name) => {
+                    Self::forward_logs_stop_response(
+                        received_response.id,
+                        instance_name,
+                        request_id_logs_sender_map,
+                    )
+                    .await;
+                }
+                ResponseType::ControlInterfaceAccepted => {
+                    log::warn!("Received unexpected control interface accepted response.");
+                }
+                _ => {
+                    response_sender
+                        .send(received_response)
+                        .await
+                        .unwrap_or_else(|err| {
+                            log::error!("Error while sending response: '{err}'");
+                        });
+                }
+            },
+            _ => {
+                log::warn!(
+                    "Received response {received_response:?}, but not in a valid state. Ignoring.."
+                );
+            }
+        }
     }
 
     /// Writes a request to the control interface.
@@ -467,8 +552,7 @@ impl ControlInterface {
         &mut self,
         request: T,
     ) -> Result<(), AnkaiosError> {
-        if *self.state.lock().unwrap_or_else(|_| unreachable!())
-            != ControlInterfaceState::Initialized
+        if *self.state.lock().unwrap_or_else(|_| unreachable!()) != ControlInterfaceState::Connected
         {
             log::error!("Could not write to pipe, not connected.");
             return Err(AnkaiosError::ControlInterfaceError(
@@ -510,57 +594,6 @@ impl ControlInterface {
     pub fn remove_log_campaign(&mut self, request_id: &str) {
         if self.log_senders_map.remove(request_id).is_some() {
             log::trace!("Removed log campaign with request id: '{request_id}'");
-        }
-    }
-
-    /// Prepares and sends a hello to the [Ankaios](https://eclipse-ankaios.github.io/ankaios) cluster.
-    ///
-    /// ## Arguments
-    ///
-    /// * `writer_ch_sender` - A sender for the writer channel.
-    async fn send_initial_hello(writer_ch_sender: &mpsc::Sender<ToAnkaios>) {
-        log::trace!("Sending initial hello message to the control interface.");
-        let hello_msg = ToAnkaios {
-            to_ankaios_enum: Some(ToAnkaiosEnum::Hello(Hello {
-                protocol_version: ANKAIOS_VERSION.to_owned(),
-            })),
-        };
-        writer_ch_sender
-            .send(hello_msg)
-            .await
-            .unwrap_or_else(|err| {
-                log::error!("Error while sending initial hello message: '{err}'");
-            });
-    }
-
-    #[doc(hidden)]
-    /// Handles the decoded response from the control interface and dispatches to the appropriate action.
-    ///
-    /// ## Arguments
-    ///
-    /// * `received_response` - A decoded [`Response`] object from the control interface;
-    /// * `response_sender` - A [`Sender<Response>`] to forward the response;
-    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log entries and stop responses for a log campaign.
-    ///
-    async fn handle_decoded_response(
-        received_response: Response,
-        response_sender: &mpsc::Sender<Response>,
-        request_id_logs_sender_map: &mut SynchronizedLogResponseSenderMap,
-    ) {
-        if let ResponseType::LogEntriesResponse(log_entries) = received_response.content {
-            let request_id = received_response.id;
-            Self::forward_log_entries(request_id, log_entries, request_id_logs_sender_map).await;
-        } else if let ResponseType::LogsStopResponse(instance_name) = received_response.content {
-            let request_id = received_response.id;
-            Self::forward_logs_stop_response(request_id, instance_name, request_id_logs_sender_map)
-                .await;
-        } else {
-            response_sender
-                .send(received_response)
-                .await
-                .unwrap_or_else(|err| {
-                    log::error!("Error while sending response: '{err}'");
-                });
         }
     }
 
@@ -628,6 +661,26 @@ impl ControlInterface {
             );
         }
     }
+
+    /// Prepares and sends a hello to the [Ankaios](https://eclipse-ankaios.github.io/ankaios) cluster.
+    ///
+    /// ## Arguments
+    ///
+    /// * `writer_ch_sender` - A sender for the writer channel.
+    async fn send_initial_hello(writer_ch_sender: &mpsc::Sender<ToAnkaios>) {
+        log::trace!("Sending initial hello message to the control interface.");
+        let hello_msg = ToAnkaios {
+            to_ankaios_enum: Some(ToAnkaiosEnum::Hello(Hello {
+                protocol_version: ANKAIOS_VERSION.to_owned(),
+            })),
+        };
+        writer_ch_sender
+            .send(hello_msg)
+            .await
+            .unwrap_or_else(|err| {
+                log::error!("Error while sending initial hello message: '{err}'");
+            });
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -642,7 +695,10 @@ impl ControlInterface {
 mod tests {
     use nix::{sys::stat::Mode, unistd::mkfifo};
     use prost::Message;
-    use std::{sync::Arc, time::Duration};
+    use std::{
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
     use tokio::{
         fs::OpenOptions,
         io::{AsyncWriteExt, BufReader, BufWriter},
@@ -656,19 +712,22 @@ mod tests {
         ANKAIOS_INPUT_FIFO_PATH, ANKAIOS_OUTPUT_FIFO_PATH, ANKAIOS_VERSION, ControlInterface,
         ControlInterfaceState, read_protobuf_data,
     };
-    use crate::ankaios_api;
     use crate::components::{
         request::{Request, generate_test_request},
         response::{
-            Response, generate_test_logs_stop_response, generate_test_proto_log_entries_response,
+            Response, ResponseType, generate_test_control_interface_accepted_response,
+            generate_test_logs_stop_response, generate_test_proto_log_entries_response,
             generate_test_proto_update_state_success, generate_test_response_update_state_success,
             get_test_proto_from_ankaios_log_entries_response,
         },
     };
+    use crate::{AnkaiosError, ankaios_api};
     use crate::{
         LogResponse, ankaios::CHANNEL_SIZE, components::workload_state_mod::WorkloadInstanceName,
     };
     use ankaios_api::control_api::{Hello, ToAnkaios, to_ankaios::ToAnkaiosEnum};
+
+    const CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 
     /// Helper function for getting the state of the control interface.
     fn get_state(ci: &ControlInterface) -> ControlInterfaceState {
@@ -711,6 +770,8 @@ mod tests {
     fn utest_control_interface_state() {
         let mut cis = ControlInterfaceState::Initialized;
         assert_eq!(cis.to_string(), "Initialized");
+        cis = ControlInterfaceState::Connected;
+        assert_eq!(cis.to_string(), "Connected");
         cis = ControlInterfaceState::Terminated;
         assert_eq!(cis.to_string(), "Terminated");
         cis = ControlInterfaceState::AgentDisconnected;
@@ -720,7 +781,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn utest_control_interface() {
+    async fn utest_control_interface_connect() {
         // Crate mpsc channel
         let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
 
@@ -735,11 +796,11 @@ mod tests {
         assert_eq!(get_state(&ci), ControlInterfaceState::Terminated);
 
         // Try to connect - should fail because the input fifo is not yet created
-        assert!(ci.connect().await.is_err());
+        assert!(ci.connect(CONNECT_TIMEOUT).await.is_err());
         mkfifo(&fifo_input, Mode::S_IRWXU).unwrap();
 
         // Try to connect - should fail because the output fifo is not yet created
-        assert!(ci.connect().await.is_err());
+        assert!(ci.connect(CONNECT_TIMEOUT).await.is_err());
         mkfifo(&fifo_output, Mode::S_IRWXU).unwrap();
 
         // Open the output file for reading
@@ -749,9 +810,24 @@ mod tests {
                 .unwrap(),
         );
 
+        // Create task to simulate the established connection
+        let state_clone = Arc::<Mutex<ControlInterfaceState>>::clone(&ci.state);
+        let _handle = spawn(async move {
+            loop {
+                if *state_clone.lock().unwrap_or_else(|_| unreachable!())
+                    == ControlInterfaceState::Initialized
+                {
+                    *state_clone.lock().unwrap_or_else(|_| unreachable!()) =
+                        ControlInterfaceState::Connected;
+                    break;
+                }
+                sleep(Duration::from_millis(50)).await;
+            }
+        });
+
         // Connect to the control interface - success
-        ci.connect().await.unwrap();
-        assert_eq!(get_state(&ci), ControlInterfaceState::Initialized);
+        ci.connect(CONNECT_TIMEOUT).await.unwrap();
+        assert_eq!(get_state(&ci), ControlInterfaceState::Connected);
 
         // Check that the initial hello was received
         #[allow(clippy::match_wild_err_arm)]
@@ -770,7 +846,7 @@ mod tests {
         }
 
         // Try to connect again - should fail because it's already connected
-        assert!(ci.connect().await.is_err());
+        assert!(ci.connect(CONNECT_TIMEOUT).await.is_err());
 
         sleep(Duration::from_millis(50)).await;
 
@@ -780,6 +856,36 @@ mod tests {
 
         // Try to disconnect again - should fail
         assert!(ci.disconnect().is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn utest_control_interface_connect_timeout() {
+        // Crate mpsc channel
+        let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
+
+        // Prepare fifo pipes
+        let tmpdir = tempfile::tempdir().unwrap();
+        let fifo_input = tmpdir.path().join(ANKAIOS_INPUT_FIFO_PATH);
+        let fifo_output = tmpdir.path().join(ANKAIOS_OUTPUT_FIFO_PATH);
+
+        // Create control interface
+        let mut ci = ControlInterface::new(response_sender);
+        tmpdir.path().to_str().unwrap().clone_into(&mut ci.path);
+        assert_eq!(get_state(&ci), ControlInterfaceState::Terminated);
+
+        // Create the input and output fifo pipes
+        mkfifo(&fifo_input, Mode::S_IRWXU).unwrap();
+        mkfifo(&fifo_output, Mode::S_IRWXU).unwrap();
+
+        // Try to connect to the control interface
+        let ret = ci.connect(Duration::from_millis(20)).await;
+        assert!(matches!(
+            ret,
+            Err(AnkaiosError::ControlInterfaceError(ref msg)) if msg == "Connection to the control interface timed out."
+        ));
+
+        // Disconnect to close the pipes
+        assert!(ci.disconnect().is_ok());
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -811,9 +917,28 @@ mod tests {
         // Send dummy request - should fail
         assert!(ci.write_request(generate_test_request()).await.is_err());
 
+        // Create task to simulate the established connection
+        let state_clone = Arc::<Mutex<ControlInterfaceState>>::clone(&ci.state);
+        let _handle = spawn(async move {
+            loop {
+                if *state_clone.lock().unwrap_or_else(|_| unreachable!())
+                    == ControlInterfaceState::Initialized
+                {
+                    *state_clone.lock().unwrap_or_else(|_| unreachable!()) =
+                        ControlInterfaceState::Connected;
+                    break;
+                }
+                sleep(Duration::from_millis(50)).await;
+            }
+        });
+
         // Connect to the control interface
-        ci.connect().await.unwrap();
-        assert_eq!(get_state(&ci), ControlInterfaceState::Initialized);
+        ci.connect(CONNECT_TIMEOUT).await.unwrap();
+        assert_eq!(get_state(&ci), ControlInterfaceState::Connected);
+        ci.state
+            .lock()
+            .unwrap_or_else(|_| unreachable!())
+            .clone_from(&ControlInterfaceState::Connected);
 
         // Read the initial hello message
         let _ = tokio_timeout(Duration::from_secs(1), read_protobuf_data(&mut file_output))
@@ -908,11 +1033,30 @@ mod tests {
         let mut ci = ControlInterface::new(response_sender);
         tmpdir.path().to_str().unwrap().clone_into(&mut ci.path);
         assert_eq!(get_state(&ci), ControlInterfaceState::Terminated);
+        sleep(Duration::from_millis(10)).await;
+
+        // Create task to simulate the established connection
+        let state_clone = Arc::<Mutex<ControlInterfaceState>>::clone(&ci.state);
+        let _handle = spawn(async move {
+            loop {
+                if *state_clone.lock().unwrap_or_else(|_| unreachable!())
+                    == ControlInterfaceState::Initialized
+                {
+                    *state_clone.lock().unwrap_or_else(|_| unreachable!()) =
+                        ControlInterfaceState::Connected;
+                    break;
+                }
+                sleep(Duration::from_millis(50)).await;
+            }
+        });
 
         // Connect to the control interface
-        sleep(Duration::from_millis(10)).await;
-        ci.connect().await.unwrap();
-        assert_eq!(get_state(&ci), ControlInterfaceState::Initialized);
+        ci.connect(CONNECT_TIMEOUT).await.unwrap();
+        assert_eq!(get_state(&ci), ControlInterfaceState::Connected);
+        ci.state
+            .lock()
+            .unwrap_or_else(|_| unreachable!())
+            .clone_from(&ControlInterfaceState::Connected);
 
         // Wait to ensure the reader gets to open the input pipe
         sleep(Duration::from_millis(20)).await;
@@ -969,6 +1113,66 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn utest_handle_decoded_response() {
+        // Crate mpsc channel
+        let (response_sender, mut response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
+
+        // Create control interface
+        let mut ci = ControlInterface::new(response_sender);
+        let state = Arc::clone(&ci.state);
+
+        // Create responses to test the method
+        let ci_accepted_response = generate_test_control_interface_accepted_response();
+        let update_state_response =
+            generate_test_response_update_state_success(REQUEST_ID_1.to_owned());
+
+        // Test invalid state
+        *state.lock().unwrap() = ControlInterfaceState::Terminated;
+        ControlInterface::handle_decoded_response(
+            &state,
+            update_state_response.clone(),
+            &ci.response_sender,
+            &mut ci.log_senders_map,
+        )
+        .await;
+        response_receiver.try_recv().unwrap_err(); // No response should be sent
+
+        // Test initialized state - received control interface accepted response
+        *state.lock().unwrap() = ControlInterfaceState::Initialized;
+        ControlInterface::handle_decoded_response(
+            &state,
+            ci_accepted_response.clone(),
+            &ci.response_sender,
+            &mut ci.log_senders_map,
+        )
+        .await;
+        assert!(matches!(get_state(&ci), ControlInterfaceState::Connected));
+
+        // Test connected state - received unexpected control interface accepted response
+        ControlInterface::handle_decoded_response(
+            &state,
+            ci_accepted_response,
+            &ci.response_sender,
+            &mut ci.log_senders_map,
+        )
+        .await;
+
+        // Test connected state - received valid response
+        response_receiver.try_recv().unwrap_err(); // No response should be sent
+        ControlInterface::handle_decoded_response(
+            &state,
+            update_state_response,
+            &ci.response_sender,
+            &mut ci.log_senders_map,
+        )
+        .await;
+        assert!(matches!(
+            response_receiver.recv().await.unwrap().get_content(),
+            ResponseType::UpdateStateSuccess(_)
+        ));
+    }
+
+    #[tokio::test]
     async fn utest_control_interface_receive_log_entries() {
         // Crate mpsc channel
         let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
@@ -988,9 +1192,13 @@ mod tests {
         ci.log_senders_map
             .insert(REQUEST_ID_1.to_owned(), logs_sender);
 
-        // Connect to the control interface - success
-        ci.connect().await.unwrap();
-        assert_eq!(get_state(&ci), ControlInterfaceState::Initialized);
+        // Simulate connecting to the control interface
+        ci.prepare_writer();
+        ci.read_from_control_interface();
+        ci.state
+            .lock()
+            .unwrap_or_else(|_| unreachable!())
+            .clone_from(&ControlInterfaceState::Connected);
 
         sleep(Duration::from_millis(20)).await; // the receiver should be available first
         let mut file_input =
@@ -1078,6 +1286,8 @@ mod tests {
 
         // Create control interface
         let mut ci = ControlInterface::new(response_sender);
+        let state = ci.state;
+        *state.lock().unwrap() = ControlInterfaceState::Connected;
 
         let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
         ci.log_senders_map
@@ -1099,6 +1309,7 @@ mod tests {
             generate_test_logs_stop_response(REQUEST_ID_1.to_owned(), instance_name_1.clone());
 
         ControlInterface::handle_decoded_response(
+            &state,
             response,
             &ci.response_sender,
             &mut ci.log_senders_map,
@@ -1117,6 +1328,7 @@ mod tests {
             generate_test_logs_stop_response(REQUEST_ID_1.to_owned(), instance_name_2.clone());
 
         ControlInterface::handle_decoded_response(
+            &state,
             response,
             &ci.response_sender,
             &mut ci.log_senders_map,

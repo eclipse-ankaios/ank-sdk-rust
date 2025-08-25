@@ -72,6 +72,8 @@ pub enum ResponseType {
     UpdateStateSuccess(Box<UpdateStateSuccess>),
     /// An error provided by the cluster.
     Error(String),
+    /// The response indicating that the connection has been accepted.
+    ControlInterfaceAccepted,
     /// The reason a connection closed was received.
     ConnectionClosedReason(String),
     /// The success of an logs request.
@@ -110,6 +112,7 @@ impl fmt::Display for ResponseType {
             ResponseType::CompleteState(_) => write!(f, "CompleteState"),
             ResponseType::UpdateStateSuccess(_) => write!(f, "UpdateStateSuccess"),
             ResponseType::Error(_) => write!(f, "Error"),
+            ResponseType::ControlInterfaceAccepted => write!(f, "ControlInterfaceAccepted"),
             ResponseType::ConnectionClosedReason(_) => write!(f, "ConnectionClosedReason"),
             ResponseType::LogsRequestAccepted(_) => write!(f, "LogsRequestAccepted"),
             ResponseType::LogsCancelAccepted => write!(f, "LogsCancelAccepted"),
@@ -215,6 +218,10 @@ impl From<FromAnkaios> for Response {
                     },
                     id: inner_response.request_id,
                 },
+                FromAnkaiosEnum::ControlInterfaceAccepted(_) => Self {
+                    content: ResponseType::ControlInterfaceAccepted,
+                    id: String::default(),
+                },
                 FromAnkaiosEnum::ConnectionClosed(connection_closed) => Self {
                     content: ResponseType::ConnectionClosedReason(connection_closed.reason),
                     id: String::default(),
@@ -317,6 +324,14 @@ impl fmt::Display for UpdateStateSuccess {
 //                    ##     ##                ##     ##                    //
 //                    ##     #######   #########      ##                    //
 //////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+pub fn generate_test_control_interface_accepted_response() -> Response {
+    Response {
+        content: ResponseType::ControlInterfaceAccepted,
+        id: String::default(),
+    }
+}
 
 #[cfg(test)]
 pub fn generate_test_proto_update_state_success(req_id: String) -> FromAnkaios {
@@ -495,6 +510,20 @@ mod tests {
         assert_eq!(
             format!("{}", response.get_content()),
             format!("{}", ResponseType::UpdateStateSuccess(Box::default()))
+        );
+    }
+
+    #[test]
+    fn utest_response_control_interface_accepted() {
+        let response = Response::new(FromAnkaios {
+            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::ControlInterfaceAccepted(
+                ankaios_api::control_api::ControlInterfaceAccepted::default(),
+            )),
+        });
+        assert_eq!(response.get_request_id(), String::default());
+        assert_eq!(
+            format!("{}", response.get_content()),
+            format!("{}", ResponseType::ControlInterfaceAccepted)
         );
     }
 
