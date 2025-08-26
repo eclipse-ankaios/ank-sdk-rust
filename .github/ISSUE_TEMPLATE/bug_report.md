@@ -39,3 +39,12 @@ assignees: ''
 <!-- Before filling in the final result, summarize the use-case and/or workflow in a comment and discuss it with the committers -->
 
 **To be filled by the one closing the issue.**
+
+### Tasks
+
+- [ ] Assign yourself as `assignee`;
+- [ ] Implement enhancement;
+- [ ] Document the code similar to how it's done for the other code;
+- [ ] Check and fix utests, coverage, clippy and doc; <!-- Check the `justfile` for commands. Ex: test, cov, clippy, doc -->
+- [ ] Create Pull Request and fix possible workflow failures; <!-- The failures can appear if the rust versions differ between the devcontainer and the latest stable. -->
+- [ ] Add the `ready_for_review` label.
