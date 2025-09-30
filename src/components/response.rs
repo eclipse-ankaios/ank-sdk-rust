@@ -50,6 +50,7 @@
 use super::workload_state_mod::WorkloadInstanceName;
 use crate::ankaios_api::{self};
 use crate::components::complete_state::CompleteState;
+use crate::components::event_types::EventEntry;
 use crate::components::log_types::LogEntry;
 use crate::extensions::UnreachableOption;
 use ankaios_api::ank_base::{
@@ -84,6 +85,10 @@ pub enum ResponseType {
     LogEntriesResponse(Vec<LogEntry>),
     /// The response indicating the stop of log entries for a specific workload.
     LogsStopResponse(WorkloadInstanceName),
+    /// The response indicating an event notification.
+    EventResponse(Box<EventEntry>),
+    /// The success of an events cancel request.
+    EventsCancelAccepted,
 }
 
 /// Struct that represents a response from the [Ankaios] cluster.
@@ -118,6 +123,8 @@ impl fmt::Display for ResponseType {
             ResponseType::LogsCancelAccepted => write!(f, "LogsCancelAccepted"),
             ResponseType::LogEntriesResponse(_) => write!(f, "LogEntriesResponse"),
             ResponseType::LogsStopResponse(_) => write!(f, "LogsStopResponse"),
+            ResponseType::EventResponse(_) => write!(f, "EventResponse"),
+            ResponseType::EventsCancelAccepted => write!(f, "EventsCancelAccepted"),
         }
     }
 }
@@ -176,10 +183,20 @@ impl From<FromAnkaios> for Response {
                         }),
                     ) {
                         AnkaiosResponseContent::Error(err) => ResponseType::Error(err.message),
-                        AnkaiosResponseContent::CompleteState(complete_state) => {
-                            ResponseType::CompleteState(Box::new(CompleteState::new_from_proto(
-                                complete_state,
-                            )))
+                        AnkaiosResponseContent::CompleteStateResponse(complete_state_response) => {
+                            if complete_state_response.altered_fields.is_some() {
+                                ResponseType::EventResponse(Box::new(EventEntry::from(
+                                    complete_state_response,
+                                )))
+                            } else {
+                                ResponseType::CompleteState(Box::new(
+                                    CompleteState::new_from_proto(
+                                        complete_state_response.complete_state.expect(
+                                            "Complete State response must contain Complete State.",
+                                        ),
+                                    ),
+                                ))
+                            }
                         }
                         AnkaiosResponseContent::UpdateStateSuccess(update_state_success) => {
                             ResponseType::UpdateStateSuccess(Box::new(
@@ -214,6 +231,9 @@ impl From<FromAnkaios> for Response {
                                 .unwrap_or_unreachable();
 
                             ResponseType::LogsStopResponse(instance_name)
+                        }
+                        AnkaiosResponseContent::EventsCancelAccepted(_) => {
+                            ResponseType::EventsCancelAccepted
                         }
                     },
                     id: inner_response.request_id,
@@ -360,7 +380,7 @@ pub fn get_test_proto_from_ankaios_log_entries_response(
     request_id: String,
     log_entries_response: ankaios_api::ank_base::LogEntriesResponse,
 ) -> FromAnkaios {
-    ankaios_api::control_api::FromAnkaios {
+    FromAnkaios {
         from_ankaios_enum: Some(
             ankaios_api::control_api::from_ankaios::FromAnkaiosEnum::Response(Box::new(
                 ankaios_api::ank_base::Response {
@@ -410,14 +430,37 @@ pub fn generate_test_logs_stop_response(
 }
 
 #[cfg(test)]
+pub fn generate_test_response_event_entry(request_id: String) -> Response {
+    Response::new(FromAnkaios {
+        from_ankaios_enum: Some(
+            ankaios_api::control_api::from_ankaios::FromAnkaiosEnum::Response(Box::new(
+                ankaios_api::ank_base::Response {
+                    request_id,
+                    response_content: Some(AnkaiosResponseContent::CompleteStateResponse(
+                        ankaios_api::ank_base::CompleteStateResponse {
+                            complete_state: Some(ankaios_api::ank_base::CompleteState::default()),
+                            altered_fields: Some(ankaios_api::ank_base::AlteredFields {
+                                added_fields: vec!["field1".to_owned()],
+                                updated_fields: vec!["field2".to_owned()],
+                                removed_fields: vec!["field3".to_owned()],
+                            }),
+                        },
+                    )),
+                },
+            )),
+        ),
+    })
+}
+
+#[cfg(test)]
 mod tests {
     use super::{
         Response, ResponseType, UpdateStateSuccess, generate_test_response_update_state_success,
     };
-    use crate::ankaios_api;
     use crate::components::response::{
         generate_test_proto_log_entries_response, get_test_proto_from_ankaios_log_entries_response,
     };
+    use crate::{EventEntry, ankaios_api};
     use ankaios_api::ank_base::{
         Response as AnkaiosResponse, UpdateStateSuccess as AnkaiosUpdateStateSuccess,
         response::ResponseContent as AnkaiosResponseContent,
@@ -481,8 +524,11 @@ mod tests {
             from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
                 AnkaiosResponse {
                     request_id: String::from("123"),
-                    response_content: Some(AnkaiosResponseContent::CompleteState(
-                        ankaios_api::ank_base::CompleteState::default(),
+                    response_content: Some(AnkaiosResponseContent::CompleteStateResponse(
+                        ankaios_api::ank_base::CompleteStateResponse {
+                            complete_state: Some(ankaios_api::ank_base::CompleteState::default()),
+                            altered_fields: None,
+                        },
                     )),
                 },
             ))),
@@ -720,5 +766,59 @@ mod tests {
             response.get_content(),
             ResponseType::LogsStopResponse(expected_instance_name.into())
         );
+    }
+
+    #[test]
+    fn utest_response_event_entry() {
+        let response = Response::new(FromAnkaios {
+            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
+                AnkaiosResponse {
+                    request_id: String::from("123"),
+                    response_content: Some(AnkaiosResponseContent::CompleteStateResponse(
+                        ankaios_api::ank_base::CompleteStateResponse {
+                            complete_state: Some(ankaios_api::ank_base::CompleteState::default()),
+                            altered_fields: Some(ankaios_api::ank_base::AlteredFields {
+                                added_fields: vec!["field1".to_owned()],
+                                updated_fields: vec!["field2".to_owned()],
+                                removed_fields: vec!["field3".to_owned()],
+                            }),
+                        },
+                    )),
+                },
+            ))),
+        });
+        assert_eq!(response.get_request_id(), "123".to_owned());
+        assert_eq!(
+            format!("{}", response.get_content()),
+            format!(
+                "{}",
+                ResponseType::EventResponse(Box::new(EventEntry::from(
+                    ankaios_api::ank_base::CompleteStateResponse {
+                        complete_state: Some(ankaios_api::ank_base::CompleteState::default()),
+                        altered_fields: Some(ankaios_api::ank_base::AlteredFields {
+                            added_fields: vec!["field1".to_owned()],
+                            updated_fields: vec!["field2".to_owned()],
+                            removed_fields: vec!["field3".to_owned()],
+                        }),
+                    }
+                )))
+            )
+        );
+    }
+
+    #[test]
+    fn utest_response_events_cancel_accepted() {
+        let response = Response::new(FromAnkaios {
+            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
+                AnkaiosResponse {
+                    request_id: String::from("123"),
+                    response_content: Some(AnkaiosResponseContent::EventsCancelAccepted(
+                        ankaios_api::ank_base::EventsCancelAccepted {},
+                    )),
+                },
+            ))),
+        });
+        assert_eq!(response.get_request_id(), "123".to_owned());
+        assert_eq!(response.get_content(), ResponseType::EventsCancelAccepted);
     }
 }

@@ -31,11 +31,12 @@ use tokio::{
     time::{Duration, sleep, timeout as tokio_timeout},
 };
 
-use crate::AnkaiosError;
+use crate::components::event_types::EventEntry;
+use crate::components::log_types::{LogEntry, LogResponse};
 use crate::components::request::Request;
 use crate::components::response::{Response, ResponseType};
-use crate::components::{log_types::LogResponse, workload_state_mod::WorkloadInstanceName};
-use crate::{LogEntry, ankaios_api};
+use crate::components::workload_state_mod::WorkloadInstanceName;
+use crate::{AnkaiosError, ankaios_api};
 use ankaios_api::control_api::{FromAnkaios, Hello, ToAnkaios, to_ankaios::ToAnkaiosEnum};
 
 #[cfg(test)]
@@ -70,58 +71,66 @@ pub enum ControlInterfaceState {
 }
 
 #[doc(hidden)]
-#[derive(Debug, Default, Clone)]
-struct SynchronizedLogResponseSenderMap {
-    /// A map of request IDs to their corresponding log response sender of the log campaign.
-    request_id_log_senders_map: Arc<Mutex<HashMap<String, mpsc::Sender<LogResponse>>>>,
+#[derive(Debug, Clone)]
+struct SynchronizedSenderMap<T> {
+    /// A map of request IDs to their corresponding senders.
+    senders_map: Arc<Mutex<HashMap<String, mpsc::Sender<T>>>>,
 }
 
-impl SynchronizedLogResponseSenderMap {
-    /// Inserts a new log response sender for a request ID part of a started log campaign.
+impl<T> SynchronizedSenderMap<T> {
+    /// Inserts a new sender for a request ID part of a started campaign.
     ///
     /// ## Arguments
     ///
-    /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
-    /// * `logs_sender` - A [`mpsc::Sender<LogResponse>`] to forward log responses for the log campaign.
+    /// * `request_id` - A [String] representing the request ID;
+    /// * `sender` - A [`mpsc::Sender<T>`] to forward campaign messages.
     ///
-    fn insert(&mut self, request_id: String, logs_sender: mpsc::Sender<LogResponse>) {
-        self.request_id_log_senders_map
+    fn insert(&mut self, request_id: String, sender: mpsc::Sender<T>) {
+        self.senders_map
             .lock()
             .unwrap_or_else(|_| unreachable!())
-            .insert(request_id, logs_sender);
+            .insert(request_id, sender);
     }
 
-    /// Removes a log response sender by its request ID for a log campaign.
+    /// Removes a sender by its request ID.
     ///
     /// ## Arguments
     ///
-    /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
+    /// * `request_id` - A [String] representing the request ID.
     ///
     /// ## Returns
     ///
-    /// An [`Option<mpsc::Sender<LogResponse>>`] if the request ID was found and removed, otherwise `None`.
-    fn remove(&mut self, request_id: &str) -> Option<mpsc::Sender<LogResponse>> {
-        self.request_id_log_senders_map
+    /// An [`Option<mpsc::Sender<T>>`] if the request ID was found and removed, otherwise `None`.
+    fn remove(&mut self, request_id: &str) -> Option<mpsc::Sender<T>> {
+        self.senders_map
             .lock()
             .unwrap_or_else(|_| unreachable!())
             .remove(request_id)
     }
 
-    /// Gets a cloned log response sender by its request ID for a log campaign.
+    /// Gets a cloned sender by its request ID.
     ///
     /// ## Arguments
     ///
-    /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
+    /// * `request_id` - A [String] representing the request ID.
     ///
     /// ## Returns
     ///
-    /// An [`Option<mpsc::Sender<LogResponse>>`] if the request ID was found, otherwise `None`.
-    fn get_cloned(&self, request_id: &str) -> Option<mpsc::Sender<LogResponse>> {
-        self.request_id_log_senders_map
+    /// An [`Option<mpsc::Sender<T>>`] if the request ID was found, otherwise `None`.
+    fn get_cloned(&self, request_id: &str) -> Option<mpsc::Sender<T>> {
+        self.senders_map
             .lock()
             .unwrap_or_else(|_| unreachable!())
             .get(request_id)
             .cloned()
+    }
+}
+
+impl<T> Default for SynchronizedSenderMap<T> {
+    fn default() -> Self {
+        SynchronizedSenderMap {
+            senders_map: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 }
 
@@ -146,7 +155,9 @@ pub struct ControlInterface {
     /// Sender for the writer channel.
     writer_ch_sender: Option<mpsc::Sender<ToAnkaios>>,
     /// Request ID to logs sender mapping
-    log_senders_map: SynchronizedLogResponseSenderMap,
+    log_senders_map: SynchronizedSenderMap<LogResponse>,
+    /// Request ID to events sender mapping
+    events_senders_map: SynchronizedSenderMap<EventEntry>,
 }
 
 /// Helper function that reads varint data from the input pipe.
@@ -225,7 +236,8 @@ impl ControlInterface {
             state: Arc::new(Mutex::new(ControlInterfaceState::Terminated)),
             response_sender,
             writer_ch_sender: None,
-            log_senders_map: SynchronizedLogResponseSenderMap::default(),
+            log_senders_map: SynchronizedSenderMap::default(),
+            events_senders_map: SynchronizedSenderMap::default(),
         }
     }
 
@@ -403,7 +415,8 @@ impl ControlInterface {
             .unwrap_or_else(|| unreachable!())
             .clone();
         let state_clone = Arc::<Mutex<ControlInterfaceState>>::clone(&self.state);
-        let mut request_id_logs_sender_map = self.log_senders_map.clone();
+        let mut logs_sender_map_clone = self.log_senders_map.clone();
+        let mut event_sender_map_clone = self.events_senders_map.clone();
         self.read_thread_handler = Some(spawn(async move {
             let receiver = pipe::OpenOptions::new()
                 .open_receiver(input_path)
@@ -436,7 +449,8 @@ impl ControlInterface {
                                     &state_clone,
                                     received_response,
                                     &response_sender_clone,
-                                    &mut request_id_logs_sender_map,
+                                    &mut logs_sender_map_clone,
+                                    &mut event_sender_map_clone,
                                 )
                                 .await;
 
@@ -484,13 +498,15 @@ impl ControlInterface {
     /// * `state` - A reference to the current state;
     /// * `received_response` - A decoded [`Response`] object from the control interface;
     /// * `response_sender` - A [`Sender<Response>`] to forward the response;
-    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log entries and stop responses for a log campaign.
+    /// * `logs_sender_map` - A [`SynchronizedSenderMap<LogResponse>`] to forward log entries and stop responses for a log campaign;
+    /// * `event_sender_map` - A [`SynchronizedSenderMap<EventEntry>`] to forward event notifications for an event campaign
     ///
     async fn handle_decoded_response(
         state: &Arc<Mutex<ControlInterfaceState>>,
         received_response: Response,
         response_sender: &mpsc::Sender<Response>,
-        request_id_logs_sender_map: &mut SynchronizedLogResponseSenderMap,
+        logs_sender_map: &mut SynchronizedSenderMap<LogResponse>,
+        event_sender_map: &mut SynchronizedSenderMap<EventEntry>,
     ) {
         // The state needs to be locked outside of the match because otherwise the temporary created guard
         // will be dropped only at the end, repetitive locking inside the match not being allowed.
@@ -504,18 +520,22 @@ impl ControlInterface {
             }
             ControlInterfaceState::Connected => match received_response.content {
                 ResponseType::LogEntriesResponse(log_entries) => {
-                    Self::forward_log_entries(
-                        received_response.id,
-                        log_entries,
-                        request_id_logs_sender_map,
-                    )
-                    .await;
+                    Self::forward_log_entries(received_response.id, log_entries, logs_sender_map)
+                        .await;
                 }
                 ResponseType::LogsStopResponse(instance_name) => {
                     Self::forward_logs_stop_response(
                         received_response.id,
                         instance_name,
-                        request_id_logs_sender_map,
+                        logs_sender_map,
+                    )
+                    .await;
+                }
+                ResponseType::EventResponse(event_entry) => {
+                    Self::forward_event_response(
+                        received_response.id,
+                        event_entry,
+                        event_sender_map,
                     )
                     .await;
                 }
@@ -598,20 +618,51 @@ impl ControlInterface {
     }
 
     #[doc(hidden)]
+    /// Adds an events campaign to the control interface.
+    ///
+    /// ## Arguments
+    ///
+    /// * `request_id` - A [String] representing the request ID of the initial events campaign;
+    /// * `events_sender` - A [`mpsc::Sender<EventEntry>`] to forward events for the campaign.
+    ///
+    pub fn add_events_campaign(
+        &mut self,
+        request_id: String,
+        events_sender: mpsc::Sender<EventEntry>,
+    ) {
+        log::trace!("Add log campaign with request id: '{request_id}'");
+
+        self.events_senders_map.insert(request_id, events_sender);
+    }
+
+    #[doc(hidden)]
+    /// Removes an events campaign from the control interface.
+    ///
+    /// ## Arguments
+    ///
+    /// * `request_id` - A [&str] representing the request ID of the initial events request.;
+    ///
+    pub fn remove_events_campaign(&mut self, request_id: &str) {
+        if self.events_senders_map.remove(request_id).is_some() {
+            log::trace!("Removed events campaign with request id: '{request_id}'");
+        }
+    }
+
+    #[doc(hidden)]
     /// Forwards the log entries to the appropriate log campaign receiver.
     ///
     /// ## Arguments
     ///
     /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
     /// * `log_entries` - A [`Vec<LogEntry>`] containing the log entries of workload to be forwarded;
-    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log entries and stop responses for a log campaign.
+    /// * `logs_sender_map` - A [`SynchronizedSenderMap<LogResponse>`] to forward log entries and stop responses for a log campaign.
     ///
     async fn forward_log_entries(
         request_id: String,
         log_entries: Vec<LogEntry>,
-        request_id_logs_sender_map: &SynchronizedLogResponseSenderMap,
+        logs_sender_map: &SynchronizedSenderMap<LogResponse>,
     ) {
-        let log_entries_sender = request_id_logs_sender_map.get_cloned(&request_id);
+        let log_entries_sender = logs_sender_map.get_cloned(&request_id);
 
         if let Some(sender) = log_entries_sender {
             log::trace!(
@@ -637,14 +688,14 @@ impl ControlInterface {
     ///
     /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
     /// * `instance_name` - A [`WorkloadInstanceName`] for which the logs stop response is sent;
-    /// * `request_id_logs_sender_map` - A [`SynchronizedLogResponseSenderMap`] to forward log entries and stop responses for a log campaign.
+    /// * `logs_sender_map` - A [`SynchronizedSenderMap<LogResponse>`] to forward log entries and stop responses for a log campaign.
     ///
     async fn forward_logs_stop_response(
         request_id: String,
         instance_name: WorkloadInstanceName,
-        request_id_logs_sender_map: &mut SynchronizedLogResponseSenderMap,
+        logs_sender_map: &mut SynchronizedSenderMap<LogResponse>,
     ) {
-        let log_entries_sender = request_id_logs_sender_map.get_cloned(&request_id);
+        let log_entries_sender = logs_sender_map.get_cloned(&request_id);
         if let Some(sender) = log_entries_sender {
             log::trace!(
                 "Forwarding logs stop response for workload '{instance_name}' of request id '{request_id}' to log campaign receiver."
@@ -658,6 +709,34 @@ impl ControlInterface {
         } else {
             log::debug!(
                 "Received logs stop response for request id '{request_id}', but no log campaign found."
+            );
+        }
+    }
+
+    #[doc(hidden)]
+    /// Forwards the event entries to the appropriate receiver.
+    ///
+    /// ## Arguments
+    ///
+    /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
+    /// * `event_entry` - A [`EventEntry`] representing the event notification to be forwarded;
+    /// * `event_sender_map` - A [`SynchronizedSenderMap<EventEntry>`] to forward log entries and stop responses for a log campaign.
+    ///
+    async fn forward_event_response(
+        request_id: String,
+        event_entry: Box<EventEntry>,
+        event_sender_map: &SynchronizedSenderMap<EventEntry>,
+    ) {
+        let event_sender = event_sender_map.get_cloned(&request_id);
+
+        if let Some(sender) = event_sender {
+            log::trace!("Forwarding event entry for request id '{request_id}' to receiver.");
+            sender.send(*event_entry).await.unwrap_or_else(|err| {
+                log::error!("Error while sending event entry: '{err}'");
+            });
+        } else {
+            log::debug!(
+                "Received event entry for request id '{request_id}', but no event campaign found."
             );
         }
     }
@@ -712,18 +791,21 @@ mod tests {
         ANKAIOS_INPUT_FIFO_PATH, ANKAIOS_OUTPUT_FIFO_PATH, ANKAIOS_VERSION, ControlInterface,
         ControlInterfaceState, read_protobuf_data,
     };
-    use crate::components::{
-        request::{Request, generate_test_request},
-        response::{
-            Response, ResponseType, generate_test_control_interface_accepted_response,
-            generate_test_logs_stop_response, generate_test_proto_log_entries_response,
-            generate_test_proto_update_state_success, generate_test_response_update_state_success,
-            get_test_proto_from_ankaios_log_entries_response,
-        },
-    };
-    use crate::{AnkaiosError, ankaios_api};
     use crate::{
-        LogResponse, ankaios::CHANNEL_SIZE, components::workload_state_mod::WorkloadInstanceName,
+        AnkaiosError, EventEntry, LogResponse,
+        ankaios::CHANNEL_SIZE,
+        ankaios_api,
+        components::{
+            request::{Request, generate_test_request},
+            response::{
+                Response, ResponseType, generate_test_control_interface_accepted_response,
+                generate_test_logs_stop_response, generate_test_proto_log_entries_response,
+                generate_test_proto_update_state_success, generate_test_response_event_entry,
+                generate_test_response_update_state_success,
+                get_test_proto_from_ankaios_log_entries_response,
+            },
+            workload_state_mod::WorkloadInstanceName,
+        },
     };
     use ankaios_api::control_api::{Hello, ToAnkaios, to_ankaios::ToAnkaiosEnum};
 
@@ -1133,6 +1215,7 @@ mod tests {
             update_state_response.clone(),
             &ci.response_sender,
             &mut ci.log_senders_map,
+            &mut ci.events_senders_map,
         )
         .await;
         response_receiver.try_recv().unwrap_err(); // No response should be sent
@@ -1144,6 +1227,7 @@ mod tests {
             ci_accepted_response.clone(),
             &ci.response_sender,
             &mut ci.log_senders_map,
+            &mut ci.events_senders_map,
         )
         .await;
         assert!(matches!(get_state(&ci), ControlInterfaceState::Connected));
@@ -1154,6 +1238,7 @@ mod tests {
             ci_accepted_response,
             &ci.response_sender,
             &mut ci.log_senders_map,
+            &mut ci.events_senders_map,
         )
         .await;
 
@@ -1164,6 +1249,7 @@ mod tests {
             update_state_response,
             &ci.response_sender,
             &mut ci.log_senders_map,
+            &mut ci.events_senders_map,
         )
         .await;
         assert!(matches!(
@@ -1254,7 +1340,7 @@ mod tests {
 
         assert!(
             ci.log_senders_map
-                .request_id_log_senders_map
+                .senders_map
                 .lock()
                 .unwrap()
                 .get(REQUEST_ID_2)
@@ -1313,6 +1399,7 @@ mod tests {
             response,
             &ci.response_sender,
             &mut ci.log_senders_map,
+            &mut ci.events_senders_map,
         )
         .await;
 
@@ -1332,6 +1419,7 @@ mod tests {
             response,
             &ci.response_sender,
             &mut ci.log_senders_map,
+            &mut ci.events_senders_map,
         )
         .await;
 
@@ -1343,13 +1431,7 @@ mod tests {
         let log_response = response.unwrap();
         assert_eq!(log_response, LogResponse::LogsStopResponse(instance_name_2));
 
-        assert!(
-            !ci.log_senders_map
-                .request_id_log_senders_map
-                .lock()
-                .unwrap()
-                .is_empty()
-        );
+        assert!(!ci.log_senders_map.senders_map.lock().unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -1366,21 +1448,14 @@ mod tests {
 
         assert!(
             ci.log_senders_map
-                .request_id_log_senders_map
+                .senders_map
                 .lock()
                 .unwrap()
                 .get(REQUEST_ID_2)
                 .is_none()
         );
 
-        assert_eq!(
-            ci.log_senders_map
-                .request_id_log_senders_map
-                .lock()
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_eq!(ci.log_senders_map.senders_map.lock().unwrap().len(), 1);
 
         let not_existing_log_request_id = REQUEST_ID_2.to_owned();
         ControlInterface::forward_logs_stop_response(
@@ -1403,14 +1478,63 @@ mod tests {
         assert!(result.is_err());
 
         // no remove happened, so len shall be the same as before
-        assert_eq!(
-            ci.log_senders_map
-                .request_id_log_senders_map
-                .lock()
-                .unwrap()
-                .len(),
-            1
-        );
+        assert_eq!(ci.log_senders_map.senders_map.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn utest_control_interface_receive_event_entry() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        // Crate mpsc channel
+        let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
+
+        // Create control interface
+        let mut ci = ControlInterface::new(response_sender);
+        let state = ci.state;
+        *state.lock().unwrap() = ControlInterfaceState::Connected;
+
+        let (events_sender, mut events_receiver) = mpsc::channel::<EventEntry>(CHANNEL_SIZE);
+        ci.events_senders_map
+            .insert(REQUEST_ID_1.to_owned(), events_sender);
+
+        // Create a test event entry response with the same request ID
+        let event_entry_response = generate_test_response_event_entry(REQUEST_ID_1.to_owned());
+
+        // Handle event entry response
+        ControlInterface::handle_decoded_response(
+            &state,
+            event_entry_response,
+            &ci.response_sender,
+            &mut ci.log_senders_map,
+            &mut ci.events_senders_map,
+        )
+        .await;
+
+        let result = tokio::time::timeout(Duration::from_millis(100), events_receiver.recv()).await;
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert!(response.is_some());
+
+        let event_entry = response.unwrap();
+        assert_eq!(event_entry.added_fields, vec!["field1".to_owned()]);
+        assert_eq!(event_entry.updated_fields, vec!["field2".to_owned()]);
+        assert_eq!(event_entry.removed_fields, vec!["field3".to_owned()]);
+
+        // Create a test event entry response with another request ID
+        let event_entry_response = generate_test_response_event_entry(REQUEST_ID_2.to_owned());
+
+        // Handle event entry response
+        ControlInterface::handle_decoded_response(
+            &state,
+            event_entry_response,
+            &ci.response_sender,
+            &mut ci.log_senders_map,
+            &mut ci.events_senders_map,
+        )
+        .await;
+
+        let result = tokio::time::timeout(Duration::from_millis(100), events_receiver.recv()).await;
+        assert!(result.is_err());
     }
 
     #[tokio::test]
@@ -1422,11 +1546,7 @@ mod tests {
         ci.add_log_campaign(REQUEST_ID_1.to_owned(), logs_sender_1);
 
         {
-            let map_guard = ci
-                .log_senders_map
-                .request_id_log_senders_map
-                .lock()
-                .unwrap();
+            let map_guard = ci.log_senders_map.senders_map.lock().unwrap();
             assert_eq!(map_guard.len(), 1);
             assert!(map_guard.get(REQUEST_ID_1).is_some());
         }
@@ -1435,11 +1555,7 @@ mod tests {
         ci.add_log_campaign(REQUEST_ID_2.to_owned(), logs_sender_2);
 
         {
-            let map_guard = ci
-                .log_senders_map
-                .request_id_log_senders_map
-                .lock()
-                .unwrap();
+            let map_guard = ci.log_senders_map.senders_map.lock().unwrap();
             assert_eq!(map_guard.len(), 2);
             assert!(map_guard.get(REQUEST_ID_2).is_some());
         }
@@ -1452,35 +1568,24 @@ mod tests {
 
         let (logs_sender_1, _) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
         ci.log_senders_map
-            .request_id_log_senders_map
+            .senders_map
             .lock()
             .unwrap()
             .insert(REQUEST_ID_1.to_owned(), logs_sender_1);
 
         let (logs_sender_2, _) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
         ci.log_senders_map
-            .request_id_log_senders_map
+            .senders_map
             .lock()
             .unwrap()
             .insert(REQUEST_ID_2.to_owned(), logs_sender_2);
 
-        assert_eq!(
-            ci.log_senders_map
-                .request_id_log_senders_map
-                .lock()
-                .unwrap()
-                .len(),
-            2
-        );
+        assert_eq!(ci.log_senders_map.senders_map.lock().unwrap().len(), 2);
 
         ci.remove_log_campaign(REQUEST_ID_1);
 
         {
-            let map_guard = ci
-                .log_senders_map
-                .request_id_log_senders_map
-                .lock()
-                .unwrap();
+            let map_guard = ci.log_senders_map.senders_map.lock().unwrap();
             assert_eq!(map_guard.len(), 1);
             assert!(map_guard.get(REQUEST_ID_1).is_none());
             assert!(map_guard.get(REQUEST_ID_2).is_some());
@@ -1489,11 +1594,70 @@ mod tests {
         ci.remove_log_campaign(REQUEST_ID_2);
 
         {
-            let map_guard = ci
-                .log_senders_map
-                .request_id_log_senders_map
-                .lock()
-                .unwrap();
+            let map_guard = ci.log_senders_map.senders_map.lock().unwrap();
+            assert_eq!(map_guard.len(), 0);
+            assert!(map_guard.get(REQUEST_ID_2).is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn utest_control_interface_add_events_campaign() {
+        let (response_sender, _) = mpsc::channel::<Response>(CHANNEL_SIZE);
+        let mut ci = ControlInterface::new(response_sender);
+
+        let (events_sender_1, _) = mpsc::channel::<EventEntry>(CHANNEL_SIZE);
+        ci.add_events_campaign(REQUEST_ID_1.to_owned(), events_sender_1);
+
+        {
+            let map_guard = ci.events_senders_map.senders_map.lock().unwrap();
+            assert_eq!(map_guard.len(), 1);
+            assert!(map_guard.get(REQUEST_ID_1).is_some());
+        }
+
+        let (events_sender_2, _) = mpsc::channel::<EventEntry>(CHANNEL_SIZE);
+        ci.add_events_campaign(REQUEST_ID_2.to_owned(), events_sender_2);
+
+        {
+            let map_guard = ci.events_senders_map.senders_map.lock().unwrap();
+            assert_eq!(map_guard.len(), 2);
+            assert!(map_guard.get(REQUEST_ID_2).is_some());
+        }
+    }
+
+    #[tokio::test]
+    async fn utest_control_interface_remove_events_campaign() {
+        let (response_sender, _) = mpsc::channel::<Response>(CHANNEL_SIZE);
+        let mut ci = ControlInterface::new(response_sender);
+
+        let (events_sender_1, _) = mpsc::channel::<EventEntry>(CHANNEL_SIZE);
+        ci.events_senders_map
+            .senders_map
+            .lock()
+            .unwrap()
+            .insert(REQUEST_ID_1.to_owned(), events_sender_1);
+
+        let (events_sender_2, _) = mpsc::channel::<EventEntry>(CHANNEL_SIZE);
+        ci.events_senders_map
+            .senders_map
+            .lock()
+            .unwrap()
+            .insert(REQUEST_ID_2.to_owned(), events_sender_2);
+
+        assert_eq!(ci.events_senders_map.senders_map.lock().unwrap().len(), 2);
+
+        ci.remove_events_campaign(REQUEST_ID_1);
+
+        {
+            let map_guard = ci.events_senders_map.senders_map.lock().unwrap();
+            assert_eq!(map_guard.len(), 1);
+            assert!(map_guard.get(REQUEST_ID_1).is_none());
+            assert!(map_guard.get(REQUEST_ID_2).is_some());
+        }
+
+        ci.remove_events_campaign(REQUEST_ID_2);
+
+        {
+            let map_guard = ci.events_senders_map.senders_map.lock().unwrap();
             assert_eq!(map_guard.len(), 0);
             assert!(map_guard.get(REQUEST_ID_2).is_none());
         }

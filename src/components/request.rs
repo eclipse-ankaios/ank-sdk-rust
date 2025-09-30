@@ -23,7 +23,7 @@
 //!
 //! ```rust
 //! use ankaios_sdk::{CompleteState, UpdateStateRequest};
-//! 
+//!
 //! let complete_state = CompleteState::new();
 //! let _request = UpdateStateRequest::new(&complete_state, Vec::default());
 //! ```
@@ -32,7 +32,7 @@
 //!
 //! ```rust
 //! use ankaios_sdk::GetStateRequest;
-//! 
+//!
 //! let mut request = GetStateRequest::new(Vec::default());
 //! ```
 //!
@@ -128,6 +128,7 @@ impl GetStateRequest {
                 request_id: request_id.clone(),
                 request_content: Some(RequestContent::CompleteStateRequest(CompleteStateRequest {
                     field_mask: masks,
+                    subscribe_for_events: false,
                 })),
             },
             request_id,
@@ -318,6 +319,108 @@ impl fmt::Display for LogsCancelRequest {
     }
 }
 
+/// Struct that represents a request to subscribe for events from the [Ankaios] application.
+///
+/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
+#[derive(Debug, PartialEq)]
+pub struct EventsRequest {
+    /// The request proto message that will be sent to the cluster.
+    #[allow(clippy::struct_field_names)]
+    pub(crate) request: AnkaiosRequest,
+    /// The unique identifier of the request.
+    #[allow(clippy::struct_field_names)]
+    request_id: String,
+}
+
+impl EventsRequest {
+    pub fn new(masks: Vec<String>) -> Self {
+        let request_id = Uuid::new_v4().to_string();
+        log::debug!("Creating new request of type EventsRequest with id {request_id}");
+
+        Self {
+            request: AnkaiosRequest {
+                request_id: request_id.clone(),
+                request_content: Some(RequestContent::CompleteStateRequest(CompleteStateRequest {
+                    field_mask: masks,
+                    subscribe_for_events: true,
+                })),
+            },
+            request_id,
+        }
+    }
+}
+
+impl Request for EventsRequest {
+    fn to_proto(&self) -> AnkaiosRequest {
+        self.request.clone()
+    }
+
+    fn get_id(&self) -> String {
+        self.request_id.clone()
+    }
+}
+
+impl fmt::Display for EventsRequest {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.to_proto())
+    }
+}
+
+/// Struct that represents a request for unregistering from the event stream of a specific events campaign in the [Ankaios] system.
+///
+/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
+#[derive(Debug, PartialEq)]
+pub struct EventsCancelRequest {
+    /// The request proto message that will be sent to the cluster.
+    #[allow(clippy::struct_field_names)]
+    pub(crate) request: AnkaiosRequest,
+    /// The unique identifier of the request.
+    #[allow(clippy::struct_field_names)]
+    request_id: String,
+}
+
+impl EventsCancelRequest {
+    /// Creates a new `EventsCancelRequest`.
+    ///
+    /// ## Arguments
+    ///
+    /// * `request_id` - The request id as a [String] of the initial events request.
+    ///
+    /// ## Returns
+    ///
+    /// A new [`EventsCancelRequest`] object.
+    pub fn new(request_id: String) -> Self {
+        log::debug!("Creating new request of type EventsCancelRequest with id '{request_id}'");
+        Self {
+            request: AnkaiosRequest {
+                request_id: request_id.clone(),
+                request_content: Some(
+                    ankaios_api::ank_base::request::RequestContent::EventsCancelRequest(
+                        ankaios_api::ank_base::EventsCancelRequest {},
+                    ),
+                ),
+            },
+            request_id,
+        }
+    }
+}
+
+impl Request for EventsCancelRequest {
+    fn to_proto(&self) -> AnkaiosRequest {
+        self.request.clone()
+    }
+
+    fn get_id(&self) -> String {
+        self.request_id.clone()
+    }
+}
+
+impl fmt::Display for EventsCancelRequest {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.to_proto())
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////////
 //                 ########  #######    #########  #########                //
 //                    ##     ##        ##             ##                    //
@@ -333,10 +436,17 @@ pub fn generate_test_request() -> impl Request {
 
 #[cfg(test)]
 mod tests {
-    use crate::ankaios_api;
+    use crate::{
+        LogsRequest, ankaios_api,
+        components::request::{
+            AnkaiosLogsRequest, EventsCancelRequest, EventsRequest, LogsCancelRequest,
+        },
+    };
     use ankaios_api::ank_base::Request as AnkaiosRequest;
 
     use super::{CompleteState, GetStateRequest, Request, UpdateStateRequest};
+
+    const REQUEST_ID: &str = "test_id";
 
     #[allow(clippy::shadow_unrelated)]
     #[test]
@@ -394,7 +504,101 @@ mod tests {
                     ankaios_api::ank_base::request::RequestContent::CompleteStateRequest(
                         ankaios_api::ank_base::CompleteStateRequest {
                             field_mask: vec!["mask1".to_owned(), "mask2".to_owned()],
+                            subscribe_for_events: false,
                         }
+                    )
+                )
+            }
+        );
+
+        assert_eq!(format!("{request}"), format!("{:?}", request.to_proto()));
+    }
+
+    #[test]
+    fn utest_request_logs() {
+        let logs_request = LogsRequest {
+            workload_names: Vec::new(),
+            follow: false,
+            tail: 10,
+            since: None,
+            until: None,
+        };
+        let request = AnkaiosLogsRequest::from(logs_request);
+        let id = request.get_id();
+
+        assert_eq!(
+            request.to_proto(),
+            AnkaiosRequest {
+                request_id: id,
+                request_content: Some(ankaios_api::ank_base::request::RequestContent::LogsRequest(
+                    ankaios_api::ank_base::LogsRequest {
+                        workload_names: Vec::new(),
+                        follow: Some(false),
+                        tail: Some(10),
+                        since: None,
+                        until: None,
+                    }
+                ))
+            }
+        );
+
+        assert_eq!(format!("{request}"), format!("{:?}", request.to_proto()));
+    }
+
+    #[test]
+    fn utest_request_logs_cancel() {
+        let request = LogsCancelRequest::new(REQUEST_ID.to_owned());
+
+        assert_eq!(
+            request.to_proto(),
+            AnkaiosRequest {
+                request_id: REQUEST_ID.to_owned(),
+                request_content: Some(
+                    ankaios_api::ank_base::request::RequestContent::LogsCancelRequest(
+                        ankaios_api::ank_base::LogsCancelRequest {}
+                    )
+                )
+            }
+        );
+
+        assert_eq!(format!("{request}"), format!("{:?}", request.to_proto()));
+    }
+
+    #[test]
+    fn utest_request_events() {
+        let masks = vec!["mask1".to_owned(), "mask2".to_owned()];
+        let request = EventsRequest::new(masks.clone());
+        let id = request.get_id();
+
+        assert_eq!(
+            request.to_proto(),
+            AnkaiosRequest {
+                request_id: id,
+                request_content: Some(
+                    ankaios_api::ank_base::request::RequestContent::CompleteStateRequest(
+                        ankaios_api::ank_base::CompleteStateRequest {
+                            field_mask: masks,
+                            subscribe_for_events: true,
+                        }
+                    )
+                )
+            }
+        );
+
+        assert_eq!(format!("{request}"), format!("{:?}", request.to_proto()));
+    }
+
+    #[test]
+    fn utest_request_events_cancel() {
+        let request = EventsCancelRequest::new(REQUEST_ID.to_owned());
+
+        assert_eq!(
+            request.to_proto(),
+            AnkaiosRequest {
+                request_id: REQUEST_ID.to_owned(),
+                request_content: Some(
+                    ankaios_api::ank_base::request::RequestContent::EventsCancelRequest(
+                        ankaios_api::ank_base::EventsCancelRequest {}
                     )
                 )
             }
