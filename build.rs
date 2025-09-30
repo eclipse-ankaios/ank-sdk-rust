@@ -18,6 +18,7 @@ fn main() {
         .build_server(true)
         .boxed("Request.RequestContent.updateStateRequest")
         .boxed("FromAnkaios.FromAnkaiosEnum.response")
+        .boxed("Response.ResponseContent.completeStateResponse")
         .type_attribute(".", "#[derive(serde::Deserialize, serde::Serialize)]")
         .type_attribute(".", "#[serde(rename_all = \"camelCase\")]")
         .type_attribute(

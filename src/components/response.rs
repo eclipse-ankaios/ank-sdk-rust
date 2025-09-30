@@ -186,7 +186,7 @@ impl From<FromAnkaios> for Response {
                         AnkaiosResponseContent::CompleteStateResponse(complete_state_response) => {
                             if complete_state_response.altered_fields.is_some() {
                                 ResponseType::EventResponse(Box::new(EventEntry::from(
-                                    complete_state_response,
+                                    *complete_state_response,
                                 )))
                             } else {
                                 ResponseType::CompleteState(Box::new(
@@ -437,14 +437,14 @@ pub fn generate_test_response_event_entry(request_id: String) -> Response {
                 ankaios_api::ank_base::Response {
                     request_id,
                     response_content: Some(AnkaiosResponseContent::CompleteStateResponse(
-                        ankaios_api::ank_base::CompleteStateResponse {
+                        Box::new(ankaios_api::ank_base::CompleteStateResponse {
                             complete_state: Some(ankaios_api::ank_base::CompleteState::default()),
                             altered_fields: Some(ankaios_api::ank_base::AlteredFields {
                                 added_fields: vec!["field1".to_owned()],
                                 updated_fields: vec!["field2".to_owned()],
                                 removed_fields: vec!["field3".to_owned()],
                             }),
-                        },
+                        }),
                     )),
                 },
             )),
@@ -525,10 +525,10 @@ mod tests {
                 AnkaiosResponse {
                     request_id: String::from("123"),
                     response_content: Some(AnkaiosResponseContent::CompleteStateResponse(
-                        ankaios_api::ank_base::CompleteStateResponse {
+                        Box::new(ankaios_api::ank_base::CompleteStateResponse {
                             complete_state: Some(ankaios_api::ank_base::CompleteState::default()),
                             altered_fields: None,
-                        },
+                        }),
                     )),
                 },
             ))),
@@ -775,14 +775,14 @@ mod tests {
                 AnkaiosResponse {
                     request_id: String::from("123"),
                     response_content: Some(AnkaiosResponseContent::CompleteStateResponse(
-                        ankaios_api::ank_base::CompleteStateResponse {
+                        Box::new(ankaios_api::ank_base::CompleteStateResponse {
                             complete_state: Some(ankaios_api::ank_base::CompleteState::default()),
                             altered_fields: Some(ankaios_api::ank_base::AlteredFields {
                                 added_fields: vec!["field1".to_owned()],
                                 updated_fields: vec!["field2".to_owned()],
                                 removed_fields: vec!["field3".to_owned()],
                             }),
-                        },
+                        }),
                     )),
                 },
             ))),
