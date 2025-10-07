@@ -29,6 +29,9 @@ fn main() {
             "ank_base.ConfigItem",
             "#[serde(try_from = \"serde_yaml::Value\")]",
         )
+        // The WorkloadState message is not used, this allow is a workaround to suppress
+        // the warning about unused code. There is an issue opened: eclipse-ankaios/ankaios/issues/595
+        .type_attribute("WorkloadState", "#[allow(unused)]")
         .field_attribute("Workload.tags", "#[serde(flatten)]")
         .field_attribute("Workload.configs", "#[serde(flatten)]")
         .field_attribute("Workload.dependencies", "#[serde(flatten)]")
