@@ -833,7 +833,7 @@ impl Workload {
     ///
     /// ## Arguments
     ///
-    /// - `tags` - A [HashMap] containing the [tags](ank_base::Workload) of the workload.
+    /// - `tags` - A [`HashMap`] containing the [tags](ank_base::Workload) of the workload.
     pub fn update_tags(&mut self, tags: &HashMap<String, String>) {
         self.workload.tags = Some({
             let mut ank_tags = ank_base::Tags::default();
