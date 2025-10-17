@@ -815,7 +815,7 @@ impl Workload {
     ///
     /// ## Returns
     ///
-    /// A [HashMap] containing the [tags](ank_base::Workload) of the workload.
+    /// A [`HashMap`] containing the [tags](ank_base::Workload) of the workload.
     #[must_use]
     pub fn get_tags(&self) -> HashMap<String, String> {
         let mut tags = HashMap::new();
