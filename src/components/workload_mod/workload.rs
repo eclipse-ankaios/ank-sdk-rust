@@ -47,10 +47,6 @@ const FIELD_RESTART_POLICY: &str = "restartPolicy";
 const FIELD_DEPENDENCIES: &str = "dependencies";
 /// The field name for the tags.
 const FIELD_TAGS: &str = "tags";
-/// The field name for the key of a tag.
-const SUBFIELD_TAG_KEY: &str = "key";
-/// The field name for the value of a tag.
-const SUBFIELD_TAG_VALUE: &str = "value";
 /// The field name for the control interface access.
 const FIELD_CONTROL_INTERFACE_ACCESS: &str = "controlInterfaceAccess";
 /// The field name for the allow rules.
@@ -145,7 +141,7 @@ const FIELD_FILES: &str = "files";
 /// #                    commandOptions: [\"-p\", \"8080:80\"]")
 /// #   .build().unwrap();
 /// let mut tags = workload.get_tags();
-/// tags.push(vec!["key3".to_owned(), "value3".to_owned()]);
+/// tags.insert("key3".to_owned(), "value3".to_owned());
 /// workload.update_tags(&tags);
 /// ```
 ///
@@ -298,28 +294,12 @@ impl Workload {
             }
         }
         if let Some(tags) = dict_workload.get(FIELD_TAGS) {
-            let tags_seq = tags.as_sequence().ok_or(AnkaiosError::WorkloadFieldError(
+            let tags_map = tags.as_mapping().ok_or(AnkaiosError::WorkloadFieldError(
                 FIELD_TAGS.to_owned(),
-                "Should be a sequence".to_owned(),
+                "Should be a mapping".to_owned(),
             ))?;
-            for tag in tags_seq {
-                let tag_map = tag.as_mapping().ok_or(AnkaiosError::WorkloadFieldError(
-                    FIELD_TAGS.to_owned(),
-                    "Tag should be a mapping".to_owned(),
-                ))?;
-                let key = tag_map
-                    .get(SUBFIELD_TAG_KEY)
-                    .ok_or(AnkaiosError::WorkloadFieldError(
-                        FIELD_TAGS.to_owned(),
-                        "Tag should have a key".to_owned(),
-                    ))?;
-                let value =
-                    tag_map
-                        .get(SUBFIELD_TAG_VALUE)
-                        .ok_or(AnkaiosError::WorkloadFieldError(
-                            FIELD_TAGS.to_owned(),
-                            "Tag should have a value".to_owned(),
-                        ))?;
+
+            for (key, value) in tags_map {
                 let key_str = key.as_str().ok_or(AnkaiosError::WorkloadFieldError(
                     FIELD_TAGS.to_owned(),
                     "Tag key should be a string".to_owned(),
@@ -544,20 +524,14 @@ impl Workload {
             );
         }
         if let Some(wl_tags) = self.workload.tags.clone() {
-            let mut tags = serde_yaml::Sequence::new();
-            for tag in &wl_tags.tags {
-                let mut tag_dict = serde_yaml::Mapping::new();
-                tag_dict.insert(
-                    Value::String(SUBFIELD_TAG_KEY.to_owned()),
-                    Value::String(tag.key.clone()),
+            let mut tags = serde_yaml::Mapping::new();
+            for (key, value) in &wl_tags.tags {
+                tags.insert(
+                    Value::String(key.to_string()),
+                    Value::String(value.to_string()),
                 );
-                tag_dict.insert(
-                    Value::String(SUBFIELD_TAG_VALUE.to_owned()),
-                    Value::String(tag.value.clone()),
-                );
-                tags.push(Value::Mapping(tag_dict));
             }
-            dict.insert(Value::String(FIELD_TAGS.to_owned()), Value::Sequence(tags));
+            dict.insert(Value::String(FIELD_TAGS.to_owned()), Value::Mapping(tags));
         }
         if let Some(ci_access) = self.workload.control_interface_access.clone() {
             let mut control_interface_access = serde_yaml::Mapping::new();
@@ -826,10 +800,7 @@ impl Workload {
         }
         let key_str = key.into();
         if let Some(tags) = self.workload.tags.as_mut() {
-            tags.tags.push(ank_base::Tag {
-                key: key_str.clone(),
-                value: value.into(),
-            });
+            tags.tags.insert(key_str.clone(), value.into());
         }
 
         if !self
@@ -844,15 +815,17 @@ impl Workload {
     ///
     /// ## Returns
     ///
-    /// A [Vec] containing the [tags](ank_base::Workload) of the workload.
+    /// A [HashMap] containing the [tags](ank_base::Workload) of the workload.
     #[must_use]
-    pub fn get_tags(&self) -> Vec<Vec<String>> {
-        let mut tags = vec![];
+    pub fn get_tags(&self) -> HashMap<String, String> {
+        let mut tags = HashMap::new();
+
         if let Some(tags_list) = &self.workload.tags {
-            for tag in &tags_list.tags {
-                tags.push(vec![tag.key.clone(), tag.value.clone()]);
+            for (key, value) in &tags_list.tags {
+                tags.insert(key.clone(), value.clone());
             }
         }
+
         tags
     }
 
@@ -860,15 +833,12 @@ impl Workload {
     ///
     /// ## Arguments
     ///
-    /// - `tags` - A [Vec] containing the [tags](ank_base::Workload) of the workload.
-    pub fn update_tags(&mut self, tags: &Vec<Vec<String>>) {
+    /// - `tags` - A [HashMap] containing the [tags](ank_base::Workload) of the workload.
+    pub fn update_tags(&mut self, tags: &HashMap<String, String>) {
         self.workload.tags = Some({
             let mut ank_tags = ank_base::Tags::default();
-            for tag in tags {
-                ank_tags.tags.push(ank_base::Tag {
-                    key: tag[0].clone(),
-                    value: tag[1].clone(),
-                });
+            for (key, value) in tags {
+                ank_tags.tags.insert(key.to_string(), value.to_string());
             }
             ank_tags
         });
@@ -1270,7 +1240,7 @@ mod tests {
 
         // Update tags
         let mut tags = workload.get_tags();
-        tags.push(vec!["key3".to_owned(), "value3".to_owned()]);
+        tags.insert("key3".to_owned(), "value3".to_owned());
         workload.update_tags(&tags);
 
         // Print the updated workload
@@ -1331,7 +1301,7 @@ mod tests {
 
         assert!(wl.update_restart_policy("Dance").is_err());
 
-        let tags = vec![vec!["key_test".to_owned(), "val_test".to_owned()]];
+        let tags = HashMap::from([("key_test".to_owned(), "val_test".to_owned())]);
         wl.update_tags(&tags);
         assert_eq!(wl.get_tags(), tags);
 
@@ -1380,11 +1350,13 @@ mod tests {
         assert_eq!(tags.len(), 1);
 
         wl.add_tag("key_test_2", "val_test_2");
-        tags.push(vec!["key_test_2".to_owned(), "val_test_2".to_owned()]);
+        tags.insert("key_test_2".to_owned(), "val_test_2".to_owned());
         assert_eq!(wl.get_tags().len(), 2);
         assert_eq!(wl.get_tags(), tags);
 
-        tags.remove(0);
+        if let Some(key) = tags.keys().next().cloned() {
+            tags.remove(&key);
+        }
         wl.update_tags(&tags);
         assert_eq!(wl.get_tags().len(), 1);
     }
@@ -1602,7 +1574,7 @@ mod tests {
         utest_update_tags,
         update_tags,
         vec![String::from("desiredState.workloads.Test.tags")],
-        &vec![vec!["key_test".to_owned(), "val_test".to_owned()]]
+        &HashMap::from([("key_test".to_owned(), "val_test".to_owned())])
     );
     generate_test_for_mask_generation!(
         utest_update_allow_rule,
