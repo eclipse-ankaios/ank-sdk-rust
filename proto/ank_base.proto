@@ -276,14 +276,6 @@ message AgentAttributes {
     FreeMemory free_memory = 2; /// The amount of free memory of the agent.
 }
 
-/**
-* A message containing the information about the workload state.
-*/
-message WorkloadState {
-    WorkloadInstanceName instanceName = 1;
-    ExecutionState executionState = 2; /// The workload execution state.
-}
-
 message WorkloadInstanceName {
     string workloadName = 1; /// The name of the workload.
     string agentName = 2; /// The name of the owning Agent.
@@ -381,7 +373,7 @@ message StateRule {
 * Message containing a rule for getting workload logs
 **/
 message LogRule {
-  repeated string workloadNames = 1; // The names of the workloads the rule applies to. If empty, the rule does not apply to any workload.
+  repeated string workloadNames = 1; // The names of the workloads the rule applies to. If empty, the rule does not apply to any workload. Wildcard "*" can be used to match all workloads.
 }
 
 /**
