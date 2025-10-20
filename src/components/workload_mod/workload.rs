@@ -818,15 +818,16 @@ impl Workload {
     /// A [`HashMap`] containing the [tags](ank_base::Workload) of the workload.
     #[must_use]
     pub fn get_tags(&self) -> HashMap<String, String> {
-        let mut tags = HashMap::new();
-
-        if let Some(tags_list) = &self.workload.tags {
-            for (key, value) in &tags_list.tags {
-                tags.insert(key.clone(), value.clone());
-            }
-        }
-
-        tags
+        self.workload
+            .tags
+            .as_ref()
+            .map_or_else(HashMap::new, |tags_list| {
+                tags_list
+                    .tags
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            })
     }
 
     /// Updates the tags of the workload.
