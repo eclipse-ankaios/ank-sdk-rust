@@ -60,10 +60,7 @@ pub fn generate_test_workload_proto<T: Into<String>>(
         restart_policy: Some(ank_base::RestartPolicy::Always as i32),
         dependencies: Some(ank_base::Dependencies { dependencies: deps }),
         tags: Some(ank_base::Tags {
-            tags: vec![ank_base::Tag {
-                key: String::from("key_test"),
-                value: String::from("val_test"),
-            }],
+            tags: HashMap::from([(String::from("key_test"), String::from("val_test"))]),
         }),
         control_interface_access: Some(ank_base::ControlInterfaceAccess {
             allow_rules: vec![ank_base::AccessRightsRule {
