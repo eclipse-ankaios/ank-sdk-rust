@@ -18,6 +18,7 @@ fn main() {
         .build_server(true)
         .boxed("Request.RequestContent.updateStateRequest")
         .boxed("FromAnkaios.FromAnkaiosEnum.response")
+        .boxed("Response.ResponseContent.completeStateResponse")
         .type_attribute(".", "#[derive(serde::Deserialize, serde::Serialize)]")
         .type_attribute(".", "#[serde(rename_all = \"camelCase\")]")
         .type_attribute(
@@ -28,6 +29,9 @@ fn main() {
             "ank_base.ConfigItem",
             "#[serde(try_from = \"serde_yaml::Value\")]",
         )
+        // The WorkloadState message is not used, this allow is a workaround to suppress
+        // the warning about unused code. There is an issue opened: eclipse-ankaios/ankaios/issues/595
+        .type_attribute("WorkloadState", "#[allow(unused)]")
         .field_attribute("Workload.tags", "#[serde(flatten)]")
         .field_attribute("Workload.configs", "#[serde(flatten)]")
         .field_attribute("Workload.dependencies", "#[serde(flatten)]")
