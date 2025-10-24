@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use ankaios_sdk::{Ankaios, EventQueue, Workload};
+use ankaios_sdk::{Ankaios, Workload};
 
 #[tokio::main]
 async fn main() {
@@ -39,7 +39,7 @@ async fn main() {
     // Get the WorkloadInstanceName to confirm the workload was added
     let _workload_instance_name = response.added_workloads[0].clone();
 
-    // Request the logs from the new workload
+    // Subscribe to changes of workload count_to_five
     let mut events_campaign_response = ank
         .register_event(vec!["desiredState.workloads.count_to_five".to_owned()])
         .await
