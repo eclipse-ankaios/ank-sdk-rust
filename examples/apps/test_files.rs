@@ -145,7 +145,6 @@ async fn main() {
                             file.mount_point, binary_data
                         );
                     }
-                    _ => unreachable!("Unexpected file content type"),
                 }
             }
         }
