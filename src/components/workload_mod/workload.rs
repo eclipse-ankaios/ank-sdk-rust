@@ -526,10 +526,7 @@ impl Workload {
         if let Some(wl_tags) = self.workload.tags.clone() {
             let mut tags = serde_yaml::Mapping::new();
             for (key, value) in &wl_tags.tags {
-                tags.insert(
-                    Value::String(key.to_owned()),
-                    Value::String(value.to_owned()),
-                );
+                tags.insert(Value::String(key.clone()), Value::String(value.clone()));
             }
             dict.insert(Value::String(FIELD_TAGS.to_owned()), Value::Mapping(tags));
         }
@@ -839,7 +836,7 @@ impl Workload {
         self.workload.tags = Some({
             let mut ank_tags = ank_base::Tags::default();
             for (key, value) in tags {
-                ank_tags.tags.insert(key.to_owned(), value.to_owned());
+                ank_tags.tags.insert(key.clone(), value.to_owned());
             }
             ank_tags
         });
