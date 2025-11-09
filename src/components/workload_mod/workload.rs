@@ -527,8 +527,8 @@ impl Workload {
             let mut tags = serde_yaml::Mapping::new();
             for (key, value) in &wl_tags.tags {
                 tags.insert(
-                    Value::String(key.to_string()),
-                    Value::String(value.to_string()),
+                    Value::String(key.to_owned()),
+                    Value::String(value.to_owned()),
                 );
             }
             dict.insert(Value::String(FIELD_TAGS.to_owned()), Value::Mapping(tags));
@@ -839,7 +839,7 @@ impl Workload {
         self.workload.tags = Some({
             let mut ank_tags = ank_base::Tags::default();
             for (key, value) in tags {
-                ank_tags.tags.insert(key.to_string(), value.to_string());
+                ank_tags.tags.insert(key.to_owned(), value.to_owned());
             }
             ank_tags
         });
