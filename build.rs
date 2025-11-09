@@ -20,6 +20,7 @@ fn main() {
         .boxed("FromAnkaios.FromAnkaiosEnum.response")
         .type_attribute(".", "#[derive(serde::Deserialize, serde::Serialize)]")
         .type_attribute(".", "#[serde(rename_all = \"camelCase\")]")
+        .type_attribute("WorkloadState", "#[allow(dead_code)]") // Workaround until the release of the ankaios api
         .type_attribute(
             "ank_base.ConfigItem",
             "#[serde(into = \"serde_yaml::Value\")]",

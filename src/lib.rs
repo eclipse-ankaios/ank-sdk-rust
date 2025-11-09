@@ -47,7 +47,7 @@
         clippy::unwrap_used,
     )
 )]
-#![doc(html_root_url = "https://docs.rs/ankaios_sdk/0.6.0")]
+#![doc(html_root_url = "https://docs.rs/ankaios_sdk/0.7.0")]
 #![doc(html_logo_url = "https://avatars.githubusercontent.com/u/132572901?s=200&v=4")] // Icon above title in top-left
 #![doc(issue_tracker_base_url = "https://github.com/eclipse-ankaios/ank-sdk-rust/issues/")]
 
@@ -61,7 +61,7 @@
 //!  
 //! [![github]](https://github.com/eclipse-ankaios/ank-sdk-rust)
 //! [![crates-io]](https://crates.io/crates/ankaios-sdk)
-//! [![docs-rs]](https://docs.rs/ankaios-sdk/0.6.0)
+//! [![docs-rs]](https://docs.rs/ankaios-sdk/0.7.0)
 //!
 //! [github]: https://img.shields.io/badge/github-8da0cb?style=for-the-badge&labelColor=555555&logo=github
 //! [crates-io]: https://img.shields.io/badge/crates.io-fc8d62?style=for-the-badge&labelColor=555555&logo=rust
@@ -85,7 +85,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! ankaios_sdk = "0.6.0"
+//! ankaios_sdk = "0.7.0"
 //! ```
 //!
 //! ### Clone and link as vendor
@@ -114,6 +114,7 @@
 //! | 0.4.x and below | No Rust SDK available. Please update Ankaios. |
 //! | 0.5.x | 0.5.x     |
 //! | 0.6.x | 0.6.x     |
+//! | 0.7.x | 0.7.x     |
 //!
 //! ## Usage
 //!
@@ -193,7 +194,7 @@
 //! For more details, please visit:
 //!
 //! * [Ankaios documentation](https://eclipse-ankaios.github.io/ankaios/latest/)
-//! * [Rust SDK documentation](https://docs.rs/ankaios-sdk/0.6.0)
+//! * [Rust SDK documentation](https://docs.rs/ankaios-sdk/0.7.0)
 //!
 //! ## Contributing
 //!

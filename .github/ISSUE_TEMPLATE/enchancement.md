@@ -8,11 +8,9 @@ assignees: ''
 ---
 
 ## Description
-
 <!-- provide a description of the enhancement -->
 
 ## Goals
-
 <!-- describe the goals you want to achieve with this enhancement -->
 
 ## Final result
@@ -24,11 +22,10 @@ assignees: ''
 
 ### Tasks
 
-<!--
-An optional lists of tasks that need to be executed
-By using the list syntax ("[ ]"), github can track and visualize progress on the story.
--->
-
-- [ ] Task 1
-- [ ] Task 2
-- [ ] ...
+- [ ] Assign yourself as `assignee`;
+- [ ] Fix the issue;
+- [ ] Add a utest for this issue, if it's needed;
+- [ ] Document the code similar to how it's done for the other code;
+- [ ] Check and fix utests, coverage, clippy and doc; <!-- Check the `justfile` for commands. Ex: test, cov, clippy, doc -->
+- [ ] Create Pull Request and fix possible workflow failures; <!-- The failures can appear if the rust versions differ between the devcontainer and the latest stable. -->
+- [ ] Add the `ready_for_review` label.
