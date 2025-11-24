@@ -14,7 +14,7 @@
 
 use crate::AnkaiosError;
 use crate::Workload;
-use std::{collections::HashMap, path::Path, vec};
+use std::{collections::HashMap, path::Path};
 
 // Disable this from coverage
 // https://github.com/rust-lang/rust/issues/84605
@@ -69,7 +69,7 @@ pub struct WorkloadBuilder {
     /// The dependencies. Allowed values: "`ADD_COND_SUCCEEDED`", "`ADD_COND_FAILED`", "`ADD_COND_RUNNING`".
     pub dependencies: HashMap<String, String>,
     /// The tags.
-    pub tags: Vec<Vec<String>>,
+    pub tags: HashMap<String, String>,
     /// The allow rules. Allowed values: "`Nothing`", "`Write`", "`Read`", "`ReadWrite`".
     pub allow_rules: Vec<(String, Vec<String>)>,
     /// The deny rules. Allowed values: "`Nothing`", "`Write`", "`Read`", "`ReadWrite`".
@@ -206,7 +206,7 @@ impl WorkloadBuilder {
     ///
     /// The [`WorkloadBuilder`] instance.
     pub fn add_tag<T: Into<String>>(mut self, key: T, value: T) -> Self {
-        self.tags.push(vec![key.into(), value.into()]);
+        self.tags.insert(key.into(), value.into());
         self
     }
 

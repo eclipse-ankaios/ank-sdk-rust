@@ -50,7 +50,7 @@ const ANKAIOS_INPUT_FIFO_PATH: &str = "input";
 const ANKAIOS_OUTPUT_FIFO_PATH: &str = "output";
 /// Version of [Ankaios](https://eclipse-ankaios.github.io/ankaios) that is compatible
 /// with the [`ControlInterface`] implementation.
-const ANKAIOS_VERSION: &str = "0.7.0-pre";
+const ANKAIOS_VERSION: &str = "0.7.0";
 /// Maximum size of a varint in bytes.
 const MAX_VARINT_SIZE: usize = 19;
 
