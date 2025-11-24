@@ -17,7 +17,7 @@ name = "ankaios_sdk"
 crate-type = ["lib"]
 
 [dependencies]
-ankaios_api = { git = "https://github.com/eclipse-ankaios/ankaios.git", branch = "main", package = "ankaios-api" }  # TODO pinpoint to a proper tag when available
+ankaios_api = { git = "https://github.com/eclipse-ankaios/ankaios.git", branch = "main", package = "ankaios-api", version = "0.8.0-pre" }  # TODO pinpoint to a proper tag when available
 prost = "0.14"
 log = "0.4"
 serde_yaml = "0.9"
