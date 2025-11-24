@@ -19,28 +19,15 @@ crate-type = ["lib"]
 [dependencies]
 ankaios_api = { git = "https://github.com/eclipse-ankaios/ankaios.git", branch = "main", package = "ankaios-api" }  # TODO pinpoint to a proper tag when available
 prost = "0.14"
-tonic = "0.14"
 log = "0.4"
-env_logger = "0.11"
-serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 thiserror = "2.0"
 uuid = { version = "1.7.0", features = ["v4"] }
-async-trait = "0.1"
-tokio = { version = "1.41", features = [
-    "macros",
-    "rt-multi-thread",
-    "fs",
-    "io-util",
-    "process",
-] }
-# home version is pinpointed because this is the only one
-# that works with the current version of rust (from the devcontainer)
-home = "=0.5.9"
+tokio = { version = "1.41", features = ["rt-multi-thread"] }
 
 [dev-dependencies]
 tempfile = "3.4"
-nix = { version = "0.30", features = ["fs", "user"] }
+nix = { version = "0.30", features = ["fs"] }
 mockall = "0.11"
 mockall_double = "0.3"
 

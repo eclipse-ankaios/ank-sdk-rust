@@ -1268,7 +1268,6 @@ mod tests {
 
     #[tokio::test]
     async fn utest_control_interface_receive_logs_stop_response() {
-        let _ = env_logger::builder().is_test(true).try_init();
         // Crate mpsc channel
         let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
 

@@ -6,13 +6,11 @@ ARG WORKSPACE_DIR=/workspaces/build
 RUN apk update && apk add --update-cache \
     curl \
     # Development tools
-    protobuf \
-    protobuf-dev \
     protoc \
     build-base \
     && rm -rf /var/cache/apk/*
 
-RUN curl --proto '=https' --tlsv1.2 -sS https://sh.rustup.rs | sh -s -- -y > /dev/null
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y > /dev/null
 
 COPY . ${WORKSPACE_DIR}/ankaios_sdk
 COPY examples/app/ ${WORKSPACE_DIR}
