@@ -309,11 +309,11 @@ pub fn generate_test_workload_states_proto() -> ank_base::WorkloadStatesMap {
                                 "1234".to_owned(),
                                 ank_base::ExecutionState {
                                     execution_state_enum: Some(
-                                        ank_base::execution_state::ExecutionStateEnum::Succeeded(
+                                        ank_base::ExecutionStateEnum::Succeeded(
                                             ank_base::Succeeded::Ok as i32,
                                         ),
                                     ),
-                                    additional_info: "Random info".to_owned(),
+                                    additional_info: Some("Random info".to_owned()),
                                 },
                             )]),
                         },
@@ -331,11 +331,11 @@ pub fn generate_test_workload_states_proto() -> ank_base::WorkloadStatesMap {
                                     "5678".to_owned(),
                                     ank_base::ExecutionState {
                                         execution_state_enum: Some(
-                                            ank_base::execution_state::ExecutionStateEnum::Pending(
+                                            ank_base::ExecutionStateEnum::Pending(
                                                 ank_base::Pending::WaitingToStart as i32,
                                             ),
                                         ),
-                                        additional_info: "Random info".to_owned(),
+                                        additional_info: Some("Random info".to_owned()),
                                     },
                                 )]),
                             },
@@ -347,11 +347,11 @@ pub fn generate_test_workload_states_proto() -> ank_base::WorkloadStatesMap {
                                     "9012".to_owned(),
                                     ank_base::ExecutionState {
                                         execution_state_enum: Some(
-                                            ank_base::execution_state::ExecutionStateEnum::Stopping(
+                                            ank_base::ExecutionStateEnum::Stopping(
                                                 ank_base::Stopping::WaitingToStop as i32,
                                             ),
                                         ),
-                                        additional_info: "Random info".to_owned(),
+                                        additional_info: Some("Random info".to_owned()),
                                     },
                                 )]),
                             },
@@ -370,10 +370,10 @@ pub fn generate_test_workload_state() -> WorkloadState {
         "workload_name".to_owned(),
         "1234".to_owned(),
         WorkloadExecutionState::new(ank_base::ExecutionState {
-            execution_state_enum: Some(ank_base::execution_state::ExecutionStateEnum::Pending(
+            execution_state_enum: Some(ank_base::ExecutionStateEnum::Pending(
                 ank_base::Pending::WaitingToStart as i32,
             )),
-            additional_info: "additional_info".to_owned(),
+            additional_info: Some("additional_info".to_owned()),
         }),
     )
 }
@@ -394,10 +394,10 @@ mod tests {
         let workload_name = "workload_name".to_owned();
         let workload_id = "workload_id".to_owned();
         let state = ank_base::ExecutionState {
-            execution_state_enum: Some(ank_base::execution_state::ExecutionStateEnum::Pending(
+            execution_state_enum: Some(ank_base::ExecutionStateEnum::Pending(
                 ank_base::Pending::WaitingToStart as i32,
             )),
-            additional_info: "additional_info".to_owned(),
+            additional_info: Some("additional_info".to_owned()),
         };
         let exec_state = WorkloadExecutionState::new(state.clone());
 

@@ -17,13 +17,13 @@ name = "ankaios_sdk"
 crate-type = ["lib"]
 
 [dependencies]
-prost = "0.11"
-tonic = "0.9"
+prost = "0.14"
+tonic = "0.14"
 log = "0.4"
 env_logger = "0.11"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
-thiserror = "1.0"
+thiserror = "2.0"
 uuid = { version = "1.7.0", features = ["v4"] }
 async-trait = "0.1"
 tokio = { version = "1.41", features = [
@@ -44,7 +44,7 @@ mockall = "0.11"
 mockall_double = "0.3"
 
 [build-dependencies]
-tonic-build = "0.9"
+tonic-prost-build = "0.14"
 
 [features]
 default = []

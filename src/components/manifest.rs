@@ -57,7 +57,7 @@ pub const CONFIGS_PREFIX: &str = "desiredState.configs";
 /// ```rust
 /// # use ankaios_sdk::Manifest;
 /// #
-/// let manifest = Manifest::from_string("apiVersion: v0.1").unwrap();
+/// let manifest = Manifest::from_string("apiVersion: v1").unwrap();
 /// ```
 ///
 /// ## Load a manifest from a [`serde_yaml::Value`]:
@@ -278,7 +278,7 @@ pub fn read_to_string_mock(path: &Path) -> Result<String, std::io::Error> {
 }
 
 #[cfg(test)]
-static MANIFEST_CONTENT: &str = r#"apiVersion: v0.1
+static MANIFEST_CONTENT: &str = r#"apiVersion: v1
 workloads:
     nginx_test:
         runtime: podman
@@ -311,16 +311,16 @@ mod tests {
     #[test]
     fn test_doc_examples() {
         // Load a manifest from a file
-        let _manifest = Manifest::from_file(Path::new("apiVersion: v0.1")).unwrap();
+        let _manifest = Manifest::from_file(Path::new("apiVersion: v1")).unwrap();
 
         // Load a manifest from a string
-        let _manifest = Manifest::from_string("apiVersion: v0.1").unwrap();
+        let _manifest = Manifest::from_string("apiVersion: v1").unwrap();
 
         // Load a manifest from a serde_yaml::Value
         let mut map = serde_yaml::Mapping::new();
         map.insert(
             serde_yaml::Value::String("apiVersion".to_owned()),
-            serde_yaml::Value::String("v0.1".to_owned()),
+            serde_yaml::Value::String("v1".to_owned()),
         );
         let dict = serde_yaml::Value::Mapping(map);
         let _manifest = Manifest::from_dict(dict).unwrap();
@@ -329,7 +329,7 @@ mod tests {
     #[test]
     fn utest_creation() {
         let manifest = Manifest::from_file(Path::new(MANIFEST_CONTENT)).unwrap();
-        assert_eq!(manifest.desired_state.api_version, "v0.1");
+        assert_eq!(manifest.desired_state.api_version, "v1");
         let masks = manifest.calculate_masks();
         assert!(masks.contains(&"desiredState.workloads.nginx_test".to_owned()));
         assert!(masks.contains(&"desiredState.configs.config1".to_owned()));
@@ -343,7 +343,7 @@ mod tests {
 
     #[test]
     fn utest_no_workloads() {
-        let manifest_result = Manifest::from_string("apiVersion: v0.1");
+        let manifest_result = Manifest::from_string("apiVersion: v1");
         assert!(manifest_result.is_ok());
         let manifest: Manifest = manifest_result.unwrap();
         assert_eq!(manifest.calculate_masks().len(), 0);

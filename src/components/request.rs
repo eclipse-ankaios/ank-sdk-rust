@@ -292,11 +292,9 @@ impl LogsCancelRequest {
         Self {
             request: AnkaiosRequest {
                 request_id: request_id.clone(),
-                request_content: Some(
-                    ankaios_api::ank_base::request::RequestContent::LogsCancelRequest(
-                        ankaios_api::ank_base::LogsCancelRequest {},
-                    ),
-                ),
+                request_content: Some(ankaios_api::ank_base::RequestContent::LogsCancelRequest(
+                    ankaios_api::ank_base::LogsCancelRequest {},
+                )),
             },
             request_id,
         }
@@ -394,11 +392,9 @@ impl EventsCancelRequest {
         Self {
             request: AnkaiosRequest {
                 request_id: request_id.clone(),
-                request_content: Some(
-                    ankaios_api::ank_base::request::RequestContent::EventsCancelRequest(
-                        ankaios_api::ank_base::EventsCancelRequest {},
-                    ),
-                ),
+                request_content: Some(ankaios_api::ank_base::RequestContent::EventsCancelRequest(
+                    ankaios_api::ank_base::EventsCancelRequest {},
+                )),
             },
             request_id,
         }
@@ -477,14 +473,12 @@ mod tests {
             request.to_proto(),
             AnkaiosRequest {
                 request_id: id,
-                request_content: Some(
-                    ankaios_api::ank_base::request::RequestContent::UpdateStateRequest(Box::new(
-                        ankaios_api::ank_base::UpdateStateRequest {
-                            new_state: Some(CompleteState::default().to_proto()),
-                            update_mask: vec!["mask1".to_owned(), "mask2".to_owned()],
-                        }
-                    ))
-                )
+                request_content: Some(ankaios_api::ank_base::RequestContent::UpdateStateRequest(
+                    Box::new(ankaios_api::ank_base::UpdateStateRequest {
+                        new_state: Some(CompleteState::default().to_proto()),
+                        update_mask: vec!["mask1".to_owned(), "mask2".to_owned()],
+                    })
+                ))
             }
         );
 
@@ -500,14 +494,12 @@ mod tests {
             request.to_proto(),
             AnkaiosRequest {
                 request_id: id,
-                request_content: Some(
-                    ankaios_api::ank_base::request::RequestContent::CompleteStateRequest(
-                        ankaios_api::ank_base::CompleteStateRequest {
-                            field_mask: vec!["mask1".to_owned(), "mask2".to_owned()],
-                            subscribe_for_events: false,
-                        }
-                    )
-                )
+                request_content: Some(ankaios_api::ank_base::RequestContent::CompleteStateRequest(
+                    ankaios_api::ank_base::CompleteStateRequest {
+                        field_mask: vec!["mask1".to_owned(), "mask2".to_owned()],
+                        subscribe_for_events: false,
+                    }
+                ))
             }
         );
 
@@ -530,7 +522,7 @@ mod tests {
             request.to_proto(),
             AnkaiosRequest {
                 request_id: id,
-                request_content: Some(ankaios_api::ank_base::request::RequestContent::LogsRequest(
+                request_content: Some(ankaios_api::ank_base::RequestContent::LogsRequest(
                     ankaios_api::ank_base::LogsRequest {
                         workload_names: Vec::new(),
                         follow: Some(false),
@@ -553,11 +545,9 @@ mod tests {
             request.to_proto(),
             AnkaiosRequest {
                 request_id: REQUEST_ID.to_owned(),
-                request_content: Some(
-                    ankaios_api::ank_base::request::RequestContent::LogsCancelRequest(
-                        ankaios_api::ank_base::LogsCancelRequest {}
-                    )
-                )
+                request_content: Some(ankaios_api::ank_base::RequestContent::LogsCancelRequest(
+                    ankaios_api::ank_base::LogsCancelRequest {}
+                ))
             }
         );
 
@@ -574,14 +564,12 @@ mod tests {
             request.to_proto(),
             AnkaiosRequest {
                 request_id: id,
-                request_content: Some(
-                    ankaios_api::ank_base::request::RequestContent::CompleteStateRequest(
-                        ankaios_api::ank_base::CompleteStateRequest {
-                            field_mask: masks,
-                            subscribe_for_events: true,
-                        }
-                    )
-                )
+                request_content: Some(ankaios_api::ank_base::RequestContent::CompleteStateRequest(
+                    ankaios_api::ank_base::CompleteStateRequest {
+                        field_mask: masks,
+                        subscribe_for_events: true,
+                    }
+                ))
             }
         );
 
@@ -596,11 +584,9 @@ mod tests {
             request.to_proto(),
             AnkaiosRequest {
                 request_id: REQUEST_ID.to_owned(),
-                request_content: Some(
-                    ankaios_api::ank_base::request::RequestContent::EventsCancelRequest(
-                        ankaios_api::ank_base::EventsCancelRequest {}
-                    )
-                )
+                request_content: Some(ankaios_api::ank_base::RequestContent::EventsCancelRequest(
+                    ankaios_api::ank_base::EventsCancelRequest {}
+                ))
             }
         );
 

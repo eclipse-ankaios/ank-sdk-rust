@@ -1273,7 +1273,7 @@ mod tests {
         response::generate_test_response_update_state_success,
         workload_mod::{WORKLOADS_PREFIX, test_helpers::generate_test_workload},
     };
-    use crate::{EventEntry, ankaios_api::ank_base::request::RequestContent};
+    use crate::{EventEntry, ankaios_api::ank_base::RequestContent};
     use crate::{LogCampaignResponse, LogEntry, LogResponse, LogsRequest as InputLogsRequest};
 
     // Used for synchronizing multiple tests that use the same mock.
