@@ -23,7 +23,7 @@
 //!
 //! ```rust
 //! use ankaios_sdk::{CompleteState, UpdateStateRequest};
-//! 
+//!
 //! let complete_state = CompleteState::new();
 //! let _request = UpdateStateRequest::new(&complete_state, Vec::default());
 //! ```
@@ -32,7 +32,7 @@
 //!
 //! ```rust
 //! use ankaios_sdk::GetStateRequest;
-//! 
+//!
 //! let mut request = GetStateRequest::new(Vec::default());
 //! ```
 //!
@@ -54,12 +54,9 @@
 //! ```
 
 use crate::LogsRequest;
-use crate::ankaios_api;
 use crate::components::complete_state::CompleteState;
-use ankaios_api::ank_base::{
-    CompleteStateRequest, Request as AnkaiosRequest,
-    UpdateStateRequest as AnkaiosUpdateStateRequest, request::RequestContent,
-};
+use ankaios_api::ank_base;
+
 use std::fmt;
 use uuid::Uuid;
 
@@ -67,12 +64,12 @@ use uuid::Uuid;
 ///
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 pub trait Request {
-    /// Returns the underlying [`AnkaiosRequest`] proto message.
+    /// Returns the underlying [`ank_base::Request`] proto message.
     ///
     /// ## Returns
     ///
-    /// The [`AnkaiosRequest`] proto message.
-    fn to_proto(&self) -> AnkaiosRequest;
+    /// The [`ank_base::Request`] proto message.
+    fn to_proto(&self) -> ank_base::Request;
 
     /// Returns the unique identifier of the request.
     ///
@@ -89,7 +86,7 @@ pub trait Request {
 pub struct GetStateRequest {
     /// The request proto message that will be sent to the cluster.
     #[allow(clippy::struct_field_names)]
-    pub(crate) request: AnkaiosRequest,
+    pub(crate) request: ank_base::Request,
     /// The unique identifier of the request.
     #[allow(clippy::struct_field_names)]
     request_id: String,
@@ -102,7 +99,7 @@ pub struct GetStateRequest {
 pub struct UpdateStateRequest {
     /// The request proto message that will be sent to the cluster.
     #[allow(clippy::struct_field_names)]
-    pub(crate) request: AnkaiosRequest,
+    pub(crate) request: ank_base::Request,
     /// The unique identifier of the request.
     #[allow(clippy::struct_field_names)]
     request_id: String,
@@ -124,11 +121,11 @@ impl GetStateRequest {
         log::debug!("Creating new request of type GetStateRequest with id {request_id}");
 
         Self {
-            request: AnkaiosRequest {
+            request: ank_base::Request {
                 request_id: request_id.clone(),
-                request_content: Some(RequestContent::CompleteStateRequest(CompleteStateRequest {
-                    field_mask: masks,
-                })),
+                request_content: Some(ank_base::RequestContent::CompleteStateRequest(
+                    ank_base::CompleteStateRequest { field_mask: masks },
+                )),
             },
             request_id,
         }
@@ -136,7 +133,7 @@ impl GetStateRequest {
 }
 
 impl Request for GetStateRequest {
-    fn to_proto(&self) -> AnkaiosRequest {
+    fn to_proto(&self) -> ank_base::Request {
         self.request.clone()
     }
 
@@ -167,15 +164,15 @@ impl UpdateStateRequest {
         let request_id = Uuid::new_v4().to_string();
         log::debug!("Creating new request of type UpdateStateRequest with id {request_id}");
 
-        let update_state_request = AnkaiosUpdateStateRequest {
+        let update_state_request = ank_base::UpdateStateRequest {
             new_state: Some(complete_state.to_proto()),
             update_mask: masks,
         };
 
         Self {
-            request: AnkaiosRequest {
+            request: ank_base::Request {
                 request_id: request_id.clone(),
-                request_content: Some(RequestContent::UpdateStateRequest(Box::new(
+                request_content: Some(ank_base::RequestContent::UpdateStateRequest(Box::new(
                     update_state_request,
                 ))),
             },
@@ -185,7 +182,7 @@ impl UpdateStateRequest {
 }
 
 impl Request for UpdateStateRequest {
-    fn to_proto(&self) -> AnkaiosRequest {
+    fn to_proto(&self) -> ank_base::Request {
         self.request.clone()
     }
 
@@ -207,7 +204,7 @@ impl fmt::Display for UpdateStateRequest {
 pub struct AnkaiosLogsRequest {
     /// The request proto message that will be sent to the cluster.
     #[allow(clippy::struct_field_names)]
-    pub(crate) request: AnkaiosRequest,
+    pub(crate) request: ank_base::Request,
     /// The unique identifier of the request.
     #[allow(clippy::struct_field_names)]
     request_id: String,
@@ -226,10 +223,10 @@ impl From<LogsRequest> for AnkaiosLogsRequest {
     fn from(logs_request: LogsRequest) -> Self {
         let request_id = Uuid::new_v4().to_string();
         Self {
-            request: AnkaiosRequest {
+            request: ank_base::Request {
                 request_id: request_id.clone(),
-                request_content: Some(RequestContent::LogsRequest(
-                    ankaios_api::ank_base::LogsRequest {
+                request_content: Some(ank_base::RequestContent::LogsRequest(
+                    ank_base::LogsRequest {
                         workload_names: logs_request
                             .workload_names
                             .into_iter()
@@ -248,7 +245,7 @@ impl From<LogsRequest> for AnkaiosLogsRequest {
 }
 
 impl Request for AnkaiosLogsRequest {
-    fn to_proto(&self) -> AnkaiosRequest {
+    fn to_proto(&self) -> ank_base::Request {
         self.request.clone()
     }
 
@@ -270,7 +267,7 @@ impl fmt::Display for AnkaiosLogsRequest {
 pub struct LogsCancelRequest {
     /// The request proto message that will be sent to the cluster.
     #[allow(clippy::struct_field_names)]
-    pub(crate) request: AnkaiosRequest,
+    pub(crate) request: ank_base::Request,
     /// The unique identifier of the request.
     #[allow(clippy::struct_field_names)]
     request_id: String,
@@ -289,13 +286,11 @@ impl LogsCancelRequest {
     pub fn new(request_id: String) -> Self {
         log::debug!("Creating new request of type LogsCancelRequest with id '{request_id}'");
         Self {
-            request: AnkaiosRequest {
+            request: ank_base::Request {
                 request_id: request_id.clone(),
-                request_content: Some(
-                    ankaios_api::ank_base::request::RequestContent::LogsCancelRequest(
-                        ankaios_api::ank_base::LogsCancelRequest {},
-                    ),
-                ),
+                request_content: Some(ank_base::RequestContent::LogsCancelRequest(
+                    ank_base::LogsCancelRequest {},
+                )),
             },
             request_id,
         }
@@ -303,7 +298,7 @@ impl LogsCancelRequest {
 }
 
 impl Request for LogsCancelRequest {
-    fn to_proto(&self) -> AnkaiosRequest {
+    fn to_proto(&self) -> ank_base::Request {
         self.request.clone()
     }
 
@@ -333,10 +328,8 @@ pub fn generate_test_request() -> impl Request {
 
 #[cfg(test)]
 mod tests {
-    use crate::ankaios_api;
-    use ankaios_api::ank_base::Request as AnkaiosRequest;
-
     use super::{CompleteState, GetStateRequest, Request, UpdateStateRequest};
+    use ankaios_api::ank_base;
 
     #[allow(clippy::shadow_unrelated)]
     #[test]
@@ -365,16 +358,14 @@ mod tests {
 
         assert_eq!(
             request.to_proto(),
-            AnkaiosRequest {
+            ank_base::Request {
                 request_id: id,
-                request_content: Some(
-                    ankaios_api::ank_base::request::RequestContent::UpdateStateRequest(Box::new(
-                        ankaios_api::ank_base::UpdateStateRequest {
-                            new_state: Some(CompleteState::default().to_proto()),
-                            update_mask: vec!["mask1".to_owned(), "mask2".to_owned()],
-                        }
-                    ))
-                )
+                request_content: Some(ank_base::RequestContent::UpdateStateRequest(Box::new(
+                    ank_base::UpdateStateRequest {
+                        new_state: Some(CompleteState::default().to_proto()),
+                        update_mask: vec!["mask1".to_owned(), "mask2".to_owned()],
+                    }
+                )))
             }
         );
 
@@ -388,15 +379,13 @@ mod tests {
 
         assert_eq!(
             request.to_proto(),
-            AnkaiosRequest {
+            ank_base::Request {
                 request_id: id,
-                request_content: Some(
-                    ankaios_api::ank_base::request::RequestContent::CompleteStateRequest(
-                        ankaios_api::ank_base::CompleteStateRequest {
-                            field_mask: vec!["mask1".to_owned(), "mask2".to_owned()],
-                        }
-                    )
-                )
+                request_content: Some(ank_base::RequestContent::CompleteStateRequest(
+                    ank_base::CompleteStateRequest {
+                        field_mask: vec!["mask1".to_owned(), "mask2".to_owned()],
+                    }
+                ))
             }
         );
 

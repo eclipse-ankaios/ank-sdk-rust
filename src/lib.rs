@@ -206,7 +206,6 @@
 //! Ankaios Rust SDK is licensed using the Apache License Version 2.0.
 //!
 
-mod ankaios_api;
 mod docs;
 pub mod extensions;
 

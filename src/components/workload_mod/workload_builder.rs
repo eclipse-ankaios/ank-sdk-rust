@@ -13,7 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::AnkaiosError;
-use crate::Workload;
+use crate::{Workload, File};
 use std::{collections::HashMap, path::Path};
 
 // Disable this from coverage
@@ -28,8 +28,6 @@ fn read_file_to_string(path: &Path) -> Result<String, io::Error> {
 
 #[cfg(test)]
 use crate::components::workload_mod::test_helpers::read_to_string_mock as read_file_to_string;
-
-use super::file::File;
 
 /// A builder struct for the [Workload] struct.
 ///

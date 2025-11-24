@@ -13,7 +13,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::Workload;
-use crate::ankaios_api;
 use ankaios_api::ank_base;
 use std::collections::HashMap;
 use std::path::Path;
@@ -93,7 +92,7 @@ pub fn generate_test_workload_proto<T: Into<String>>(
         files: Some(ank_base::Files {
             files: [ank_base::File {
                 mount_point: "mount_point".to_owned(),
-                file_content: Some(ank_base::file::FileContent::Data("Data".to_owned())),
+                file_content: Some(ank_base::FileContent::Data("Data".to_owned())),
             }]
             .to_vec(),
         }),

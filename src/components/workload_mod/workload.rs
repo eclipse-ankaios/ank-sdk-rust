@@ -15,7 +15,6 @@
 use crate::AnkaiosError;
 use crate::File;
 use crate::WorkloadBuilder;
-use crate::ankaios_api;
 use ankaios_api::ank_base;
 use serde_yaml::Value;
 use std::{borrow::ToOwned, collections::HashMap, convert::Into, fmt, path::Path, vec};
@@ -497,7 +496,7 @@ impl Workload {
             );
         }
         if let Some(restart_policy) = self.workload.restart_policy
-            && let Some(ank_restart_policy) = ank_base::RestartPolicy::from_i32(restart_policy)
+            && let Ok(ank_restart_policy) = ank_base::RestartPolicy::try_from(restart_policy)
         {
             dict.insert(
                 Value::String(FIELD_RESTART_POLICY.to_owned()),
@@ -511,7 +510,7 @@ impl Workload {
                 Value::Mapping(serde_yaml::Mapping::new()),
             );
             for (key, value) in &dependencies.dependencies {
-                if let Some(cond) = ank_base::AddCondition::from_i32(*value) {
+                if let Ok(cond) = ank_base::AddCondition::try_from(*value) {
                     deps.insert(
                         Value::String(key.clone()),
                         Value::String(cond.as_str_name().to_owned()),
@@ -742,7 +741,7 @@ impl Workload {
         let mut dependencies = HashMap::new();
         if let Some(deps) = &self.workload.dependencies {
             for (key, value) in &deps.dependencies {
-                if let Some(add_cond) = ank_base::AddCondition::from_i32(*value) {
+                if let Ok(add_cond) = ank_base::AddCondition::try_from(*value) {
                     dependencies.insert(key.clone(), add_cond.as_str_name().to_owned());
                 }
             }
@@ -903,8 +902,8 @@ impl Workload {
         rule: &ank_base::StateRule,
     ) -> Result<(String, Vec<String>), AnkaiosError> {
         Ok((
-            match ank_base::ReadWriteEnum::from_i32(rule.operation) {
-                Some(op) => match op.as_str_name() {
+            match ank_base::ReadWriteEnum::try_from(rule.operation) {
+                Ok(op) => match op.as_str_name() {
                     "RW_NOTHING" => "Nothing".to_owned(),
                     "RW_WRITE" => "Write".to_owned(),
                     "RW_READ" => "Read".to_owned(),
