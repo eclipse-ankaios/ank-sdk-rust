@@ -79,12 +79,10 @@
 //! let log_message = log_entries.message;
 //! ```
 
-use tokio::sync::mpsc::Receiver;
+use crate::{components::workload_state_mod::WorkloadInstanceName, extensions::UnreachableOption};
+use ankaios_api::ank_base;
 
-use crate::{
-    ankaios_api, components::workload_state_mod::WorkloadInstanceName,
-    extensions::UnreachableOption,
-};
+use tokio::sync::mpsc::Receiver;
 
 /// Struct that represents a logs request.
 ///
@@ -130,8 +128,8 @@ pub struct LogEntry {
     pub message: String,
 }
 
-impl From<ankaios_api::ank_base::LogEntry> for LogEntry {
-    fn from(value: ankaios_api::ank_base::LogEntry) -> Self {
+impl From<ank_base::LogEntry> for LogEntry {
+    fn from(value: ank_base::LogEntry) -> Self {
         LogEntry {
             workload_name: value.workload_name.unwrap_or_unreachable().into(),
             message: value.message,
@@ -206,9 +204,11 @@ impl LogCampaignResponse {
 //                    ##     ##                ##     ##                    //
 //                    ##     #######   #########      ##                    //
 //////////////////////////////////////////////////////////////////////////////
+
 #[cfg(test)]
 mod tests {
-    use super::{LogCampaignResponse, LogEntry, WorkloadInstanceName, ankaios_api};
+    use super::{LogCampaignResponse, LogEntry, WorkloadInstanceName};
+    use ankaios_api::ank_base;
     use tokio::sync::mpsc;
 
     const REQUEST_ID: &str = "test_request_id";
@@ -219,8 +219,8 @@ mod tests {
 
     #[test]
     fn utest_log_entry_proto_to_sdk_object() {
-        let proto_entry = ankaios_api::ank_base::LogEntry {
-            workload_name: Some(ankaios_api::ank_base::WorkloadInstanceName {
+        let proto_entry = ank_base::LogEntry {
+            workload_name: Some(ank_base::WorkloadInstanceName {
                 agent_name: AGENT_A.to_owned(),
                 workload_name: WORKLOAD_NAME.to_owned(),
                 id: WORKLOAD_ID.to_owned(),

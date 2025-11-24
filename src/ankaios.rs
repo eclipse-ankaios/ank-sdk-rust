@@ -17,11 +17,6 @@
 //!
 //! [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 
-use std::collections::HashMap;
-use std::vec;
-use tokio::sync::mpsc;
-use tokio::time::{Duration, sleep, timeout as tokio_timeout};
-
 #[cfg_attr(test, mockall_double::double)]
 use crate::components::control_interface::ControlInterface;
 use crate::components::log_types::LogCampaignResponse;
@@ -36,6 +31,11 @@ use crate::components::workload_state_mod::{
     WorkloadExecutionState, WorkloadInstanceName, WorkloadStateCollection, WorkloadStateEnum,
 };
 use crate::{AnkaiosError, CompleteState, Manifest};
+
+use std::collections::HashMap;
+use std::vec;
+use tokio::sync::mpsc;
+use tokio::time::{Duration, sleep, timeout as tokio_timeout};
 
 /// The prefix for the agents in the state.
 const AGENTS_PREFIX: &str = "agents";
@@ -61,7 +61,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use tokio::runtime::Runtime;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
-/// 
+///
 /// let ankaios = Ankaios::new().await.unwrap();
 /// /* */
 /// drop(ankaios);
@@ -1156,18 +1156,11 @@ fn generate_test_ankaios(
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, sync::LazyLock};
-    use tokio::{
-        sync::{Mutex, mpsc},
-        time::Duration,
-    };
-
     use super::{
         AGENTS_PREFIX, Ankaios, AnkaiosError, CONFIGS_PREFIX, CompleteState, ControlInterface,
         DEFAULT_TIMEOUT, Response, WORKLOAD_STATES_PREFIX, WorkloadInstanceName, WorkloadStateEnum,
         generate_test_ankaios,
     };
-    use crate::ankaios_api::ank_base::request::RequestContent;
     use crate::components::request::LogsCancelRequest;
     use crate::components::{
         complete_state::generate_complete_state_proto,
@@ -1177,6 +1170,14 @@ mod tests {
         workload_mod::{WORKLOADS_PREFIX, test_helpers::generate_test_workload},
     };
     use crate::{LogCampaignResponse, LogEntry, LogResponse, LogsRequest as InputLogsRequest};
+
+    use ankaios_api::ank_base::RequestContent;
+
+    use std::{collections::HashMap, sync::LazyLock};
+    use tokio::{
+        sync::{Mutex, mpsc},
+        time::Duration,
+    };
 
     // Used for synchronizing multiple tests that use the same mock.
     pub static MOCKALL_SYNC: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));

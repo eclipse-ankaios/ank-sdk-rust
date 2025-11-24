@@ -15,7 +15,6 @@
 //! This module contains the [Manifest] struct.
 
 use super::workload_mod::WORKLOADS_PREFIX;
-use crate::ankaios_api;
 use crate::{AnkaiosError, Workload};
 use ankaios_api::ank_base;
 use std::{collections::HashMap, path::Path};

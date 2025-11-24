@@ -48,15 +48,13 @@
 //! ```
 
 use super::workload_state_mod::WorkloadInstanceName;
-use crate::ankaios_api::{self};
 use crate::components::complete_state::CompleteState;
 use crate::components::log_types::LogEntry;
 use crate::extensions::UnreachableOption;
-use ankaios_api::ank_base::{
-    Error, UpdateStateSuccess as AnkaiosUpdateStateSuccess,
-    response::ResponseContent as AnkaiosResponseContent,
-};
+
+use ankaios_api::ank_base;
 use ankaios_api::control_api::{FromAnkaios, from_ankaios::FromAnkaiosEnum};
+
 use core::fmt;
 use std::collections::HashMap;
 use std::default;
@@ -171,22 +169,22 @@ impl From<FromAnkaios> for Response {
             match response_enum {
                 FromAnkaiosEnum::Response(inner_response) => Self {
                     content: match inner_response.response_content.unwrap_or(
-                        AnkaiosResponseContent::Error(Error {
+                        ank_base::ResponseContent::Error(ank_base::Error {
                             message: String::from("Response content is None."),
                         }),
                     ) {
-                        AnkaiosResponseContent::Error(err) => ResponseType::Error(err.message),
-                        AnkaiosResponseContent::CompleteState(complete_state) => {
+                        ank_base::ResponseContent::Error(err) => ResponseType::Error(err.message),
+                        ank_base::ResponseContent::CompleteState(complete_state) => {
                             ResponseType::CompleteState(Box::new(CompleteState::new_from_proto(
                                 complete_state,
                             )))
                         }
-                        AnkaiosResponseContent::UpdateStateSuccess(update_state_success) => {
+                        ank_base::ResponseContent::UpdateStateSuccess(update_state_success) => {
                             ResponseType::UpdateStateSuccess(Box::new(
                                 UpdateStateSuccess::new_from_proto(update_state_success),
                             ))
                         }
-                        AnkaiosResponseContent::LogsRequestAccepted(logs_request_accepted) => {
+                        ank_base::ResponseContent::LogsRequestAccepted(logs_request_accepted) => {
                             ResponseType::LogsRequestAccepted(
                                 logs_request_accepted
                                     .workload_names
@@ -195,10 +193,10 @@ impl From<FromAnkaios> for Response {
                                     .collect(),
                             )
                         }
-                        AnkaiosResponseContent::LogsCancelAccepted(_) => {
+                        ank_base::ResponseContent::LogsCancelAccepted(_) => {
                             ResponseType::LogsCancelAccepted
                         }
-                        AnkaiosResponseContent::LogEntriesResponse(log_entries_response) => {
+                        ank_base::ResponseContent::LogEntriesResponse(log_entries_response) => {
                             let log_entries = log_entries_response
                                 .log_entries
                                 .into_iter()
@@ -207,7 +205,7 @@ impl From<FromAnkaios> for Response {
 
                             ResponseType::LogEntriesResponse(log_entries)
                         }
-                        AnkaiosResponseContent::LogsStopResponse(logs_stop_response) => {
+                        ank_base::ResponseContent::LogsStopResponse(logs_stop_response) => {
                             let instance_name = logs_stop_response
                                 .workload_name
                                 .map(WorkloadInstanceName::from)
@@ -239,16 +237,16 @@ impl From<FromAnkaios> for Response {
 impl UpdateStateSuccess {
     #[doc(hidden)]
     /// Creates a new `UpdateStateSuccess` object from a
-    /// [AnkaiosUpdateStateSuccess](ank_base::UpdateStateSuccess) proto message.
+    /// [`ank_base::UpdateStateSuccess`] proto message.
     ///
     /// ## Arguments
     ///
-    /// * `update_state_success` - The [AnkaiosUpdateStateSuccess](ank_base::UpdateStateSuccess) to create the [`UpdateStateSuccess`] from.
+    /// * `update_state_success` - The [`ank_base::UpdateStateSuccess`] to create the [`UpdateStateSuccess`] from.
     ///
     /// ## Returns
     ///
     /// A new [`UpdateStateSuccess`] instance.
-    pub(crate) fn new_from_proto(update_state_success: AnkaiosUpdateStateSuccess) -> Self {
+    pub(crate) fn new_from_proto(update_state_success: ank_base::UpdateStateSuccess) -> Self {
         let mut added_workloads: Vec<WorkloadInstanceName> = Vec::new();
         let mut deleted_workloads: Vec<WorkloadInstanceName> = Vec::new();
 
@@ -336,17 +334,15 @@ pub fn generate_test_control_interface_accepted_response() -> Response {
 #[cfg(test)]
 pub fn generate_test_proto_update_state_success(req_id: String) -> FromAnkaios {
     FromAnkaios {
-        from_ankaios_enum: Some(FromAnkaiosEnum::Response(Box::new(
-            ankaios_api::ank_base::Response {
-                request_id: req_id,
-                response_content: Some(AnkaiosResponseContent::UpdateStateSuccess(
-                    AnkaiosUpdateStateSuccess {
-                        added_workloads: vec!["workload_test.1234.agent_Test".to_owned()],
-                        deleted_workloads: Vec::default(),
-                    },
-                )),
-            },
-        ))),
+        from_ankaios_enum: Some(FromAnkaiosEnum::Response(Box::new(ank_base::Response {
+            request_id: req_id,
+            response_content: Some(ank_base::ResponseContent::UpdateStateSuccess(
+                ank_base::UpdateStateSuccess {
+                    added_workloads: vec!["workload_test.1234.agent_Test".to_owned()],
+                    deleted_workloads: Vec::default(),
+                },
+            )),
+        }))),
     }
 }
 
@@ -358,36 +354,32 @@ pub fn generate_test_response_update_state_success(req_id: String) -> Response {
 #[cfg(test)]
 pub fn get_test_proto_from_ankaios_log_entries_response(
     request_id: String,
-    log_entries_response: ankaios_api::ank_base::LogEntriesResponse,
+    log_entries_response: ank_base::LogEntriesResponse,
 ) -> FromAnkaios {
-    ankaios_api::control_api::FromAnkaios {
-        from_ankaios_enum: Some(
-            ankaios_api::control_api::from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                ankaios_api::ank_base::Response {
-                    request_id,
-                    response_content: Some(AnkaiosResponseContent::LogEntriesResponse(
-                        log_entries_response,
-                    )),
-                },
+    FromAnkaios {
+        from_ankaios_enum: Some(FromAnkaiosEnum::Response(Box::new(ank_base::Response {
+            request_id,
+            response_content: Some(ank_base::ResponseContent::LogEntriesResponse(
+                log_entries_response,
             )),
-        ),
+        }))),
     }
 }
 
 #[cfg(test)]
-pub fn generate_test_proto_log_entries_response() -> ankaios_api::ank_base::LogEntriesResponse {
-    ankaios_api::ank_base::LogEntriesResponse {
+pub fn generate_test_proto_log_entries_response() -> ank_base::LogEntriesResponse {
+    ank_base::LogEntriesResponse {
         log_entries: vec![
-            ankaios_api::ank_base::LogEntry {
-                workload_name: Some(ankaios_api::ank_base::WorkloadInstanceName {
+            ank_base::LogEntry {
+                workload_name: Some(ank_base::WorkloadInstanceName {
                     agent_name: "agent_A".to_owned(),
                     workload_name: "workload_A".to_owned(),
                     id: "id_a".to_owned(),
                 }),
                 message: "log message 1".to_owned(),
             },
-            ankaios_api::ank_base::LogEntry {
-                workload_name: Some(ankaios_api::ank_base::WorkloadInstanceName {
+            ank_base::LogEntry {
+                workload_name: Some(ank_base::WorkloadInstanceName {
                     agent_name: "agent_B".to_owned(),
                     workload_name: "workload_B".to_owned(),
                     id: "id_b".to_owned(),
@@ -414,15 +406,16 @@ mod tests {
     use super::{
         Response, ResponseType, UpdateStateSuccess, generate_test_response_update_state_success,
     };
-    use crate::ankaios_api;
     use crate::components::response::{
         generate_test_proto_log_entries_response, get_test_proto_from_ankaios_log_entries_response,
     };
-    use ankaios_api::ank_base::{
-        Response as AnkaiosResponse, UpdateStateSuccess as AnkaiosUpdateStateSuccess,
-        response::ResponseContent as AnkaiosResponseContent,
+
+    use ankaios_api::ank_base;
+    use ankaios_api::control_api::{
+        ConnectionClosed, ControlInterfaceAccepted, FromAnkaios, from_ankaios,
+        from_ankaios::FromAnkaiosEnum,
     };
-    use ankaios_api::control_api::{FromAnkaios, from_ankaios};
+
     use std::collections::HashMap;
 
     #[test]
@@ -437,10 +430,11 @@ mod tests {
         }
 
         // Convert the update state success to a dictionary
-        let update_state_success = UpdateStateSuccess::new_from_proto(AnkaiosUpdateStateSuccess {
-            added_workloads: vec!["workload_test.1234.agent_Test".to_owned()],
-            deleted_workloads: Vec::default(),
-        });
+        let update_state_success =
+            UpdateStateSuccess::new_from_proto(ank_base::UpdateStateSuccess {
+                added_workloads: vec!["workload_test.1234.agent_Test".to_owned()],
+                deleted_workloads: Vec::default(),
+            });
         let _dict = update_state_success.to_dict();
     }
 
@@ -460,10 +454,10 @@ mod tests {
     fn utest_response_error() {
         let response = Response::new(FromAnkaios {
             from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                AnkaiosResponse {
+                ank_base::Response {
                     request_id: String::from("123"),
-                    response_content: Some(AnkaiosResponseContent::Error(
-                        ankaios_api::ank_base::Error::default(),
+                    response_content: Some(ank_base::ResponseContent::Error(
+                        ank_base::Error::default(),
                     )),
                 },
             ))),
@@ -479,10 +473,10 @@ mod tests {
     fn utest_response_complete_state() {
         let response = Response::new(FromAnkaios {
             from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                AnkaiosResponse {
+                ank_base::Response {
                     request_id: String::from("123"),
-                    response_content: Some(AnkaiosResponseContent::CompleteState(
-                        ankaios_api::ank_base::CompleteState::default(),
+                    response_content: Some(ank_base::ResponseContent::CompleteState(
+                        ank_base::CompleteState::default(),
                     )),
                 },
             ))),
@@ -498,10 +492,10 @@ mod tests {
     fn utest_response_update_state_success() {
         let response = Response::new(FromAnkaios {
             from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                AnkaiosResponse {
+                ank_base::Response {
                     request_id: String::from("123"),
-                    response_content: Some(AnkaiosResponseContent::UpdateStateSuccess(
-                        ankaios_api::ank_base::UpdateStateSuccess::default(),
+                    response_content: Some(ank_base::ResponseContent::UpdateStateSuccess(
+                        ank_base::UpdateStateSuccess::default(),
                     )),
                 },
             ))),
@@ -517,7 +511,7 @@ mod tests {
     fn utest_response_control_interface_accepted() {
         let response = Response::new(FromAnkaios {
             from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::ControlInterfaceAccepted(
-                ankaios_api::control_api::ControlInterfaceAccepted::default(),
+                ControlInterfaceAccepted::default(),
             )),
         });
         assert_eq!(response.get_request_id(), String::default());
@@ -531,7 +525,7 @@ mod tests {
     fn utest_response_connection_closed() {
         let response = Response::new(FromAnkaios {
             from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::ConnectionClosed(
-                ankaios_api::control_api::ConnectionClosed::default(),
+                ConnectionClosed::default(),
             )),
         });
         assert_eq!(response.get_request_id(), String::default());
@@ -561,10 +555,11 @@ mod tests {
 
     #[test]
     fn utest_update_state_success() {
-        let update_state_success = UpdateStateSuccess::new_from_proto(AnkaiosUpdateStateSuccess {
-            added_workloads: vec!["workload_new.1234.agent_Test".to_owned()],
-            deleted_workloads: vec!["workload_old.5678.agent_Test".to_owned()],
-        });
+        let update_state_success =
+            UpdateStateSuccess::new_from_proto(ank_base::UpdateStateSuccess {
+                added_workloads: vec!["workload_new.1234.agent_Test".to_owned()],
+                deleted_workloads: vec!["workload_old.5678.agent_Test".to_owned()],
+            });
 
         assert_eq!(update_state_success.added_workloads.len(), 1);
         assert_eq!(update_state_success.deleted_workloads.len(), 1);
@@ -617,12 +612,12 @@ mod tests {
     #[test]
     fn utest_response_logs_request_accepted() {
         let workload_names = vec![
-            ankaios_api::ank_base::WorkloadInstanceName {
+            ank_base::WorkloadInstanceName {
                 agent_name: "agent_A".to_owned(),
                 workload_name: "workload_A".to_owned(),
                 id: "id_a".to_owned(),
             },
-            ankaios_api::ank_base::WorkloadInstanceName {
+            ank_base::WorkloadInstanceName {
                 agent_name: "agent_B".to_owned(),
                 workload_name: "workload_B".to_owned(),
                 id: "id_b".to_owned(),
@@ -631,10 +626,10 @@ mod tests {
 
         let response = Response::new(FromAnkaios {
             from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                AnkaiosResponse {
+                ank_base::Response {
                     request_id: String::from("123"),
-                    response_content: Some(AnkaiosResponseContent::LogsRequestAccepted(
-                        ankaios_api::ank_base::LogsRequestAccepted {
+                    response_content: Some(ank_base::ResponseContent::LogsRequestAccepted(
+                        ank_base::LogsRequestAccepted {
                             workload_names: workload_names.clone(),
                         },
                     )),
@@ -658,10 +653,10 @@ mod tests {
     fn utest_response_logs_cancel_accepted() {
         let response = Response::new(FromAnkaios {
             from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                AnkaiosResponse {
+                ank_base::Response {
                     request_id: String::from("123"),
-                    response_content: Some(AnkaiosResponseContent::LogsCancelAccepted(
-                        ankaios_api::ank_base::LogsCancelAccepted {},
+                    response_content: Some(ank_base::ResponseContent::LogsCancelAccepted(
+                        ank_base::LogsCancelAccepted {},
                     )),
                 },
             ))),
@@ -692,25 +687,21 @@ mod tests {
 
     #[test]
     fn utest_response_logs_stop_response() {
-        let expected_instance_name = ankaios_api::ank_base::WorkloadInstanceName {
+        let expected_instance_name = ank_base::WorkloadInstanceName {
             agent_name: "agent_A".to_owned(),
             workload_name: "workload_A".to_owned(),
             id: "id_a".to_owned(),
         };
 
         let from_ankaios_response = FromAnkaios {
-            from_ankaios_enum: Some(
-                ankaios_api::control_api::from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                    ankaios_api::ank_base::Response {
-                        request_id: "123".to_owned(),
-                        response_content: Some(AnkaiosResponseContent::LogsStopResponse(
-                            ankaios_api::ank_base::LogsStopResponse {
-                                workload_name: Some(expected_instance_name.clone()),
-                            },
-                        )),
+            from_ankaios_enum: Some(FromAnkaiosEnum::Response(Box::new(ank_base::Response {
+                request_id: "123".to_owned(),
+                response_content: Some(ank_base::ResponseContent::LogsStopResponse(
+                    ank_base::LogsStopResponse {
+                        workload_name: Some(expected_instance_name.clone()),
                     },
                 )),
-            ),
+            }))),
         };
 
         let response = Response::new(from_ankaios_response);
