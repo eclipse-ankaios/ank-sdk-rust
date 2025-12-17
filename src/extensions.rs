@@ -86,14 +86,26 @@ mod tests {
     use super::{UnreachableOption, UnreachableResult};
 
     #[test]
+    fn test_unreachable_option_some() {
+        let result = Some("value").unwrap_or_unreachable();
+        assert_eq!(result, "value");
+    }
+
+    #[test]
     #[should_panic(expected = "internal error: entered unreachable code")]
-    fn test_unreachable_case() {
+    fn test_unreachable_option_none() {
         let _ = None::<&str>.unwrap_or_unreachable();
     }
 
     #[test]
+    fn test_unreachable_result_ok() {
+        let result = Ok::<&str, &str>("value").unwrap_or_unreachable();
+        assert_eq!(result, "value");
+    }
+
+    #[test]
     #[should_panic(expected = "internal error: entered unreachable code: test error")]
-    fn test_unreachable_result_case() {
+    fn test_unreachable_result_err() {
         let _ = Err::<&str, &str>("test error").unwrap_or_unreachable();
     }
 }
