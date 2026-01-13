@@ -157,9 +157,9 @@ const FIELD_FILES: &str = "files";
 /// #   .runtime_config("image: docker.io/library/nginx\n
 /// #                    commandOptions: [\"-p\", \"8080:80\"]")
 /// #   .build().unwrap();
-/// println!("{}", workload);
+/// println!("{:?}", workload);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Workload {
     #[doc(hidden)]
     /// The underlying workload data from the proto file.
@@ -1183,7 +1183,7 @@ impl Workload {
     }
 }
 
-impl fmt::Display for Workload {
+impl fmt::Debug for Workload {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Workload {}: {:?}", self.name, self.clone().to_proto())
@@ -1649,7 +1649,7 @@ mod tests {
             .build()
             .unwrap();
         assert_eq!(
-            format!("{wl}"),
+            format!("{wl:?}"),
             "Workload Test: Workload { agent: Some(\"agent_A\"), restart_policy: None, dependencies: None, tags: None, runtime: Some(\"podman\"), runtime_config: Some(\"config\"), control_interface_access: None, configs: None, files: None }"
         );
     }

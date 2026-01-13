@@ -20,7 +20,7 @@ use crate::ankaios_api;
 use ankaios_api::ank_base;
 
 /// Represents the execution state of a Workload.
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone, PartialEq)]
 pub struct WorkloadExecutionState {
     /// The state of the workload.
     pub state: WorkloadStateEnum,
@@ -68,11 +68,11 @@ impl WorkloadExecutionState {
         let mut map = serde_yaml::Mapping::new();
         map.insert(
             Value::String("state".to_owned()),
-            Value::String(self.state.to_string()),
+            Value::String(format!("{:?}", self.state)),
         );
         map.insert(
             Value::String("substate".to_owned()),
-            Value::String(self.substate.to_string()),
+            Value::String(format!("{:?}", self.substate)),
         );
         map.insert(
             Value::String("additional_info".to_owned()),
@@ -130,11 +130,11 @@ impl WorkloadExecutionState {
     }
 }
 
-impl fmt::Display for WorkloadExecutionState {
+impl fmt::Debug for WorkloadExecutionState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{} ({}): {}",
+            "{:?} ({:?}): {}",
             self.state, self.substate, self.additional_info
         )
     }
@@ -167,7 +167,7 @@ mod tests {
         );
         assert_eq!(default_exec_state.additional_info, "No state present");
         assert_eq!(
-            default_exec_state.to_string(),
+            format!("{default_exec_state:?}"),
             "NotScheduled (NotScheduled): No state present"
         );
 

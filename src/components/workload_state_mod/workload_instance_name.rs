@@ -25,14 +25,14 @@ use crate::ankaios_api;
 ///
 /// ```rust
 /// use ankaios_sdk::WorkloadInstanceName;
-/// 
+///
 /// let workload_instance_name = WorkloadInstanceName::new(
 ///     "agent_Test".to_owned(),
 ///     "workload_Test".to_owned(),
 ///     "1234".to_owned()
 /// );
 /// ```
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Default, Clone, PartialEq, Eq)]
 pub struct WorkloadInstanceName {
     /// The name of the agent.
     pub agent_name: String,
@@ -104,7 +104,7 @@ impl WorkloadInstanceName {
     }
 }
 
-impl fmt::Display for WorkloadInstanceName {
+impl fmt::Debug for WorkloadInstanceName {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -176,7 +176,10 @@ mod tests {
         assert_eq!(instance_name.workload_name, "workload_Test");
         assert_eq!(instance_name.workload_id, "1234");
 
-        assert_eq!(instance_name.to_string(), "workload_Test.1234.agent_Test");
+        assert_eq!(
+            format!("{instance_name:?}"),
+            "workload_Test.1234.agent_Test"
+        );
         assert_eq!(
             instance_name.get_filter_mask(),
             "workloadStates.agent_Test.workload_Test.1234"

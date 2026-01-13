@@ -30,7 +30,7 @@ type WorkloadStatesMap = HashMap<String, ExecutionsStatesOfWorkload>;
 
 /// Struct that contains the instance name and
 /// the execution state of the workload.
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone, PartialEq)]
 pub struct WorkloadState {
     /// The execution state of the workload.
     pub execution_state: WorkloadExecutionState,
@@ -105,11 +105,11 @@ impl WorkloadState {
     }
 }
 
-impl fmt::Display for WorkloadState {
+impl fmt::Debug for WorkloadState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "{}: {}",
+            "{:?}: {:?}",
             self.workload_instance_name, self.execution_state
         )
     }
@@ -399,10 +399,7 @@ mod tests {
             exec_state.clone(),
         );
 
-        assert_eq!(
-            workload_state_ank_base.to_string(),
-            workload_state_exec_state.to_string()
-        );
+        assert_eq!(workload_state_ank_base, workload_state_exec_state);
         assert_eq!(
             workload_state_ank_base.execution_state.state,
             WorkloadStateEnum::Pending

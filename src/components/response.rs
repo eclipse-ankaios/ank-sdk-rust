@@ -98,28 +98,12 @@ pub struct Response {
 }
 
 /// Struct that handles the `UpdateStateSuccess` response.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 pub struct UpdateStateSuccess {
     /// The workload instance names of the workloads that were added.
     pub added_workloads: Vec<WorkloadInstanceName>,
     /// The workload instance names of the workloads that were deleted.
     pub deleted_workloads: Vec<WorkloadInstanceName>,
-}
-
-impl fmt::Display for ResponseType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            ResponseType::CompleteState(_) => write!(f, "CompleteState"),
-            ResponseType::UpdateStateSuccess(_) => write!(f, "UpdateStateSuccess"),
-            ResponseType::Error(_) => write!(f, "Error"),
-            ResponseType::ControlInterfaceAccepted => write!(f, "ControlInterfaceAccepted"),
-            ResponseType::ConnectionClosedReason(_) => write!(f, "ConnectionClosedReason"),
-            ResponseType::LogsRequestAccepted(_) => write!(f, "LogsRequestAccepted"),
-            ResponseType::LogsCancelAccepted => write!(f, "LogsCancelAccepted"),
-            ResponseType::LogEntriesResponse(_) => write!(f, "LogEntriesResponse"),
-            ResponseType::LogsStopResponse(_) => write!(f, "LogsStopResponse"),
-        }
-    }
 }
 
 impl default::Default for ResponseType {
@@ -307,7 +291,7 @@ impl UpdateStateSuccess {
     }
 }
 
-impl fmt::Display for UpdateStateSuccess {
+impl fmt::Debug for UpdateStateSuccess {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -426,13 +410,19 @@ mod tests {
     #[test]
     fn utest_response_type() {
         let mut response_type = ResponseType::default();
-        assert_eq!(format!("{response_type}"), "Error");
+        assert_eq!(format!("{response_type:?}"), "Error(\"\")");
         response_type = ResponseType::CompleteState(Box::default());
-        assert_eq!(format!("{response_type}"), "CompleteState");
+        assert_eq!(
+            format!("{response_type:?}"),
+            "CompleteState(CompleteState { complete_state: CompleteState { desired_state: Some(State { api_version: \"v0.1\", workloads: None, configs: None }), workload_states: None, agents: None } })"
+        );
         response_type = ResponseType::UpdateStateSuccess(Box::default());
-        assert_eq!(format!("{response_type}"), "UpdateStateSuccess");
+        assert_eq!(
+            format!("{response_type:?}"),
+            "UpdateStateSuccess(UpdateStateSuccess: added_workloads: [], deleted_workloads: [])"
+        );
         response_type = ResponseType::ConnectionClosedReason(String::default());
-        assert_eq!(format!("{response_type}"), "ConnectionClosedReason");
+        assert_eq!(format!("{response_type:?}"), "ConnectionClosedReason(\"\")");
     }
 
     #[test]
@@ -449,8 +439,8 @@ mod tests {
         });
         assert_eq!(response.get_request_id(), "123".to_owned());
         assert_eq!(
-            format!("{}", response.get_content()),
-            format!("{}", ResponseType::Error(String::default()))
+            response.get_content(),
+            ResponseType::Error(String::default())
         );
     }
 
@@ -461,15 +451,23 @@ mod tests {
                 AnkaiosResponse {
                     request_id: String::from("123"),
                     response_content: Some(AnkaiosResponseContent::CompleteState(
-                        ankaios_api::ank_base::CompleteState::default(),
+                        ankaios_api::ank_base::CompleteState {
+                            desired_state: Some(ankaios_api::ank_base::State {
+                                api_version: "v0.1".to_owned(),
+                                workloads: None,
+                                configs: None,
+                            }),
+                            workload_states: None,
+                            agents: None,
+                        },
                     )),
                 },
             ))),
         });
         assert_eq!(response.get_request_id(), "123".to_owned());
         assert_eq!(
-            format!("{}", response.get_content()),
-            format!("{}", ResponseType::CompleteState(Box::default()))
+            response.get_content(),
+            ResponseType::CompleteState(Box::default())
         );
     }
 
@@ -487,8 +485,8 @@ mod tests {
         });
         assert_eq!(response.get_request_id(), "123".to_owned());
         assert_eq!(
-            format!("{}", response.get_content()),
-            format!("{}", ResponseType::UpdateStateSuccess(Box::default()))
+            response.get_content(),
+            ResponseType::UpdateStateSuccess(Box::default())
         );
     }
 
@@ -501,8 +499,8 @@ mod tests {
         });
         assert_eq!(response.get_request_id(), String::default());
         assert_eq!(
-            format!("{}", response.get_content()),
-            format!("{}", ResponseType::ControlInterfaceAccepted)
+            response.get_content(),
+            ResponseType::ControlInterfaceAccepted
         );
     }
 
@@ -515,11 +513,8 @@ mod tests {
         });
         assert_eq!(response.get_request_id(), String::default());
         assert_eq!(
-            format!("{}", response.get_content()),
-            format!(
-                "{}",
-                ResponseType::ConnectionClosedReason(String::default())
-            )
+            response.get_content(),
+            ResponseType::ConnectionClosedReason(String::default())
         );
     }
 
@@ -530,11 +525,8 @@ mod tests {
         });
         assert_eq!(response.get_request_id(), String::default());
         assert_eq!(
-            format!("{}", response.get_content()),
-            format!(
-                "{}",
-                ResponseType::Error(String::from("Response is empty."))
-            )
+            response.get_content(),
+            ResponseType::Error(String::from("Response is empty."))
         );
     }
 
@@ -588,8 +580,8 @@ mod tests {
         );
 
         assert_eq!(
-            format!("{update_state_success}"),
-            "UpdateStateSuccess: added_workloads: [WorkloadInstanceName { agent_name: \"agent_Test\", workload_name: \"workload_new\", workload_id: \"1234\" }], deleted_workloads: [WorkloadInstanceName { agent_name: \"agent_Test\", workload_name: \"workload_old\", workload_id: \"5678\" }]"
+            format!("{update_state_success:?}"),
+            "UpdateStateSuccess: added_workloads: [workload_new.1234.agent_Test], deleted_workloads: [workload_old.5678.agent_Test]"
         );
     }
 

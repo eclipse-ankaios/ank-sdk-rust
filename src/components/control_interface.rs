@@ -17,7 +17,6 @@
 use prost::{Message, encoding::decode_varint};
 use std::{
     collections::HashMap,
-    fmt,
     fs::metadata,
     path::Path,
     sync::{Arc, Mutex},
@@ -190,19 +189,6 @@ async fn read_protobuf_data(file: &mut BufReader<pipe::Receiver>) -> Result<Vec<
     let mut buf = vec![0; size];
     file.read_exact(&mut buf).await?;
     Ok(buf)
-}
-
-impl fmt::Display for ControlInterfaceState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let res_str = match *self {
-            ControlInterfaceState::Initialized => "Initialized",
-            ControlInterfaceState::Connected => "Connected",
-            ControlInterfaceState::Terminated => "Terminated",
-            ControlInterfaceState::AgentDisconnected => "AgentDisconnected",
-            ControlInterfaceState::ConnectionClosed => "ConnectionClosed",
-        };
-        write!(f, "{res_str}")
-    }
 }
 
 #[cfg_attr(test, automock)]
@@ -647,7 +633,7 @@ impl ControlInterface {
         let log_entries_sender = request_id_logs_sender_map.get_cloned(&request_id);
         if let Some(sender) = log_entries_sender {
             log::trace!(
-                "Forwarding logs stop response for workload '{instance_name}' of request id '{request_id}' to log campaign receiver."
+                "Forwarding logs stop response for workload '{instance_name:?}' of request id '{request_id}' to log campaign receiver."
             );
             sender
                 .send(LogResponse::LogsStopResponse(instance_name))
@@ -769,15 +755,15 @@ mod tests {
     #[test]
     fn utest_control_interface_state() {
         let mut cis = ControlInterfaceState::Initialized;
-        assert_eq!(cis.to_string(), "Initialized");
+        assert_eq!(format!("{cis:?}"), "Initialized");
         cis = ControlInterfaceState::Connected;
-        assert_eq!(cis.to_string(), "Connected");
+        assert_eq!(format!("{cis:?}"), "Connected");
         cis = ControlInterfaceState::Terminated;
-        assert_eq!(cis.to_string(), "Terminated");
+        assert_eq!(format!("{cis:?}"), "Terminated");
         cis = ControlInterfaceState::AgentDisconnected;
-        assert_eq!(cis.to_string(), "AgentDisconnected");
+        assert_eq!(format!("{cis:?}"), "AgentDisconnected");
         cis = ControlInterfaceState::ConnectionClosed;
-        assert_eq!(cis.to_string(), "ConnectionClosed");
+        assert_eq!(format!("{cis:?}"), "ConnectionClosed");
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -982,10 +968,8 @@ mod tests {
         let received_response = response_receiver.recv().await.unwrap();
         assert_eq!(received_response.id, req_id.clone());
         assert_eq!(
-            received_response.content.to_string(),
-            generate_test_response_update_state_success(req_id.clone())
-                .content
-                .to_string()
+            received_response.content,
+            generate_test_response_update_state_success(req_id.clone()).content
         );
 
         // Disconnect from the control interface
