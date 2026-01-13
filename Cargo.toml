@@ -2,6 +2,7 @@
 name = "ankaios_sdk"
 version = "0.7.0"
 edition = "2024"
+rust-version = "1.85.0"
 license = "Apache-2.0"
 authors = ["Elektrobit Automotive GmbH and Ankaios contributors"]
 description = "Eclipse Ankaios Rust SDK - provides a convenient Rust interface for interacting with the Ankaios platform."
