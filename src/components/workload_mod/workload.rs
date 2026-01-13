@@ -496,13 +496,13 @@ impl Workload {
                 Value::String(runtime_config),
             );
         }
-        if let Some(restart_policy) = self.workload.restart_policy
-            && let Some(ank_restart_policy) = ank_base::RestartPolicy::from_i32(restart_policy)
-        {
-            dict.insert(
-                Value::String(FIELD_RESTART_POLICY.to_owned()),
-                Value::String(ank_restart_policy.as_str_name().to_owned()),
-            );
+        if let Some(restart_policy) = self.workload.restart_policy {
+            if let Some(ank_restart_policy) = ank_base::RestartPolicy::from_i32(restart_policy) {
+                dict.insert(
+                    Value::String(FIELD_RESTART_POLICY.to_owned()),
+                    Value::String(ank_restart_policy.as_str_name().to_owned()),
+                );
+            }
         }
         if let Some(dependencies) = self.workload.dependencies.clone() {
             let mut deps = serde_yaml::Mapping::new();
