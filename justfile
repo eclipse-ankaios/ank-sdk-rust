@@ -27,7 +27,8 @@ test:
 
 # Run documentation tests
 doctest:
-    cargo test --doc
+    # Specify target to avoid issues with the unsupported cross-compilation target
+    cargo test --doc --target x86_64-unknown-linux-gnu
 
 # Run code coverage
 cov:
