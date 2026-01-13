@@ -54,12 +54,12 @@ ankaios_sdk = { path = "vendor/ankaios_sdk" }
 Please make sure the Rust SDK is compatible with the version of Ankaios you
 are using. For information regarding versioning, please refer to this table:
 
-| Ankaios    | Rust SDK |
-| -------- | ------- |
+| Ankaios         | Rust SDK                                      |
+| --------------- | --------------------------------------------- |
 | 0.4.x and below | No Rust SDK available. Please update Ankaios. |
-| 0.5.x | 0.5.x     |
-| 0.6.x | 0.6.x     |
-| 0.7.x | 0.7.x     |
+| 0.5.x           | 0.5.x                                         |
+| 0.6.x           | 0.6.x                                         |
+| 0.7.x           | 0.7.x                                         |
 
 ## Usage
 
