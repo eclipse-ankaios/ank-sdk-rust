@@ -56,4 +56,4 @@ doc-open:
 # Find the minimum supported Rust version (MSRV)
 msrv-find:
     bash -c 'if ! which cargo-msrv > /dev/null 2>&1; then cargo install cargo-msrv; fi'
-    cargo msrv find --include-all-patch-releases --linear
+    cargo msrv find --include-all-patch-releases --linear # --output-format minimal

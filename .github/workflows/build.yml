@@ -166,6 +166,41 @@ jobs:
           name: libankaios_sdk-${{ matrix.arch }}
           path: libankaios_sdk-${{ matrix.arch }}.rlib
 
+  msrv-check:
+    name: MSRV Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Setup
+        run: |
+          sudo apt -y install protobuf-compiler
+          rustup target add x86_64-unknown-linux-musl
+          cargo install just cargo-msrv
+
+      - name: Extract MSRV from Cargo.toml
+        id: msrv
+        run: |
+          MSRV=$(grep -oP '^rust-version\s*=\s*"\K[^"]+' Cargo.toml)
+          echo "version=$MSRV" >> $GITHUB_OUTPUT
+          echo "Documented MSRV: $MSRV"
+
+      - name: Verify MSRV with cargo-msrv
+        run: |
+          FOUND_MSRV=$(cargo msrv find --include-all-patch-releases --linear --output-format minimal)
+          if [ "$FOUND_MSRV" != "${{ steps.msrv.outputs.version }}" ]; then
+            echo "ERROR: MSRV mismatch! Found $FOUND_MSRV but Cargo.toml specifies ${{ steps.msrv.outputs.version }}"
+            exit 1
+          fi
+
+      - name: Test with MSRV
+        run: |
+          rustup install ${{ steps.msrv.outputs.version }}
+          rustup target add --toolchain ${{ steps.msrv.outputs.version }} x86_64-unknown-linux-musl
+          cargo +${{ steps.msrv.outputs.version }} test
+
   publish-check:
     name: Publish Check
     runs-on: ubuntu-latest
