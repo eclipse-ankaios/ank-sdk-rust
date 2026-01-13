@@ -23,7 +23,7 @@
 //!
 //! ```rust
 //! use ankaios_sdk::{CompleteState, UpdateStateRequest};
-//! 
+//!
 //! let complete_state = CompleteState::new();
 //! let _request = UpdateStateRequest::new(&complete_state, Vec::default());
 //! ```
@@ -32,7 +32,7 @@
 //!
 //! ```rust
 //! use ankaios_sdk::GetStateRequest;
-//! 
+//!
 //! let mut request = GetStateRequest::new(Vec::default());
 //! ```
 //!
@@ -337,23 +337,6 @@ mod tests {
     use ankaios_api::ank_base::Request as AnkaiosRequest;
 
     use super::{CompleteState, GetStateRequest, Request, UpdateStateRequest};
-
-    #[allow(clippy::shadow_unrelated)]
-    #[test]
-    fn test_doc_examples() {
-        // Create a request for updating the state
-        let complete_state = CompleteState::new();
-        let _request = UpdateStateRequest::new(&complete_state, Vec::default());
-
-        // Create a request for getting the state
-        let request = GetStateRequest::new(Vec::default());
-
-        // Get the request ID
-        let _request_id = request.get_id();
-
-        // Create a request for getting the complete state filtered according to the provided field masks
-        let _request = GetStateRequest::new(vec!["desiredState.workloads".to_owned()]);
-    }
 
     #[test]
     fn utest_request_update_state() {

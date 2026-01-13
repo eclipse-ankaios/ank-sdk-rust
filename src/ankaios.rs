@@ -61,7 +61,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use tokio::runtime::Runtime;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
-/// 
+///
 /// let ankaios = Ankaios::new().await.unwrap();
 /// /* */
 /// drop(ankaios);

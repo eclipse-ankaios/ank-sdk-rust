@@ -1209,43 +1209,6 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn test_doc_examples() {
-        // Create a workload
-        let mut workload = Workload::builder()
-            .workload_name("example_workload")
-            .agent_name("agent_A")
-            .runtime("podman")
-            .restart_policy("NEVER")
-            .runtime_config(
-                "image: docker.io/library/nginx\n
-                             commandOptions: [\"-p\", \"8080:80\"]",
-            )
-            .add_dependency("other_workload", "ADD_COND_RUNNING")
-            .add_tag("key1", "value1")
-            .add_tag("key2", "value2")
-            .build()
-            .unwrap();
-
-        // Update fields
-        workload.update_agent_name("agent_B");
-
-        // Update dependencies
-        let mut deps = workload.get_dependencies();
-        if let Some(value) = deps.get_mut("other_workload") {
-            "ADD_COND_SUCCEEDED".clone_into(value);
-        }
-        workload.update_dependencies(deps).unwrap();
-
-        // Update tags
-        let mut tags = workload.get_tags();
-        tags.insert("key3".to_owned(), "value3".to_owned());
-        workload.update_tags(&tags);
-
-        // Print the updated workload
-        println!("{workload}");
-    }
-
-    #[test]
     fn utest_workload() {
         let wl_test =
             generate_test_workload("agent_A".to_owned(), "Test".to_owned(), "podman".to_owned());

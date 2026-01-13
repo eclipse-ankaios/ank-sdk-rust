@@ -364,21 +364,6 @@ pub fn generate_test_workload_states_proto() -> ank_base::WorkloadStatesMap {
 }
 
 #[cfg(test)]
-pub fn generate_test_workload_state() -> WorkloadState {
-    WorkloadState::new_from_exec_state(
-        "agent_name".to_owned(),
-        "workload_name".to_owned(),
-        "1234".to_owned(),
-        WorkloadExecutionState::new(ank_base::ExecutionState {
-            execution_state_enum: Some(ank_base::execution_state::ExecutionStateEnum::Pending(
-                ank_base::Pending::WaitingToStart as i32,
-            )),
-            additional_info: "additional_info".to_owned(),
-        }),
-    )
-}
-
-#[cfg(test)]
 mod tests {
     use crate::components::workload_state_mod::{WorkloadStateEnum, WorkloadSubStateEnum};
 

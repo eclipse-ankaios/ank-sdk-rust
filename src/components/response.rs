@@ -411,9 +411,7 @@ pub fn generate_test_logs_stop_response(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        Response, ResponseType, UpdateStateSuccess, generate_test_response_update_state_success,
-    };
+    use super::{Response, ResponseType, UpdateStateSuccess};
     use crate::ankaios_api;
     use crate::components::response::{
         generate_test_proto_log_entries_response, get_test_proto_from_ankaios_log_entries_response,
@@ -424,25 +422,6 @@ mod tests {
     };
     use ankaios_api::control_api::{FromAnkaios, from_ankaios};
     use std::collections::HashMap;
-
-    #[test]
-    fn test_doc_examples() {
-        // Get response content
-        let response = generate_test_response_update_state_success("1234".to_owned());
-        let _content = response.get_content();
-
-        // Check if the request_id matches
-        if response.get_request_id() == "1234" {
-            println!("Request ID matches.");
-        }
-
-        // Convert the update state success to a dictionary
-        let update_state_success = UpdateStateSuccess::new_from_proto(AnkaiosUpdateStateSuccess {
-            added_workloads: vec!["workload_test.1234.agent_Test".to_owned()],
-            deleted_workloads: Vec::default(),
-        });
-        let _dict = update_state_success.to_dict();
-    }
 
     #[test]
     fn utest_response_type() {
