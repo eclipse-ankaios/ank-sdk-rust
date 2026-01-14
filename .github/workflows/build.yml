@@ -71,6 +71,7 @@ jobs:
           sudo apt -y install protobuf-compiler
           rustup target add x86_64-unknown-linux-musl
           cargo install just
+          cargo install cargo-deny --locked
 
       - name: Deny check
         run: just deny
