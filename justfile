@@ -52,3 +52,7 @@ doc:
 # Open documentation
 doc-open:
     python3 -m http.server -d target/x86_64-unknown-linux-musl/doc 8001
+
+# Run cargo deny to check licenses
+deny:
+    cargo deny check
