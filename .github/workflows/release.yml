@@ -80,6 +80,7 @@ jobs:
     env: 
       CRATES_TOKEN: ${{ secrets.CRATES_API_TOKEN }}
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/ci-setup
 
       - name: Check Build
