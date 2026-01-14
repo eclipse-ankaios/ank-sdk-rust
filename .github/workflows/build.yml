@@ -58,6 +58,23 @@ jobs:
       - name: Clippy
         run: just clippy
 
+  deny:
+    name: Cargo Deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Setup
+        run: |
+          sudo apt -y install protobuf-compiler
+          rustup target add x86_64-unknown-linux-musl
+          cargo install just
+
+      - name: Deny check
+        run: just deny
+
   test:
     name: Tests
     runs-on: ubuntu-latest
