@@ -22,15 +22,7 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Setup
-        run: |
-          sudo apt -y install protobuf-compiler
-          rustup target add x86_64-unknown-linux-musl
-          cargo install just
+      - uses: ./.github/actions/ci-setup
 
       - name: Check
         run: cargo check
@@ -45,15 +37,7 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Setup
-        run: |
-          sudo apt -y install protobuf-compiler
-          rustup target add x86_64-unknown-linux-musl
-          cargo install just
+      - uses: ./.github/actions/ci-setup
 
       - name: Clippy
         run: just clippy
@@ -62,15 +46,7 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Setup
-        run: |
-          sudo apt -y install protobuf-compiler
-          rustup target add x86_64-unknown-linux-musl
-          cargo install just
+      - uses: ./.github/actions/ci-setup
 
       - name: Run tests
         run: |
@@ -81,15 +57,10 @@ jobs:
     name: Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/ci-setup
 
-      - name: Setup
-        run: |
-          sudo apt -y install protobuf-compiler
-          rustup target add x86_64-unknown-linux-musl
-          cargo install just cargo-llvm-cov
+      - name: Install llvm-cov
+        run: cargo install cargo-llvm-cov
 
       - name: Generate coverage report
         run: just cov-html
@@ -107,15 +78,9 @@ jobs:
     name: Docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Setup
-        run: |
-          sudo apt -y install protobuf-compiler
-          rustup target add x86_64-unknown-linux-musl
-          cargo install just
+      - uses: ./.github/actions/ci-setup
+        with:
+          target: x86_64-unknown-linux-musl
 
       - name: Docs
         run: just doc
@@ -134,10 +99,6 @@ jobs:
       matrix:
         arch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-
       - name: Set build target
         id: set_target
         run: |
@@ -147,11 +108,9 @@ jobs:
             echo "TARGET=aarch64-unknown-linux-musl" >> $GITHUB_ENV
           fi
 
-      - name: Setup
-        run: |
-          sudo apt -y install protobuf-compiler
-          rustup target add ${TARGET}
-          cargo install just
+      - uses: ./.github/actions/ci-setup
+        with:
+          target: ${{ env.TARGET }}
 
       - name: Build - ${{ matrix.arch }}
         run: cargo build --target ${TARGET} --release
@@ -170,15 +129,7 @@ jobs:
     name: Publish Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Setup
-        run: |
-          sudo apt -y install protobuf-compiler
-          rustup target add x86_64-unknown-linux-musl
-          cargo install just
+      - uses: ./.github/actions/ci-setup
 
       - name: Publish Check
         run: cargo publish --dry-run

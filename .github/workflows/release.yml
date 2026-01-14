@@ -80,15 +80,7 @@ jobs:
     env: 
       CRATES_TOKEN: ${{ secrets.CRATES_API_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Setup
-        run: |
-          sudo apt -y install protobuf-compiler
-          rustup target add x86_64-unknown-linux-musl
-          cargo install just
+      - uses: ./.github/actions/ci-setup
 
       - name: Check Build
         run: cargo check

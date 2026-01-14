@@ -1,0 +1,26 @@
+name: "CI common setup"
+description: "Checkout, set rust toolchain, restore cache and install common tools"
+inputs:
+  target:
+    description: "Set rust target to add"
+    required: false
+    default: "x86_64-unknown-linux-musl"
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+
+    - name: Install deps
+      run: sudo apt -y install protobuf-compiler
+      shell: bash
+    
+    - name: Add rust target
+      if: ${{ inputs.target != '' }}
+      run: rustup target add ${{ inputs.target }}
+      shell: bash
+
+    - name: Cargo installs
+      run: cargo install just
+      shell: bash
