@@ -59,3 +59,8 @@ doc-open:
 # Run cargo deny to check licenses
 deny:
     cargo deny check
+
+# Find the minimum supported Rust version (MSRV)
+msrv-find:
+    bash -c 'if ! which cargo-msrv > /dev/null 2>&1; then cargo install cargo-msrv; fi'
+    cargo msrv find --include-all-patch-releases --linear # --output-format minimal
