@@ -92,8 +92,7 @@ jobs:
 
       - name: Run tests
         run: |
-          just test
-          just doctest
+          just all-tests
 
   coverage:
     name: Coverage

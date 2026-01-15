@@ -21,13 +21,16 @@ clean:
 clippy:
     cargo clippy --tests --no-deps --all-features -- -Dclippy::all -Dclippy::pedantic
 
+# Run all tests
+all-tests: test doctest
+
 # Run tests using cargo nextest if installed
 test:
     bash -c 'if which cargo-nextest > /dev/null 2>&1; then cargo nextest run; else cargo test --tests; fi'
 
 # Run documentation tests
 doctest:
-    cargo test --doc
+    cargo test --doc --target x86_64-unknown-linux-gnu
 
 # Run code coverage
 cov:

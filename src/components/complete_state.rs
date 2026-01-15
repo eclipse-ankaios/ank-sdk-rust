@@ -16,7 +16,6 @@
 
 use serde_yaml::Value;
 use std::collections::HashMap;
-use std::fmt;
 
 use crate::ankaios_api;
 use crate::components::manifest::Manifest;
@@ -461,13 +460,6 @@ impl Default for CompleteState {
     }
 }
 
-impl fmt::Display for CompleteState {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.to_proto())
-    }
-}
-
 impl From<Manifest> for CompleteState {
     fn from(manifest: Manifest) -> Self {
         Self::new_from_manifest(manifest)
@@ -604,31 +596,6 @@ mod tests {
     use crate::components::workload_state_mod::WorkloadInstanceName;
 
     #[test]
-    fn test_doc_examples() {
-        // Create a new `CompleteState` object
-        let complete_state = CompleteState::new();
-
-        // Get the API version of the complete state
-        let _api_version = complete_state.get_api_version();
-
-        // Get a workload from the complete state
-        let _workload = complete_state.get_workload("workload_test");
-
-        // Get the entire list of workloads from the complete state
-        let _workloads = complete_state.get_workloads();
-
-        // Get the connected agents
-        let _agents = complete_state.get_agents();
-
-        // Get the workload states
-        let _workload_states = complete_state.get_workload_states();
-
-        // Create a `CompleteState` object from a `Manifest`
-        let manifest = generate_test_manifest();
-        let _complete_state = CompleteState::from(manifest);
-    }
-
-    #[test]
     fn utest_api_version() {
         let mut complete_state = CompleteState::default();
         assert_eq!(complete_state.get_api_version(), SUPPORTED_API_VERSION);
@@ -640,7 +607,7 @@ mod tests {
     fn utest_proto() {
         let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
         let other_complete_state = CompleteState::new_from_proto(complete_state.to_proto());
-        assert_eq!(complete_state.to_string(), other_complete_state.to_string());
+        assert_eq!(complete_state, other_complete_state);
     }
 
     #[test]

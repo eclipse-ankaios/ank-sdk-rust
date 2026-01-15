@@ -23,7 +23,7 @@
 //!
 //! ```rust
 //! use ankaios_sdk::{CompleteState, UpdateStateRequest};
-//! 
+//!
 //! let complete_state = CompleteState::new();
 //! let _request = UpdateStateRequest::new(&complete_state, Vec::default());
 //! ```
@@ -32,7 +32,7 @@
 //!
 //! ```rust
 //! use ankaios_sdk::GetStateRequest;
-//! 
+//!
 //! let mut request = GetStateRequest::new(Vec::default());
 //! ```
 //!
@@ -85,7 +85,7 @@ pub trait Request {
 /// Struct that represents a request to get the state of the [Ankaios] application.
 ///
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct GetStateRequest {
     /// The request proto message that will be sent to the cluster.
     #[allow(clippy::struct_field_names)]
@@ -98,7 +98,7 @@ pub struct GetStateRequest {
 /// Struct that represents a request to update the state of the [Ankaios] application.
 ///
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct UpdateStateRequest {
     /// The request proto message that will be sent to the cluster.
     #[allow(clippy::struct_field_names)]
@@ -145,7 +145,7 @@ impl Request for GetStateRequest {
     }
 }
 
-impl fmt::Display for GetStateRequest {
+impl fmt::Debug for GetStateRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.to_proto())
     }
@@ -194,7 +194,7 @@ impl Request for UpdateStateRequest {
     }
 }
 
-impl fmt::Display for UpdateStateRequest {
+impl fmt::Debug for UpdateStateRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.to_proto())
     }
@@ -203,7 +203,7 @@ impl fmt::Display for UpdateStateRequest {
 /// Struct that represents a request to request logs from the [Ankaios] application.
 ///
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct AnkaiosLogsRequest {
     /// The request proto message that will be sent to the cluster.
     #[allow(clippy::struct_field_names)]
@@ -257,7 +257,7 @@ impl Request for AnkaiosLogsRequest {
     }
 }
 
-impl fmt::Display for AnkaiosLogsRequest {
+impl fmt::Debug for AnkaiosLogsRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.to_proto())
     }
@@ -266,7 +266,7 @@ impl fmt::Display for AnkaiosLogsRequest {
 /// Struct that represents a request to cancel a log collection from the [Ankaios] application.
 ///
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct LogsCancelRequest {
     /// The request proto message that will be sent to the cluster.
     #[allow(clippy::struct_field_names)]
@@ -312,7 +312,7 @@ impl Request for LogsCancelRequest {
     }
 }
 
-impl fmt::Display for LogsCancelRequest {
+impl fmt::Debug for LogsCancelRequest {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.to_proto())
     }
@@ -338,23 +338,6 @@ mod tests {
 
     use super::{CompleteState, GetStateRequest, Request, UpdateStateRequest};
 
-    #[allow(clippy::shadow_unrelated)]
-    #[test]
-    fn test_doc_examples() {
-        // Create a request for updating the state
-        let complete_state = CompleteState::new();
-        let _request = UpdateStateRequest::new(&complete_state, Vec::default());
-
-        // Create a request for getting the state
-        let request = GetStateRequest::new(Vec::default());
-
-        // Get the request ID
-        let _request_id = request.get_id();
-
-        // Create a request for getting the complete state filtered according to the provided field masks
-        let _request = GetStateRequest::new(vec!["desiredState.workloads".to_owned()]);
-    }
-
     #[test]
     fn utest_request_update_state() {
         let request = UpdateStateRequest::new(
@@ -378,7 +361,7 @@ mod tests {
             }
         );
 
-        assert_eq!(format!("{request}"), format!("{:?}", request.to_proto()));
+        assert_eq!(format!("{request:?}"), format!("{:?}", request.to_proto()));
     }
 
     #[test]
@@ -400,6 +383,6 @@ mod tests {
             }
         );
 
-        assert_eq!(format!("{request}"), format!("{:?}", request.to_proto()));
+        assert_eq!(format!("{request:?}"), format!("{:?}", request.to_proto()));
     }
 }

@@ -41,7 +41,7 @@
 //! # let (_logs_sender, logs_receiver) = mpsc::channel(1);
 //! # let log_campaign = LogCampaignResponse::new(String::default(), Vec::default(), logs_receiver);
 //! for workload in log_campaign.accepted_workload_names {
-//!     println!("Accepted workload: {}", workload);
+//!     println!("Accepted workload: {:?}", workload);
 //! }
 //! ```
 //!
