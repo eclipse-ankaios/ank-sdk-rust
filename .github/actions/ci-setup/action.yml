@@ -9,7 +9,7 @@ runs:
   using: "composite"
   steps:
     - uses: dtolnay/rust-toolchain@stable
-    - uses: Swatinem/rust-cache@v2
+    - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
 
     - name: Install deps
       run: sudo apt -y install protobuf-compiler
