@@ -16,7 +16,6 @@
 
 use serde_yaml::Value;
 use std::collections::HashMap;
-use std::fmt;
 
 use crate::ankaios_api;
 use crate::components::manifest::Manifest;
@@ -298,12 +297,12 @@ impl CompleteState {
     /// A [Workload] instance if found, otherwise `None`.
     pub fn get_workload<T: Into<String>>(&self, workload_name: T) -> Option<Workload> {
         let workload_name_str = workload_name.into();
-        if let Some(desired_state) = self.complete_state.desired_state.as_ref()
-            && let Some(workloads) = desired_state.workloads.as_ref()
-        {
-            for (name, workload) in &workloads.workloads {
-                if workload_name_str == *name {
-                    return Some(Workload::new_from_proto(name, workload.clone()));
+        if let Some(desired_state) = self.complete_state.desired_state.as_ref() {
+            if let Some(workloads) = desired_state.workloads.as_ref() {
+                for (name, workload) in &workloads.workloads {
+                    if workload_name_str == *name {
+                        return Some(Workload::new_from_proto(name, workload.clone()));
+                    }
                 }
             }
         }
@@ -318,11 +317,11 @@ impl CompleteState {
     #[must_use]
     pub fn get_workloads(&self) -> Vec<Workload> {
         let mut workloads_vec = Vec::new();
-        if let Some(desired_state) = self.complete_state.desired_state.as_ref()
-            && let Some(workloads) = desired_state.workloads.as_ref()
-        {
-            for (workload_name, workload) in &workloads.workloads {
-                workloads_vec.push(Workload::new_from_proto(workload_name, workload.clone()));
+        if let Some(desired_state) = self.complete_state.desired_state.as_ref() {
+            if let Some(workloads) = desired_state.workloads.as_ref() {
+                for (workload_name, workload) in &workloads.workloads {
+                    workloads_vec.push(Workload::new_from_proto(workload_name, workload.clone()));
+                }
             }
         }
         workloads_vec
@@ -442,14 +441,14 @@ impl CompleteState {
                 None => Value::Null,
             }
         }
-        if let Some(desired_state) = self.complete_state.desired_state.as_ref()
-            && let Some(configs) = desired_state.configs.as_ref()
-        {
-            return configs
-                .configs
-                .iter()
-                .map(|(k, v)| (k.clone(), from_config_item(v)))
-                .collect();
+        if let Some(desired_state) = self.complete_state.desired_state.as_ref() {
+            if let Some(configs) = desired_state.configs.as_ref() {
+                return configs
+                    .configs
+                    .iter()
+                    .map(|(k, v)| (k.clone(), from_config_item(v)))
+                    .collect();
+            }
         }
         HashMap::new()
     }
@@ -458,13 +457,6 @@ impl CompleteState {
 impl Default for CompleteState {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl fmt::Display for CompleteState {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.to_proto())
     }
 }
 
@@ -604,31 +596,6 @@ mod tests {
     use crate::components::workload_state_mod::WorkloadInstanceName;
 
     #[test]
-    fn test_doc_examples() {
-        // Create a new `CompleteState` object
-        let complete_state = CompleteState::new();
-
-        // Get the API version of the complete state
-        let _api_version = complete_state.get_api_version();
-
-        // Get a workload from the complete state
-        let _workload = complete_state.get_workload("workload_test");
-
-        // Get the entire list of workloads from the complete state
-        let _workloads = complete_state.get_workloads();
-
-        // Get the connected agents
-        let _agents = complete_state.get_agents();
-
-        // Get the workload states
-        let _workload_states = complete_state.get_workload_states();
-
-        // Create a `CompleteState` object from a `Manifest`
-        let manifest = generate_test_manifest();
-        let _complete_state = CompleteState::from(manifest);
-    }
-
-    #[test]
     fn utest_api_version() {
         let mut complete_state = CompleteState::default();
         assert_eq!(complete_state.get_api_version(), SUPPORTED_API_VERSION);
@@ -640,7 +607,7 @@ mod tests {
     fn utest_proto() {
         let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
         let other_complete_state = CompleteState::new_from_proto(complete_state.to_proto());
-        assert_eq!(complete_state.to_string(), other_complete_state.to_string());
+        assert_eq!(complete_state, other_complete_state);
     }
 
     #[test]

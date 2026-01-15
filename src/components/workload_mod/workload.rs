@@ -18,7 +18,7 @@ use crate::WorkloadBuilder;
 use crate::ankaios_api;
 use ankaios_api::ank_base;
 use serde_yaml::Value;
-use std::{borrow::ToOwned, collections::HashMap, convert::Into, fmt, path::Path, vec};
+use std::{borrow::ToOwned, collections::HashMap, convert::Into, path::Path, vec};
 
 // Disable this from coverage
 // https://github.com/rust-lang/rust/issues/84605
@@ -157,9 +157,9 @@ const FIELD_FILES: &str = "files";
 /// #   .runtime_config("image: docker.io/library/nginx\n
 /// #                    commandOptions: [\"-p\", \"8080:80\"]")
 /// #   .build().unwrap();
-/// println!("{}", workload);
+/// println!("{:?}", workload);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct Workload {
     #[doc(hidden)]
     /// The underlying workload data from the proto file.
@@ -496,13 +496,13 @@ impl Workload {
                 Value::String(runtime_config),
             );
         }
-        if let Some(restart_policy) = self.workload.restart_policy
-            && let Some(ank_restart_policy) = ank_base::RestartPolicy::from_i32(restart_policy)
-        {
-            dict.insert(
-                Value::String(FIELD_RESTART_POLICY.to_owned()),
-                Value::String(ank_restart_policy.as_str_name().to_owned()),
-            );
+        if let Some(restart_policy) = self.workload.restart_policy {
+            if let Some(ank_restart_policy) = ank_base::RestartPolicy::from_i32(restart_policy) {
+                dict.insert(
+                    Value::String(FIELD_RESTART_POLICY.to_owned()),
+                    Value::String(ank_restart_policy.as_str_name().to_owned()),
+                );
+            }
         }
         if let Some(dependencies) = self.workload.dependencies.clone() {
             let mut deps = serde_yaml::Mapping::new();
@@ -1183,13 +1183,6 @@ impl Workload {
     }
 }
 
-impl fmt::Display for Workload {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Workload {}: {:?}", self.name, self.clone().to_proto())
-    }
-}
-
 //////////////////////////////////////////////////////////////////////////////
 //                 ########  #######    #########  #########                //
 //                    ##     ##        ##             ##                    //
@@ -1207,43 +1200,6 @@ mod tests {
     };
     use std::collections::HashMap;
     use std::path::Path;
-
-    #[test]
-    fn test_doc_examples() {
-        // Create a workload
-        let mut workload = Workload::builder()
-            .workload_name("example_workload")
-            .agent_name("agent_A")
-            .runtime("podman")
-            .restart_policy("NEVER")
-            .runtime_config(
-                "image: docker.io/library/nginx\n
-                             commandOptions: [\"-p\", \"8080:80\"]",
-            )
-            .add_dependency("other_workload", "ADD_COND_RUNNING")
-            .add_tag("key1", "value1")
-            .add_tag("key2", "value2")
-            .build()
-            .unwrap();
-
-        // Update fields
-        workload.update_agent_name("agent_B");
-
-        // Update dependencies
-        let mut deps = workload.get_dependencies();
-        if let Some(value) = deps.get_mut("other_workload") {
-            "ADD_COND_SUCCEEDED".clone_into(value);
-        }
-        workload.update_dependencies(deps).unwrap();
-
-        // Update tags
-        let mut tags = workload.get_tags();
-        tags.insert("key3".to_owned(), "value3".to_owned());
-        workload.update_tags(&tags);
-
-        // Print the updated workload
-        println!("{workload}");
-    }
 
     #[test]
     fn utest_workload() {
@@ -1686,8 +1642,8 @@ mod tests {
             .build()
             .unwrap();
         assert_eq!(
-            format!("{wl}"),
-            "Workload Test: Workload { agent: Some(\"agent_A\"), restart_policy: None, dependencies: None, tags: None, runtime: Some(\"podman\"), runtime_config: Some(\"config\"), control_interface_access: None, configs: None, files: None }"
+            format!("{wl:?}"),
+            "Workload { workload: Workload { agent: Some(\"agent_A\"), restart_policy: None, dependencies: None, tags: None, runtime: Some(\"podman\"), runtime_config: Some(\"config\"), control_interface_access: None, configs: None, files: None }, main_mask: \"desiredState.workloads.Test\", masks: [\"desiredState.workloads.Test\"], name: \"Test\" }"
         );
     }
 }

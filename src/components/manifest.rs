@@ -309,24 +309,6 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn test_doc_examples() {
-        // Load a manifest from a file
-        let _manifest = Manifest::from_file(Path::new("apiVersion: v0.1")).unwrap();
-
-        // Load a manifest from a string
-        let _manifest = Manifest::from_string("apiVersion: v0.1").unwrap();
-
-        // Load a manifest from a serde_yaml::Value
-        let mut map = serde_yaml::Mapping::new();
-        map.insert(
-            serde_yaml::Value::String("apiVersion".to_owned()),
-            serde_yaml::Value::String("v0.1".to_owned()),
-        );
-        let dict = serde_yaml::Value::Mapping(map);
-        let _manifest = Manifest::from_dict(dict).unwrap();
-    }
-
-    #[test]
     fn utest_creation() {
         let manifest = Manifest::from_file(Path::new(MANIFEST_CONTENT)).unwrap();
         assert_eq!(manifest.desired_state.api_version, "v0.1");

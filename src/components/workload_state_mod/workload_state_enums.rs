@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fmt, str::FromStr};
+use std::str::FromStr;
 
 use crate::ankaios_api;
 use ankaios_api::ank_base;
@@ -113,23 +113,6 @@ impl WorkloadStateEnum {
     #[must_use]
     pub fn as_i32(&self) -> i32 {
         *self as i32
-    }
-}
-
-impl fmt::Display for WorkloadStateEnum {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let state_str = match self {
-            WorkloadStateEnum::AgentDisconnected => "AgentDisconnected",
-            WorkloadStateEnum::Pending => "Pending",
-            WorkloadStateEnum::Running => "Running",
-            WorkloadStateEnum::Stopping => "Stopping",
-            WorkloadStateEnum::Succeeded => "Succeeded",
-            WorkloadStateEnum::Failed => "Failed",
-            WorkloadStateEnum::NotScheduled => "NotScheduled",
-            WorkloadStateEnum::Removed => "Removed",
-        };
-        write!(f, "{state_str}")
     }
 }
 
@@ -258,30 +241,6 @@ impl WorkloadSubStateEnum {
     }
 }
 
-impl fmt::Display for WorkloadSubStateEnum {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let substate_str = match self {
-            WorkloadSubStateEnum::AgentDisconnected => "AgentDisconnected",
-            WorkloadSubStateEnum::PendingInitial => "PendingInitial",
-            WorkloadSubStateEnum::PendingWaitingToStart => "PendingWaitingToStart",
-            WorkloadSubStateEnum::PendingStarting => "PendingStarting",
-            WorkloadSubStateEnum::PendingStartingFailed => "PendingStartingFailed",
-            WorkloadSubStateEnum::RunningOk => "RunningOk",
-            WorkloadSubStateEnum::Stopping => "Stopping",
-            WorkloadSubStateEnum::StoppingWaitingToStop => "StoppingWaitingToStop",
-            WorkloadSubStateEnum::StoppingRequestedAtRuntime => "StoppingRequestedAtRuntime",
-            WorkloadSubStateEnum::StoppingDeleteFailed => "StoppingDeleteFailed",
-            WorkloadSubStateEnum::SucceededOk => "SucceededOk",
-            WorkloadSubStateEnum::FailedExecFailed => "FailedExecFailed",
-            WorkloadSubStateEnum::FailedUnknown => "FailedUnknown",
-            WorkloadSubStateEnum::FailedLost => "FailedLost",
-            WorkloadSubStateEnum::NotScheduled => "NotScheduled",
-            WorkloadSubStateEnum::Removed => "Removed",
-        };
-        write!(f, "{substate_str}")
-    }
-}
-
 impl FromStr for WorkloadSubStateEnum {
     type Err = ();
 
@@ -338,7 +297,7 @@ mod tests {
             fn $test_name() {
                 let state = WorkloadStateEnum::$enum_val;
                 assert_eq!(state.as_i32(), $idx);
-                assert_eq!(state.to_string(), stringify!($enum_val));
+                assert_eq!(format!("{state:?}"), stringify!($enum_val));
                 assert_eq!(
                     state,
                     WorkloadStateEnum::new_from_str(stringify!($enum_val)).unwrap()
@@ -385,7 +344,7 @@ mod tests {
                 let substate =
                     WorkloadSubStateEnum::new(WorkloadStateEnum::$state_val, $idx).unwrap();
                 assert_eq!(substate.to_i32(), $idx);
-                assert_eq!(substate.to_string(), stringify!($enum_val));
+                assert_eq!(format!("{substate:?}"), stringify!($enum_val));
                 assert_eq!(substate, stringify!($enum_val).parse().unwrap());
             }
         };

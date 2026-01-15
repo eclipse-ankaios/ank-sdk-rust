@@ -21,13 +21,16 @@ clean:
 clippy:
     cargo clippy --tests --no-deps --all-features -- -Dclippy::all -Dclippy::pedantic
 
+# Run all tests
+all-tests: test doctest
+
 # Run tests using cargo nextest if installed
 test:
     bash -c 'if which cargo-nextest > /dev/null 2>&1; then cargo nextest run; else cargo test --tests; fi'
 
 # Run documentation tests
 doctest:
-    cargo test --doc
+    cargo test --doc --target x86_64-unknown-linux-gnu
 
 # Run code coverage
 cov:
@@ -52,3 +55,12 @@ doc:
 # Open documentation
 doc-open:
     python3 -m http.server -d target/x86_64-unknown-linux-musl/doc 8001
+
+# Run cargo deny to check licenses
+deny:
+    cargo deny check
+
+# Find the minimum supported Rust version (MSRV)
+msrv-find:
+    bash -c 'if ! which cargo-msrv > /dev/null 2>&1; then cargo install cargo-msrv; fi'
+    cargo msrv find --include-all-patch-releases --linear # --output-format minimal

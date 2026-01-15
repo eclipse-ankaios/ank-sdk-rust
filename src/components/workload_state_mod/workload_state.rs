@@ -14,7 +14,6 @@
 
 use serde_yaml::Value;
 use std::collections::HashMap;
-use std::fmt;
 
 use super::workload_execution_state::WorkloadExecutionState;
 use super::workload_instance_name::WorkloadInstanceName;
@@ -30,7 +29,7 @@ type WorkloadStatesMap = HashMap<String, ExecutionsStatesOfWorkload>;
 
 /// Struct that contains the instance name and
 /// the execution state of the workload.
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct WorkloadState {
     /// The execution state of the workload.
     pub execution_state: WorkloadExecutionState,
@@ -102,16 +101,6 @@ impl WorkloadState {
                 workload_id,
             ),
         }
-    }
-}
-
-impl fmt::Display for WorkloadState {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}: {}",
-            self.workload_instance_name, self.execution_state
-        )
     }
 }
 
@@ -364,21 +353,6 @@ pub fn generate_test_workload_states_proto() -> ank_base::WorkloadStatesMap {
 }
 
 #[cfg(test)]
-pub fn generate_test_workload_state() -> WorkloadState {
-    WorkloadState::new_from_exec_state(
-        "agent_name".to_owned(),
-        "workload_name".to_owned(),
-        "1234".to_owned(),
-        WorkloadExecutionState::new(ank_base::ExecutionState {
-            execution_state_enum: Some(ank_base::execution_state::ExecutionStateEnum::Pending(
-                ank_base::Pending::WaitingToStart as i32,
-            )),
-            additional_info: "additional_info".to_owned(),
-        }),
-    )
-}
-
-#[cfg(test)]
 mod tests {
     use crate::components::workload_state_mod::{WorkloadStateEnum, WorkloadSubStateEnum};
 
@@ -414,10 +388,7 @@ mod tests {
             exec_state.clone(),
         );
 
-        assert_eq!(
-            workload_state_ank_base.to_string(),
-            workload_state_exec_state.to_string()
-        );
+        assert_eq!(workload_state_ank_base, workload_state_exec_state);
         assert_eq!(
             workload_state_ank_base.execution_state.state,
             WorkloadStateEnum::Pending
