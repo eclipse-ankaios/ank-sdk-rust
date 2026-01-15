@@ -53,6 +53,10 @@ doc:
 doc-open:
     python3 -m http.server -d target/x86_64-unknown-linux-musl/doc 8001
 
+# Run cargo deny to check licenses
+deny:
+    cargo deny check
+
 # Find the minimum supported Rust version (MSRV)
 msrv-find:
     bash -c 'if ! which cargo-msrv > /dev/null 2>&1; then cargo install cargo-msrv; fi'
