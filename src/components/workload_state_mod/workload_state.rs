@@ -14,7 +14,6 @@
 
 use serde_yaml::Value;
 use std::collections::HashMap;
-use std::fmt;
 
 use super::workload_execution_state::WorkloadExecutionState;
 use super::workload_instance_name::WorkloadInstanceName;
@@ -30,7 +29,7 @@ type WorkloadStatesMap = HashMap<String, ExecutionsStatesOfWorkload>;
 
 /// Struct that contains the instance name and
 /// the execution state of the workload.
-#[derive(Default, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct WorkloadState {
     /// The execution state of the workload.
     pub execution_state: WorkloadExecutionState,
@@ -102,16 +101,6 @@ impl WorkloadState {
                 workload_id,
             ),
         }
-    }
-}
-
-impl fmt::Debug for WorkloadState {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{:?}: {:?}",
-            self.workload_instance_name, self.execution_state
-        )
     }
 }
 

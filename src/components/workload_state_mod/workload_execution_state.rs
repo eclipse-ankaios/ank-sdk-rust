@@ -13,14 +13,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use serde_yaml::Value;
-use std::fmt;
 
 use super::workload_state_enums::{WorkloadStateEnum, WorkloadSubStateEnum};
 use crate::ankaios_api;
 use ankaios_api::ank_base;
 
 /// Represents the execution state of a Workload.
-#[derive(Default, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct WorkloadExecutionState {
     /// The state of the workload.
     pub state: WorkloadStateEnum,
@@ -130,16 +129,6 @@ impl WorkloadExecutionState {
     }
 }
 
-impl fmt::Debug for WorkloadExecutionState {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{:?} ({:?}): {}",
-            self.state, self.substate, self.additional_info
-        )
-    }
-}
-
 //////////////////////////////////////////////////////////////////////////////
 //                 ########  #######    #########  #########                //
 //                    ##     ##        ##             ##                    //
@@ -168,7 +157,7 @@ mod tests {
         assert_eq!(default_exec_state.additional_info, "No state present");
         assert_eq!(
             format!("{default_exec_state:?}"),
-            "NotScheduled (NotScheduled): No state present"
+            "WorkloadExecutionState { state: NotScheduled, substate: NotScheduled, additional_info: \"No state present\" }"
         );
 
         let mut expected_dict = serde_yaml::Mapping::new();

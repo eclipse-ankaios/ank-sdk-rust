@@ -18,7 +18,7 @@ use crate::WorkloadBuilder;
 use crate::ankaios_api;
 use ankaios_api::ank_base;
 use serde_yaml::Value;
-use std::{borrow::ToOwned, collections::HashMap, convert::Into, fmt, path::Path, vec};
+use std::{borrow::ToOwned, collections::HashMap, convert::Into, path::Path, vec};
 
 // Disable this from coverage
 // https://github.com/rust-lang/rust/issues/84605
@@ -159,7 +159,7 @@ const FIELD_FILES: &str = "files";
 /// #   .build().unwrap();
 /// println!("{:?}", workload);
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Workload {
     #[doc(hidden)]
     /// The underlying workload data from the proto file.
@@ -1183,13 +1183,6 @@ impl Workload {
     }
 }
 
-impl fmt::Debug for Workload {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Workload {}: {:?}", self.name, self.clone().to_proto())
-    }
-}
-
 //////////////////////////////////////////////////////////////////////////////
 //                 ########  #######    #########  #########                //
 //                    ##     ##        ##             ##                    //
@@ -1650,7 +1643,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             format!("{wl:?}"),
-            "Workload Test: Workload { agent: Some(\"agent_A\"), restart_policy: None, dependencies: None, tags: None, runtime: Some(\"podman\"), runtime_config: Some(\"config\"), control_interface_access: None, configs: None, files: None }"
+            "Workload { workload: Workload { agent: Some(\"agent_A\"), restart_policy: None, dependencies: None, tags: None, runtime: Some(\"podman\"), runtime_config: Some(\"config\"), control_interface_access: None, configs: None, files: None }, main_mask: \"desiredState.workloads.Test\", masks: [\"desiredState.workloads.Test\"], name: \"Test\" }"
         );
     }
 }

@@ -57,7 +57,6 @@ use ankaios_api::ank_base::{
     response::ResponseContent as AnkaiosResponseContent,
 };
 use ankaios_api::control_api::{FromAnkaios, from_ankaios::FromAnkaiosEnum};
-use core::fmt;
 use std::collections::HashMap;
 use std::default;
 
@@ -98,7 +97,7 @@ pub struct Response {
 }
 
 /// Struct that handles the `UpdateStateSuccess` response.
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct UpdateStateSuccess {
     /// The workload instance names of the workloads that were added.
     pub added_workloads: Vec<WorkloadInstanceName>,
@@ -291,16 +290,6 @@ impl UpdateStateSuccess {
     }
 }
 
-impl fmt::Debug for UpdateStateSuccess {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "UpdateStateSuccess: added_workloads: {:?}, deleted_workloads: {:?}",
-            self.added_workloads, self.deleted_workloads
-        )
-    }
-}
-
 //////////////////////////////////////////////////////////////////////////////
 //                 ########  #######    #########  #########                //
 //                    ##     ##        ##             ##                    //
@@ -419,7 +408,7 @@ mod tests {
         response_type = ResponseType::UpdateStateSuccess(Box::default());
         assert_eq!(
             format!("{response_type:?}"),
-            "UpdateStateSuccess(UpdateStateSuccess: added_workloads: [], deleted_workloads: [])"
+            "UpdateStateSuccess(UpdateStateSuccess { added_workloads: [], deleted_workloads: [] })"
         );
         response_type = ResponseType::ConnectionClosedReason(String::default());
         assert_eq!(format!("{response_type:?}"), "ConnectionClosedReason(\"\")");
@@ -581,7 +570,7 @@ mod tests {
 
         assert_eq!(
             format!("{update_state_success:?}"),
-            "UpdateStateSuccess: added_workloads: [workload_new.1234.agent_Test], deleted_workloads: [workload_old.5678.agent_Test]"
+            "UpdateStateSuccess { added_workloads: [WorkloadInstanceName { agent_name: \"agent_Test\", workload_name: \"workload_new\", workload_id: \"1234\" }], deleted_workloads: [WorkloadInstanceName { agent_name: \"agent_Test\", workload_name: \"workload_old\", workload_id: \"5678\" }] }"
         );
     }
 
