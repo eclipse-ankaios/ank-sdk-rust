@@ -13,14 +13,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use serde_yaml::Value;
-use std::fmt;
 
 use super::workload_state_enums::{WorkloadStateEnum, WorkloadSubStateEnum};
 use crate::ankaios_api;
 use ankaios_api::ank_base;
 
 /// Represents the execution state of a Workload.
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct WorkloadExecutionState {
     /// The state of the workload.
     pub state: WorkloadStateEnum,
@@ -68,11 +67,11 @@ impl WorkloadExecutionState {
         let mut map = serde_yaml::Mapping::new();
         map.insert(
             Value::String("state".to_owned()),
-            Value::String(self.state.to_string()),
+            Value::String(format!("{:?}", self.state)),
         );
         map.insert(
             Value::String("substate".to_owned()),
-            Value::String(self.substate.to_string()),
+            Value::String(format!("{:?}", self.substate)),
         );
         map.insert(
             Value::String("additional_info".to_owned()),
@@ -118,16 +117,6 @@ impl WorkloadExecutionState {
     }
 }
 
-impl fmt::Display for WorkloadExecutionState {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} ({}): {}",
-            self.state, self.substate, self.additional_info
-        )
-    }
-}
-
 //////////////////////////////////////////////////////////////////////////////
 //                 ########  #######    #########  #########                //
 //                    ##     ##        ##             ##                    //
@@ -155,8 +144,8 @@ mod tests {
         );
         assert_eq!(default_exec_state.additional_info, "No state present");
         assert_eq!(
-            default_exec_state.to_string(),
-            "NotScheduled (NotScheduled): No state present"
+            format!("{default_exec_state:?}"),
+            "WorkloadExecutionState { state: NotScheduled, substate: NotScheduled, additional_info: \"No state present\" }"
         );
 
         let mut expected_dict = serde_yaml::Mapping::new();

@@ -1076,7 +1076,7 @@ impl Ankaios {
             unexpected_response => {
                 log::error!("Received unexpected response type.");
                 Err(AnkaiosError::ResponseError(format!(
-                    "Received unexpected response type: '{unexpected_response}'"
+                    "Received unexpected response type: '{unexpected_response:?}'"
                 )))
             }
         }
@@ -1170,7 +1170,7 @@ impl Ankaios {
             unexpected_response => {
                 log::error!("Received unexpected response type.");
                 Err(AnkaiosError::ResponseError(format!(
-                    "Received unexpected response type: '{unexpected_response}'"
+                    "Received unexpected response type: '{unexpected_response:?}'"
                 )))
             }
         }
@@ -3352,7 +3352,7 @@ mod tests {
         assert!(log_campaign_response.is_err());
         assert_eq!(
             log_campaign_response.unwrap_err().to_string(),
-            "Response error: Received unexpected response type: 'UpdateStateSuccess'"
+            "Response error: Received unexpected response type: 'UpdateStateSuccess(UpdateStateSuccess { added_workloads: [], deleted_workloads: [] })'"
         );
     }
 
@@ -3681,7 +3681,7 @@ mod tests {
         assert!(events_campaign_response.is_err());
         assert_eq!(
             events_campaign_response.unwrap_err().to_string(),
-            "Response error: Received unexpected response type: 'UpdateStateSuccess'"
+            "Response error: Received unexpected response type: 'UpdateStateSuccess(UpdateStateSuccess { added_workloads: [], deleted_workloads: [] })'"
         );
     }
 
