@@ -206,9 +206,9 @@ impl File {
     /// An [`ank_base::File`] protobuf message containing the file's mount point and content.
     pub(crate) fn into_proto(self) -> ank_base::File {
         let file_content = match self.content {
-            FileContent::Data(data) => Some(ank_base::file::FileContent::Data(data)),
+            FileContent::Data(data) => Some(ank_base::FileContent::Data(data)),
             FileContent::BinaryData(binary_data) => {
-                Some(ank_base::file::FileContent::BinaryData(binary_data))
+                Some(ank_base::FileContent::BinaryData(binary_data))
             }
         };
 
@@ -226,11 +226,11 @@ impl File {
     /// A [`File`] object containing its mount point and content.
     pub(crate) fn from_proto(file: ank_base::File) -> Self {
         match file.file_content {
-            Some(ank_base::file::FileContent::Data(data)) => File {
+            Some(ank_base::FileContent::Data(data)) => File {
                 mount_point: file.mount_point,
                 content: FileContent::Data(data),
             },
-            Some(ank_base::file::FileContent::BinaryData(binary_data)) => File {
+            Some(ank_base::FileContent::BinaryData(binary_data)) => File {
                 mount_point: file.mount_point,
                 content: FileContent::BinaryData(binary_data),
             },
@@ -542,7 +542,7 @@ mod tests {
 
         assert_eq!(proto.mount_point, "/etc/config.txt");
         match proto.file_content {
-            Some(ank_base::file::FileContent::Data(content)) => {
+            Some(ank_base::FileContent::Data(content)) => {
                 assert_eq!(content, "Hello, World!");
             }
             _ => panic!("Expected data content in proto"),
@@ -557,7 +557,7 @@ mod tests {
 
         assert_eq!(proto.mount_point, "/usr/share/app/image.png");
         match proto.file_content {
-            Some(ank_base::file::FileContent::BinaryData(content)) => {
+            Some(ank_base::FileContent::BinaryData(content)) => {
                 assert_eq!(content, base64_data);
             }
             _ => panic!("Expected binary data content in proto"),
@@ -568,9 +568,7 @@ mod tests {
     fn test_from_proto_data_file() {
         let proto = ank_base::File {
             mount_point: "/etc/config.txt".to_owned(),
-            file_content: Some(ank_base::file::FileContent::Data(
-                "Hello, World!".to_owned(),
-            )),
+            file_content: Some(ank_base::FileContent::Data("Hello, World!".to_owned())),
         };
 
         let file = File::from_proto(proto);
@@ -584,9 +582,7 @@ mod tests {
         let base64_data = "iVBORw0KGgoATMANSUhEUgA=";
         let proto = ank_base::File {
             mount_point: "/usr/share/app/image.png".to_owned(),
-            file_content: Some(ank_base::file::FileContent::BinaryData(
-                base64_data.to_owned(),
-            )),
+            file_content: Some(ank_base::FileContent::BinaryData(base64_data.to_owned())),
         };
 
         let file = File::from_proto(proto);

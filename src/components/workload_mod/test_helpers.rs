@@ -64,24 +64,20 @@ pub fn generate_test_workload_proto<T: Into<String>>(
         }),
         control_interface_access: Some(ank_base::ControlInterfaceAccess {
             allow_rules: vec![ank_base::AccessRightsRule {
-                access_rights_rule_enum: Some(
-                    ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(
-                        ank_base::StateRule {
-                            operation: ank_base::ReadWriteEnum::RwRead as i32,
-                            filter_masks: vec![String::from("desiredState.workloads.workload_A")],
-                        },
-                    ),
-                ),
+                access_rights_rule_enum: Some(ank_base::AccessRightsRuleEnum::StateRule(
+                    ank_base::StateRule {
+                        operation: ank_base::ReadWriteEnum::RwRead as i32,
+                        filter_masks: vec![String::from("desiredState.workloads.workload_A")],
+                    },
+                )),
             }],
             deny_rules: vec![ank_base::AccessRightsRule {
-                access_rights_rule_enum: Some(
-                    ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(
-                        ank_base::StateRule {
-                            operation: ank_base::ReadWriteEnum::RwWrite as i32,
-                            filter_masks: vec![String::from("desiredState.workloads.workload_B")],
-                        },
-                    ),
-                ),
+                access_rights_rule_enum: Some(ank_base::AccessRightsRuleEnum::StateRule(
+                    ank_base::StateRule {
+                        operation: ank_base::ReadWriteEnum::RwWrite as i32,
+                        filter_masks: vec![String::from("desiredState.workloads.workload_B")],
+                    },
+                )),
             }],
         }),
         configs: Some(ank_base::ConfigMappings {
@@ -93,7 +89,7 @@ pub fn generate_test_workload_proto<T: Into<String>>(
         files: Some(ank_base::Files {
             files: [ank_base::File {
                 mount_point: "mount_point".to_owned(),
-                file_content: Some(ank_base::file::FileContent::Data("Data".to_owned())),
+                file_content: Some(ank_base::FileContent::Data("Data".to_owned())),
             }]
             .to_vec(),
         }),

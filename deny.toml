@@ -10,6 +10,7 @@ allow = [
 private = { ignore = true }
 exceptions = [
     { name = "unicode-ident", allow = ["Unicode-3.0"] },
+    { name = "foldhash", allow = ["Zlib"] },
 ]
 
 [[licenses.clarify]]

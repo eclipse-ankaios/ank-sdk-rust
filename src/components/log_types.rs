@@ -87,7 +87,6 @@ use crate::{
 };
 
 /// Struct that represents a logs request.
-///
 #[derive(Debug, Clone)]
 pub struct LogsRequest {
     /// The names of the workloads for which logs are requested.
@@ -121,7 +120,6 @@ impl Default for LogsRequest {
 }
 
 /// Struct that represents a log entry.
-///
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct LogEntry {
     /// The name of the workload that produced the log entry.
@@ -140,8 +138,7 @@ impl From<ankaios_api::ank_base::LogEntry> for LogEntry {
 }
 
 /// Enum that represents the type of log responses that are available in a `LogCampaignResponse`.
-///
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LogResponse {
     /// A response containing log entries.
     LogEntries(Vec<LogEntry>),
@@ -150,7 +147,6 @@ pub enum LogResponse {
 }
 
 /// Struct that represents a response of a log request.
-///
 #[derive(Debug)]
 pub struct LogCampaignResponse {
     /// The request id as a [String] of the initial logs request.

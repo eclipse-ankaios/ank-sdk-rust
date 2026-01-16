@@ -24,18 +24,19 @@ use tokio::time::{Duration, sleep, timeout as tokio_timeout};
 
 #[cfg_attr(test, mockall_double::double)]
 use crate::components::control_interface::ControlInterface;
-use crate::components::log_types::LogCampaignResponse;
-use crate::components::log_types::LogsRequest;
-use crate::components::manifest::CONFIGS_PREFIX;
+use crate::components::event_types::{EventEntry, EventsCampaignResponse};
+use crate::components::log_types::{LogCampaignResponse, LogsRequest};
+use crate::components::manifest::{CONFIGS_PREFIX, Manifest};
 use crate::components::request::{
-    AnkaiosLogsRequest, GetStateRequest, LogsCancelRequest, Request, UpdateStateRequest,
+    AnkaiosLogsRequest, EventsCancelRequest, EventsRequest, GetStateRequest, LogsCancelRequest,
+    Request, UpdateStateRequest,
 };
 use crate::components::response::{Response, ResponseType, UpdateStateSuccess};
 use crate::components::workload_mod::{WORKLOADS_PREFIX, Workload};
 use crate::components::workload_state_mod::{
     WorkloadExecutionState, WorkloadInstanceName, WorkloadStateCollection, WorkloadStateEnum,
 };
-use crate::{AnkaiosError, CompleteState, Manifest};
+use crate::{AnkaiosError, CompleteState};
 
 /// The prefix for the agents in the state.
 const AGENTS_PREFIX: &str = "agents";
@@ -1120,6 +1121,101 @@ impl Ankaios {
             }
         }
     }
+
+    /// Register to an event campaign.
+    ///
+    /// ## Arguments
+    ///
+    /// - `field_masks`: A [Vec] of [String]s containing the field masks to be used in the request.
+    ///
+    /// ## Errors
+    ///
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response or waiting for the state to be reached.
+    /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    pub async fn register_event(
+        &mut self,
+        field_masks: Vec<String>,
+    ) -> Result<EventsCampaignResponse, AnkaiosError> {
+        let request = EventsRequest::new(field_masks);
+        let request_id = request.get_id();
+        let response = self.send_request(request).await?;
+
+        match response.content {
+            ResponseType::CompleteState(complete_state) => {
+                log::info!("Event registered successfully, state received.");
+
+                let (events_sender, events_receiver) = mpsc::channel(CHANNEL_SIZE);
+                let events_campaign_response =
+                    EventsCampaignResponse::new(request_id.clone(), events_receiver);
+
+                let event_entry = EventEntry {
+                    complete_state: *complete_state,
+                    ..Default::default()
+                };
+                events_sender.send(event_entry).await.unwrap_or_else(|err| {
+                    log::error!("Error while sending initial event: '{err}'");
+                });
+
+                self.control_interface
+                    .add_events_campaign(request_id, events_sender);
+                Ok(events_campaign_response)
+            }
+            ResponseType::Error(error) => {
+                log::error!("Error while trying to request events: {error}");
+                Err(AnkaiosError::AnkaiosResponseError(error))
+            }
+            unexpected_response => {
+                log::error!("Received unexpected response type.");
+                Err(AnkaiosError::ResponseError(format!(
+                    "Received unexpected response type: '{unexpected_response:?}'"
+                )))
+            }
+        }
+    }
+
+    /// Unregister from an event campaign.
+    ///
+    /// ## Arguments
+    ///
+    /// - `events_campaign_response`: The [`EventsCampaignResponse`] received when registering
+    ///
+    /// ## Errors
+    ///
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response or waiting for the state to be reached.
+    /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    pub async fn unregister_event(
+        &mut self,
+        events_campaign_response: EventsCampaignResponse,
+    ) -> Result<(), AnkaiosError> {
+        let events_cancel_request =
+            EventsCancelRequest::new(events_campaign_response.get_request_id());
+        self.control_interface
+            .remove_events_campaign(&events_cancel_request.get_id());
+        let response = self.send_request(events_cancel_request).await?;
+
+        match response.content {
+            ResponseType::EventsCancelAccepted => {
+                log::trace!("Received EventsCancelAccepted: unregistered successfully.");
+                Ok(())
+            }
+            ResponseType::Error(error) => {
+                log::error!("Error while trying to unregister from the campaign: {error}");
+                Err(AnkaiosError::AnkaiosResponseError(error))
+            }
+            _ => {
+                log::error!("Received unexpected response type.");
+                Err(AnkaiosError::ResponseError(
+                    "Received unexpected response type.".to_owned(),
+                ))
+            }
+        }
+    }
 }
 
 impl Drop for Ankaios {
@@ -1164,18 +1260,20 @@ mod tests {
 
     use super::{
         AGENTS_PREFIX, Ankaios, AnkaiosError, CONFIGS_PREFIX, CompleteState, ControlInterface,
-        DEFAULT_TIMEOUT, Response, WORKLOAD_STATES_PREFIX, WorkloadInstanceName, WorkloadStateEnum,
-        generate_test_ankaios,
+        DEFAULT_TIMEOUT, EventsCampaignResponse, Response, WORKLOAD_STATES_PREFIX,
+        WorkloadInstanceName, WorkloadStateEnum, generate_test_ankaios,
     };
-    use crate::ankaios_api::ank_base::request::RequestContent;
-    use crate::components::request::LogsCancelRequest;
     use crate::components::{
         complete_state::generate_complete_state_proto,
         manifest::generate_test_manifest,
-        request::{AnkaiosLogsRequest, GetStateRequest, Request, UpdateStateRequest},
+        request::{
+            AnkaiosLogsRequest, EventsCancelRequest, EventsRequest, GetStateRequest,
+            LogsCancelRequest, Request, UpdateStateRequest,
+        },
         response::generate_test_response_update_state_success,
         workload_mod::{WORKLOADS_PREFIX, test_helpers::generate_test_workload},
     };
+    use crate::{EventEntry, ankaios_api::ank_base::RequestContent};
     use crate::{LogCampaignResponse, LogEntry, LogResponse, LogsRequest as InputLogsRequest};
 
     // Used for synchronizing multiple tests that use the same mock.
@@ -1183,6 +1281,7 @@ mod tests {
 
     const TEST_LOG_MESSAGE: &str = "some log message 1";
     const REQUEST_ID: &str = "request_id";
+    const TEST_MASK: &str = "test.mask";
 
     #[tokio::test]
     async fn itest_create_ankaios() {
@@ -3431,5 +3530,304 @@ mod tests {
         );
 
         assert!(logs_sender.is_closed());
+    }
+
+    #[tokio::test]
+    async fn itest_register_events_ok() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut call_sequence = mockall::Sequence::new();
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .in_sequence(&mut call_sequence)
+            .return_once(move |request: EventsRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+
+        let event_entry = EventEntry::default();
+        let cloned_event_entry = event_entry.clone();
+        ci_mock
+            .expect_add_events_campaign()
+            .times(1)
+            .in_sequence(&mut call_sequence)
+            .return_once(
+                move |_request_id: String,
+                 incoming_events_sender: tokio::sync::mpsc::Sender<EventEntry>| {
+                    incoming_events_sender
+                        .try_send(cloned_event_entry)
+                        .unwrap();
+                },
+            );
+
+        ci_mock
+            .expect_disconnect()
+            .times(1)
+            .in_sequence(&mut call_sequence)
+            .returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        let method_handle =
+            tokio::spawn(async move { ank.register_event(vec![TEST_MASK.to_owned()]).await });
+
+        let request = request_receiver.await.unwrap();
+
+        let events_accept_requested = Response {
+            id: request.get_id(),
+            content: super::ResponseType::CompleteState(Box::default()),
+        };
+
+        assert!(response_sender.send(events_accept_requested).await.is_ok());
+
+        let events_entry_response = Response {
+            id: request.get_id(),
+            content: super::ResponseType::EventResponse(Box::new(event_entry.clone())),
+        };
+
+        assert!(response_sender.send(events_entry_response).await.is_ok());
+
+        let mut events_campaign_response = method_handle.await.unwrap().unwrap();
+
+        assert_eq!(
+            events_campaign_response
+                .events_receiver
+                .recv()
+                .await
+                .unwrap(),
+            event_entry
+        );
+    }
+
+    #[tokio::test]
+    async fn itest_register_events_error() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .return_once(move |request: EventsRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+
+        ci_mock.expect_add_events_campaign().never();
+
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        let method_handle =
+            tokio::spawn(async move { ank.register_event(vec![TEST_MASK.to_owned()]).await });
+
+        let request = request_receiver.await.unwrap();
+
+        let response_error = Response {
+            id: request.get_id(),
+            content: super::ResponseType::Error("connection interruption".to_owned()),
+        };
+
+        assert!(response_sender.send(response_error).await.is_ok());
+
+        let events_campaign_response = method_handle.await.unwrap();
+        assert!(events_campaign_response.is_err());
+        assert_eq!(
+            events_campaign_response.unwrap_err().to_string(),
+            "Ankaios response error: connection interruption"
+        );
+    }
+
+    #[tokio::test]
+    async fn itest_register_events_error_on_unexpected_response_type() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .return_once(move |request: EventsRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+
+        ci_mock.expect_add_events_campaign().never();
+
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        let method_handle =
+            tokio::spawn(async move { ank.register_event(vec![TEST_MASK.to_owned()]).await });
+
+        let request = request_receiver.await.unwrap();
+
+        let response_error = Response {
+            id: request.get_id(),
+            content: super::ResponseType::UpdateStateSuccess(Box::default()),
+        };
+
+        assert!(response_sender.send(response_error).await.is_ok());
+
+        let events_campaign_response = method_handle.await.unwrap();
+        assert!(events_campaign_response.is_err());
+        assert_eq!(
+            events_campaign_response.unwrap_err().to_string(),
+            "Response error: Received unexpected response type: 'UpdateStateSuccess(UpdateStateSuccess { added_workloads: [], deleted_workloads: [] })'"
+        );
+    }
+
+    #[tokio::test]
+    async fn itest_unregister_events_ok() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .return_once(move |request: EventsCancelRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+
+        ci_mock
+            .expect_remove_events_campaign()
+            .times(1)
+            .return_const(());
+
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        let (events_sender, events_receiver) = mpsc::channel(1);
+        let events_campaign_response =
+            EventsCampaignResponse::new(REQUEST_ID.to_owned(), events_receiver);
+
+        let method_handle =
+            tokio::spawn(async move { ank.unregister_event(events_campaign_response).await });
+
+        let request = request_receiver.await.unwrap();
+
+        let events_cancel_accepted = Response {
+            id: request.get_id(),
+            content: super::ResponseType::EventsCancelAccepted,
+        };
+
+        assert!(response_sender.send(events_cancel_accepted).await.is_ok());
+
+        let result = method_handle.await.unwrap();
+        assert!(result.is_ok());
+
+        assert!(events_sender.is_closed());
+    }
+
+    #[tokio::test]
+    async fn itest_unregister_events_response_error() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .return_once(move |request: EventsCancelRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+
+        ci_mock
+            .expect_remove_events_campaign()
+            .times(1)
+            .return_const(());
+
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        let (events_sender, events_receiver) = mpsc::channel(1);
+        let events_campaign_response =
+            EventsCampaignResponse::new(REQUEST_ID.to_owned(), events_receiver);
+
+        let method_handle =
+            tokio::spawn(async move { ank.unregister_event(events_campaign_response).await });
+
+        let request = request_receiver.await.unwrap();
+
+        let response_error = Response {
+            id: request.get_id(),
+            content: super::ResponseType::Error("failed to unregister".to_owned()),
+        };
+
+        assert!(response_sender.send(response_error).await.is_ok());
+
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Ankaios response error: failed to unregister"
+        );
+
+        assert!(events_sender.is_closed());
+    }
+
+    #[tokio::test]
+    async fn itest_unregister_events_unexpected_response() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .return_once(move |request: EventsCancelRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+
+        ci_mock
+            .expect_remove_events_campaign()
+            .times(1)
+            .return_const(());
+
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        let (events_sender, events_receiver) = mpsc::channel(1);
+        let events_campaign_response =
+            EventsCampaignResponse::new(REQUEST_ID.to_owned(), events_receiver);
+
+        let method_handle =
+            tokio::spawn(async move { ank.unregister_event(events_campaign_response).await });
+
+        let request = request_receiver.await.unwrap();
+
+        let response_error = Response {
+            id: request.get_id(),
+            content: super::ResponseType::UpdateStateSuccess(Box::default()),
+        };
+
+        assert!(response_sender.send(response_error).await.is_ok());
+
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Response error: Received unexpected response type."
+        );
+
+        assert!(events_sender.is_closed());
     }
 }

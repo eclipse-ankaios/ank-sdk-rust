@@ -41,7 +41,7 @@ async fn main() {
     let mut ank = Ankaios::new().await.expect("Failed to initialize");
 
     // Create manifest
-    let manifest_str = r#"apiVersion: v0.1
+    let manifest_str = r#"apiVersion: v1
 workloads:
     dynamic_nginx:
         runtime: podman

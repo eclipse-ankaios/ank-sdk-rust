@@ -497,7 +497,7 @@ impl Workload {
             );
         }
         if let Some(restart_policy) = self.workload.restart_policy {
-            if let Some(ank_restart_policy) = ank_base::RestartPolicy::from_i32(restart_policy) {
+            if let Ok(ank_restart_policy) = ank_base::RestartPolicy::try_from(restart_policy) {
                 dict.insert(
                     Value::String(FIELD_RESTART_POLICY.to_owned()),
                     Value::String(ank_restart_policy.as_str_name().to_owned()),
@@ -511,7 +511,7 @@ impl Workload {
                 Value::Mapping(serde_yaml::Mapping::new()),
             );
             for (key, value) in &dependencies.dependencies {
-                if let Some(cond) = ank_base::AddCondition::from_i32(*value) {
+                if let Ok(cond) = ank_base::AddCondition::try_from(*value) {
                     deps.insert(
                         Value::String(key.clone()),
                         Value::String(cond.as_str_name().to_owned()),
@@ -542,7 +542,7 @@ impl Workload {
                 );
                 if let ank_base::AccessRightsRule {
                     access_rights_rule_enum:
-                        Some(ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(inner_rule)),
+                        Some(ank_base::AccessRightsRuleEnum::StateRule(inner_rule)),
                 } = rule
                 {
                     match Self::access_right_rule_to_str(inner_rule) {
@@ -577,7 +577,7 @@ impl Workload {
                 );
                 if let ank_base::AccessRightsRule {
                     access_rights_rule_enum:
-                        Some(ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(inner_rule)),
+                        Some(ank_base::AccessRightsRuleEnum::StateRule(inner_rule)),
                 } = rule
                 {
                     match Self::access_right_rule_to_str(inner_rule) {
@@ -742,7 +742,7 @@ impl Workload {
         let mut dependencies = HashMap::new();
         if let Some(deps) = &self.workload.dependencies {
             for (key, value) in &deps.dependencies {
-                if let Some(add_cond) = ank_base::AddCondition::from_i32(*value) {
+                if let Ok(add_cond) = ank_base::AddCondition::try_from(*value) {
                     dependencies.insert(key.clone(), add_cond.as_str_name().to_owned());
                 }
             }
@@ -864,25 +864,23 @@ impl Workload {
         filter_masks: Vec<String>,
     ) -> Result<ank_base::AccessRightsRule, AnkaiosError> {
         Ok(ank_base::AccessRightsRule {
-            access_rights_rule_enum: Some(
-                ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(
-                    ank_base::StateRule {
-                        operation: match operation {
-                            "Nothing" => ank_base::ReadWriteEnum::RwNothing as i32,
-                            "Write" => ank_base::ReadWriteEnum::RwWrite as i32,
-                            "Read" => ank_base::ReadWriteEnum::RwRead as i32,
-                            "ReadWrite" => ank_base::ReadWriteEnum::RwReadWrite as i32,
-                            _ => {
-                                return Err(AnkaiosError::WorkloadFieldError(
-                                    SUBFIELD_ACCESS_OPERATION.to_owned(),
-                                    operation.to_owned(),
-                                ));
-                            }
-                        },
-                        filter_masks,
+            access_rights_rule_enum: Some(ank_base::AccessRightsRuleEnum::StateRule(
+                ank_base::StateRule {
+                    operation: match operation {
+                        "Nothing" => ank_base::ReadWriteEnum::RwNothing as i32,
+                        "Write" => ank_base::ReadWriteEnum::RwWrite as i32,
+                        "Read" => ank_base::ReadWriteEnum::RwRead as i32,
+                        "ReadWrite" => ank_base::ReadWriteEnum::RwReadWrite as i32,
+                        _ => {
+                            return Err(AnkaiosError::WorkloadFieldError(
+                                SUBFIELD_ACCESS_OPERATION.to_owned(),
+                                operation.to_owned(),
+                            ));
+                        }
                     },
-                ),
-            ),
+                    filter_masks,
+                },
+            )),
         })
     }
 
@@ -903,8 +901,8 @@ impl Workload {
         rule: &ank_base::StateRule,
     ) -> Result<(String, Vec<String>), AnkaiosError> {
         Ok((
-            match ank_base::ReadWriteEnum::from_i32(rule.operation) {
-                Some(op) => match op.as_str_name() {
+            match ank_base::ReadWriteEnum::try_from(rule.operation) {
+                Ok(op) => match op.as_str_name() {
                     "RW_NOTHING" => "Nothing".to_owned(),
                     "RW_WRITE" => "Write".to_owned(),
                     "RW_READ" => "Read".to_owned(),
@@ -942,7 +940,7 @@ impl Workload {
             for rule in &access.allow_rules {
                 if let ank_base::AccessRightsRule {
                     access_rights_rule_enum:
-                        Some(ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(inner_rule)),
+                        Some(ank_base::AccessRightsRuleEnum::StateRule(inner_rule)),
                 } = rule
                 {
                     rules.push(Self::access_right_rule_to_str(inner_rule)?);
@@ -1003,7 +1001,7 @@ impl Workload {
             for rule in &access.deny_rules {
                 if let ank_base::AccessRightsRule {
                     access_rights_rule_enum:
-                        Some(ank_base::access_rights_rule::AccessRightsRuleEnum::StateRule(inner_rule)),
+                        Some(ank_base::AccessRightsRuleEnum::StateRule(inner_rule)),
                 } = rule
                 {
                     rules.push(Self::access_right_rule_to_str(inner_rule)?);

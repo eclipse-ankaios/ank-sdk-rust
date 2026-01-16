@@ -43,17 +43,17 @@ impl WorkloadExecutionState {
     pub(crate) fn new(exec_state: ank_base::ExecutionState) -> WorkloadExecutionState {
         match exec_state.execution_state_enum {
             Some(execution_state_enum) => {
-                let (state, substate) = WorkloadExecutionState::parse_state(&execution_state_enum);
+                let (state, substate) = WorkloadExecutionState::parse_state(execution_state_enum);
                 WorkloadExecutionState {
                     state,
                     substate,
-                    additional_info: exec_state.additional_info,
+                    additional_info: exec_state.additional_info.unwrap_or_default(),
                 }
             }
             None => WorkloadExecutionState {
                 state: WorkloadStateEnum::NotScheduled,
                 substate: WorkloadSubStateEnum::NotScheduled,
-                additional_info: exec_state.additional_info,
+                additional_info: exec_state.additional_info.unwrap_or_default(),
             },
         }
     }
@@ -81,44 +81,32 @@ impl WorkloadExecutionState {
     }
 
     #[doc(hidden)]
-    /// Helper function to parse the state and substate from the [`ExecutionStateEnum`](ank_base::execution_state::ExecutionStateEnum).
+    /// Helper function to parse the state and substate from the [`ExecutionStateEnum`](ank_base::ExecutionStateEnum).
     ///
     /// ## Arguments
     ///
-    /// * `exec_state` - The [`ExecutionStateEnum`](ank_base::execution_state::ExecutionStateEnum) to parse.
+    /// * `exec_state` - The [`ExecutionStateEnum`](ank_base::ExecutionStateEnum) to parse.
     ///
     /// ## Returns
     ///
     /// A tuple containing the [`WorkloadStateEnum`] and [`WorkloadSubStateEnum`] parsed
-    /// from the [`ExecutionStateEnum`](ank_base::execution_state::ExecutionStateEnum).
+    /// from the [`ExecutionStateEnum`](ank_base::ExecutionStateEnum).
     pub(crate) fn parse_state(
-        exec_state: &ank_base::execution_state::ExecutionStateEnum,
+        exec_state: ank_base::ExecutionStateEnum,
     ) -> (WorkloadStateEnum, WorkloadSubStateEnum) {
-        let (state, value) = match *exec_state {
-            ank_base::execution_state::ExecutionStateEnum::AgentDisconnected(value) => {
+        let (state, value) = match exec_state {
+            ank_base::ExecutionStateEnum::AgentDisconnected(value) => {
                 (WorkloadStateEnum::AgentDisconnected, value)
             }
-            ank_base::execution_state::ExecutionStateEnum::Pending(value) => {
-                (WorkloadStateEnum::Pending, value)
-            }
-            ank_base::execution_state::ExecutionStateEnum::Running(value) => {
-                (WorkloadStateEnum::Running, value)
-            }
-            ank_base::execution_state::ExecutionStateEnum::Stopping(value) => {
-                (WorkloadStateEnum::Stopping, value)
-            }
-            ank_base::execution_state::ExecutionStateEnum::Succeeded(value) => {
-                (WorkloadStateEnum::Succeeded, value)
-            }
-            ank_base::execution_state::ExecutionStateEnum::Failed(value) => {
-                (WorkloadStateEnum::Failed, value)
-            }
-            ank_base::execution_state::ExecutionStateEnum::NotScheduled(value) => {
+            ank_base::ExecutionStateEnum::Pending(value) => (WorkloadStateEnum::Pending, value),
+            ank_base::ExecutionStateEnum::Running(value) => (WorkloadStateEnum::Running, value),
+            ank_base::ExecutionStateEnum::Stopping(value) => (WorkloadStateEnum::Stopping, value),
+            ank_base::ExecutionStateEnum::Succeeded(value) => (WorkloadStateEnum::Succeeded, value),
+            ank_base::ExecutionStateEnum::Failed(value) => (WorkloadStateEnum::Failed, value),
+            ank_base::ExecutionStateEnum::NotScheduled(value) => {
                 (WorkloadStateEnum::NotScheduled, value)
             }
-            ank_base::execution_state::ExecutionStateEnum::Removed(value) => {
-                (WorkloadStateEnum::Removed, value)
-            }
+            ank_base::ExecutionStateEnum::Removed(value) => (WorkloadStateEnum::Removed, value),
         };
         // WorkloadSubStateEnum::new can fail, but in the current context, if the SDK is compatible
         // with Ankaios, it should never fail.
@@ -147,7 +135,7 @@ mod tests {
     fn utest_default_functionality() {
         let default_exec_state = WorkloadExecutionState::new(ank_base::ExecutionState {
             execution_state_enum: None,
-            additional_info: "No state present".to_owned(),
+            additional_info: Some("No state present".to_owned()),
         });
         assert_eq!(default_exec_state.state, WorkloadStateEnum::NotScheduled);
         assert_eq!(
@@ -183,7 +171,7 @@ mod tests {
             fn $test_name() {
                 let exec_state = WorkloadExecutionState::new(ank_base::ExecutionState {
                     execution_state_enum: Some($ank_base_state),
-                    additional_info: "Additional info".to_owned(),
+                    additional_info: Some("Additional info".to_owned()),
                 });
                 assert_eq!(exec_state.state, WorkloadStateEnum::$state);
                 assert_eq!(exec_state.substate, WorkloadSubStateEnum::$substate);
@@ -196,7 +184,7 @@ mod tests {
         utest_agent_disconnected,
         AgentDisconnected,
         AgentDisconnected,
-        ank_base::execution_state::ExecutionStateEnum::AgentDisconnected(
+        ank_base::ExecutionStateEnum::AgentDisconnected(
             ank_base::AgentDisconnected::AgentDisconnected as i32
         )
     );
@@ -204,48 +192,42 @@ mod tests {
         utest_pending,
         Pending,
         PendingWaitingToStart,
-        ank_base::execution_state::ExecutionStateEnum::Pending(
-            ank_base::Pending::WaitingToStart as i32
-        )
+        ank_base::ExecutionStateEnum::Pending(ank_base::Pending::WaitingToStart as i32)
     );
     generate_test_for_workload_execution_state!(
         utest_running,
         Running,
         RunningOk,
-        ank_base::execution_state::ExecutionStateEnum::Running(ank_base::Running::Ok as i32)
+        ank_base::ExecutionStateEnum::Running(ank_base::Running::Ok as i32)
     );
     generate_test_for_workload_execution_state!(
         utest_stopping,
         Stopping,
         StoppingWaitingToStop,
-        ank_base::execution_state::ExecutionStateEnum::Stopping(
-            ank_base::Stopping::WaitingToStop as i32
-        )
+        ank_base::ExecutionStateEnum::Stopping(ank_base::Stopping::WaitingToStop as i32)
     );
     generate_test_for_workload_execution_state!(
         utest_succeeded,
         Succeeded,
         SucceededOk,
-        ank_base::execution_state::ExecutionStateEnum::Succeeded(ank_base::Succeeded::Ok as i32)
+        ank_base::ExecutionStateEnum::Succeeded(ank_base::Succeeded::Ok as i32)
     );
     generate_test_for_workload_execution_state!(
         utest_failed,
         Failed,
         FailedExecFailed,
-        ank_base::execution_state::ExecutionStateEnum::Failed(ank_base::Failed::ExecFailed as i32)
+        ank_base::ExecutionStateEnum::Failed(ank_base::Failed::ExecFailed as i32)
     );
     generate_test_for_workload_execution_state!(
         utest_not_scheduled,
         NotScheduled,
         NotScheduled,
-        ank_base::execution_state::ExecutionStateEnum::NotScheduled(
-            ank_base::NotScheduled::NotScheduled as i32
-        )
+        ank_base::ExecutionStateEnum::NotScheduled(ank_base::NotScheduled::NotScheduled as i32)
     );
     generate_test_for_workload_execution_state!(
         utest_removed,
         Removed,
         Removed,
-        ank_base::execution_state::ExecutionStateEnum::Removed(ank_base::Removed::Removed as i32)
+        ank_base::ExecutionStateEnum::Removed(ank_base::Removed::Removed as i32)
     );
 }

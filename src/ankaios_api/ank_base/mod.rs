@@ -12,19 +12,12 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-#![allow(
-    clippy::doc_markdown,
-    clippy::trivially_copy_pass_by_ref,
-    clippy::enum_variant_names,
-    clippy::needless_pass_by_value,
-    clippy::str_to_string,
-    clippy::absolute_paths,
-    clippy::shadow_reuse
-)]
+tonic::include_proto!("ank_base"); // The string specified here must match the proto package name
 
-pub mod control_api {
-    tonic::include_proto!("control_api");
-}
+pub use crate::ankaios_api::helpers::serialize_to_ordered_map;
 
-pub mod ank_base;
-mod helpers;
+pub use access_rights_rule::AccessRightsRuleEnum;
+pub use config_item::ConfigItemEnum;
+pub use execution_state::ExecutionStateEnum;
+pub use file::FileContent;
+pub use request::RequestContent;
