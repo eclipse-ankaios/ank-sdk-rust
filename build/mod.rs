@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Elektrobit Automotive GmbH
+// Copyright (c) 2025 Elektrobit Automotive GmbH
 //
 // This program and the accompanying materials are made available under the
 // terms of the Apache License, Version 2.0 which is available at
@@ -12,19 +12,5 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-#[path = "build/mod.rs"]
-mod build;
-use build::*;
-
-fn main() {
-    let mut builder = tonic_prost_build::configure()
-        .build_server(true)
-        .type_attribute("WorkloadState", "#[allow(dead_code)]"); // Workaround until the release of the ankaios api
-
-    // Setup the proto objects
-    builder = setup_proto_annotations(builder);
-
-    builder
-        .compile_protos(&["proto/control_api.proto"], &["proto"])
-        .unwrap();
-}
+mod proto_annotations;
+pub use proto_annotations::setup_proto_annotations;
