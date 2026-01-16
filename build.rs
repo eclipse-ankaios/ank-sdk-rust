@@ -14,7 +14,7 @@
 
 #[path = "build/mod.rs"]
 mod build;
-use build::*;
+use build::setup_proto_annotations;
 
 fn main() {
     let mut builder = tonic_prost_build::configure()

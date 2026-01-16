@@ -25,7 +25,7 @@
 //! #
 //! let event_entry: EventEntry;
 //! # let event_entry = EventEntry::default();
-//! println!("Current complete state: {}", event_entry.complete_state);
+//! println!("Current complete state: {:?}", event_entry.complete_state);
 //! for field in event_entry.added_fields {
 //!     println!("Added field: {}", field);
 //! }
