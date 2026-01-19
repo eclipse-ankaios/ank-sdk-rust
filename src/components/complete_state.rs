@@ -21,10 +21,11 @@ use crate::ankaios_api;
 use crate::components::manifest::Manifest;
 use crate::components::workload_mod::Workload;
 use crate::components::workload_state_mod::WorkloadStateCollection;
+use crate::extensions::UnreachableOption;
 use ankaios_api::ank_base;
 
 /// The API version supported by Ankaios.
-const SUPPORTED_API_VERSION: &str = "v0.1";
+const SUPPORTED_API_VERSION: &str = "v1";
 
 /// Struct encapsulating the complete state of the [Ankaios] system.
 ///
@@ -119,6 +120,13 @@ impl CompleteState {
             complete_state: ank_base::CompleteState::default(),
         };
         obj.set_api_version(SUPPORTED_API_VERSION.to_owned());
+
+        if let Some(desired_state) = obj.complete_state.desired_state.as_mut() {
+            desired_state.workloads = Some(ank_base::WorkloadMap {
+                workloads: HashMap::default(),
+            });
+        }
+
         obj
     }
 
@@ -350,17 +358,29 @@ impl CompleteState {
         let mut agents = HashMap::new();
         if let Some(agent_map) = &self.complete_state.agents {
             for (name, attributes) in &agent_map.agents {
-                let mut agent = HashMap::new();
-                if let Some(cpu_usage) = &attributes.cpu_usage {
-                    agent.insert("cpu_usage".to_owned(), cpu_usage.cpu_usage.to_string());
+                match &attributes.status {
+                    Some(status) => {
+                        let mut agent_status = HashMap::new();
+                        agent_status.insert(
+                            "cpu_usage".to_owned(),
+                            match &status.cpu_usage {
+                                Some(cpu_usage) => cpu_usage.cpu_usage.to_string(),
+                                None => "N/A".to_owned(),
+                            },
+                        );
+                        agent_status.insert(
+                            "free_memory".to_owned(),
+                            match &status.free_memory {
+                                Some(free_memory) => free_memory.free_memory.to_string(),
+                                None => "N/A".to_owned(),
+                            },
+                        );
+                        agents.insert(name.clone(), agent_status);
+                    }
+                    None => {
+                        agents.insert(name.clone(), HashMap::new());
+                    }
                 }
-                if let Some(free_memory) = &attributes.free_memory {
-                    agent.insert(
-                        "free_memory".to_owned(),
-                        free_memory.free_memory.to_string(),
-                    );
-                }
-                agents.insert(name.clone(), agent);
             }
         }
         agents
@@ -375,23 +395,23 @@ impl CompleteState {
         fn to_config_item(value: &Value) -> ank_base::ConfigItem {
             match value {
                 Value::String(val) => ank_base::ConfigItem {
-                    config_item: Some(ank_base::config_item::ConfigItem::String(val.clone())),
+                    config_item_enum: Some(ank_base::ConfigItemEnum::String(val.clone())),
                 },
                 Value::Sequence(val) => ank_base::ConfigItem {
-                    config_item: Some(ank_base::config_item::ConfigItem::Array(
+                    config_item_enum: Some(ank_base::ConfigItemEnum::Array(
                         ank_base::ConfigArray {
                             values: val.iter().map(to_config_item).collect(),
                         },
                     )),
                 },
                 Value::Mapping(val) => ank_base::ConfigItem {
-                    config_item: Some(ank_base::config_item::ConfigItem::Object(
+                    config_item_enum: Some(ank_base::ConfigItemEnum::Object(
                         ank_base::ConfigObject {
                             fields: val
                                 .iter()
                                 .map(|(k, v)| {
                                     (
-                                        k.as_str().unwrap_or_else(|| unreachable!()).to_owned(),
+                                        k.as_str().unwrap_or_unreachable().to_owned(),
                                         to_config_item(v),
                                     )
                                 })
@@ -399,7 +419,9 @@ impl CompleteState {
                         },
                     )),
                 },
-                _ => ank_base::ConfigItem { config_item: None },
+                _ => ank_base::ConfigItem {
+                    config_item_enum: None,
+                },
             }
         }
 
@@ -427,12 +449,12 @@ impl CompleteState {
     #[must_use]
     pub fn get_configs(&self) -> HashMap<String, Value> {
         fn from_config_item(config_item: &ank_base::ConfigItem) -> Value {
-            match &config_item.config_item {
-                Some(ank_base::config_item::ConfigItem::String(val)) => Value::String(val.clone()),
-                Some(ank_base::config_item::ConfigItem::Array(val)) => {
+            match &config_item.config_item_enum {
+                Some(ank_base::ConfigItemEnum::String(val)) => Value::String(val.clone()),
+                Some(ank_base::ConfigItemEnum::Array(val)) => {
                     Value::Sequence(val.values.iter().map(from_config_item).collect())
                 }
-                Some(ank_base::config_item::ConfigItem::Object(val)) => Value::Mapping(
+                Some(ank_base::ConfigItemEnum::Object(val)) => Value::Mapping(
                     val.fields
                         .iter()
                         .map(|(k, v)| (Value::String(k.clone()), from_config_item(v)))
@@ -487,30 +509,28 @@ use crate::components::workload_mod::test_helpers::generate_test_workload_proto;
 use crate::components::workload_state_mod::generate_test_workload_states_proto;
 
 #[cfg(test)]
-fn generate_test_configs_proto() -> ank_base::ConfigMap {
+pub fn generate_test_configs_proto() -> ank_base::ConfigMap {
     ank_base::ConfigMap {
         configs: HashMap::from([
             (
                 "config1".to_owned(),
                 ank_base::ConfigItem {
-                    config_item: Some(ank_base::config_item::ConfigItem::String(
-                        "value1".to_owned(),
-                    )),
+                    config_item_enum: Some(ank_base::ConfigItemEnum::String("value1".to_owned())),
                 },
             ),
             (
                 "config2".to_owned(),
                 ank_base::ConfigItem {
-                    config_item: Some(ank_base::config_item::ConfigItem::Array(
+                    config_item_enum: Some(ank_base::ConfigItemEnum::Array(
                         ank_base::ConfigArray {
                             values: vec![
                                 ank_base::ConfigItem {
-                                    config_item: Some(ank_base::config_item::ConfigItem::String(
+                                    config_item_enum: Some(ank_base::ConfigItemEnum::String(
                                         "value2".to_owned(),
                                     )),
                                 },
                                 ank_base::ConfigItem {
-                                    config_item: Some(ank_base::config_item::ConfigItem::String(
+                                    config_item_enum: Some(ank_base::ConfigItemEnum::String(
                                         "value3".to_owned(),
                                     )),
                                 },
@@ -522,27 +542,23 @@ fn generate_test_configs_proto() -> ank_base::ConfigMap {
             (
                 "config3".to_owned(),
                 ank_base::ConfigItem {
-                    config_item: Some(ank_base::config_item::ConfigItem::Object(
+                    config_item_enum: Some(ank_base::ConfigItemEnum::Object(
                         ank_base::ConfigObject {
                             fields: HashMap::from([
                                 (
                                     "field1".to_owned(),
                                     ank_base::ConfigItem {
-                                        config_item: Some(
-                                            ank_base::config_item::ConfigItem::String(
-                                                "value4".to_owned(),
-                                            ),
-                                        ),
+                                        config_item_enum: Some(ank_base::ConfigItemEnum::String(
+                                            "value4".to_owned(),
+                                        )),
                                     },
                                 ),
                                 (
                                     "field2".to_owned(),
                                     ank_base::ConfigItem {
-                                        config_item: Some(
-                                            ank_base::config_item::ConfigItem::String(
-                                                "value5".to_owned(),
-                                            ),
-                                        ),
+                                        config_item_enum: Some(ank_base::ConfigItemEnum::String(
+                                            "value5".to_owned(),
+                                        )),
                                     },
                                 ),
                             ]),
@@ -560,8 +576,11 @@ fn generate_agents_proto() -> ank_base::AgentMap {
         agents: HashMap::from([(
             "agent_A".to_owned(),
             ank_base::AgentAttributes {
-                cpu_usage: Some(ank_base::CpuUsage { cpu_usage: 50 }),
-                free_memory: Some(ank_base::FreeMemory { free_memory: 1024 }),
+                status: Some(ank_base::AgentStatus {
+                    cpu_usage: Some(ank_base::CpuUsage { cpu_usage: 50 }),
+                    free_memory: Some(ank_base::FreeMemory { free_memory: 1024 }),
+                }),
+                ..Default::default()
             },
         )]),
     }

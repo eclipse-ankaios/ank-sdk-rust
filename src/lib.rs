@@ -217,6 +217,7 @@ mod components;
 
 pub use components::complete_state::CompleteState;
 pub use components::control_interface::ControlInterfaceState;
+pub use components::event_types::{EventEntry, EventsCampaignResponse};
 pub use components::log_types::{LogCampaignResponse, LogEntry, LogResponse, LogsRequest};
 pub use components::manifest::Manifest;
 pub use components::request::{GetStateRequest, Request, UpdateStateRequest};

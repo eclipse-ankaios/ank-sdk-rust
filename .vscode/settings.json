@@ -30,4 +30,8 @@
         "editor.formatOnSave": true
     },
     "rust-analyzer.check.command": "clippy",
+    "protobuf.diagnostics.namingConventions": false,
+    "protobuf.includes": [
+        "/workspaces/ank-rust/proto"
+    ]
 }

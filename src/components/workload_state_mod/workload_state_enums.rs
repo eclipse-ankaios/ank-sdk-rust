@@ -151,62 +151,65 @@ impl WorkloadSubStateEnum {
     /// If the value is not a valid substate for the given state.
     pub fn new(state: WorkloadStateEnum, value: i32) -> Result<WorkloadSubStateEnum, String> {
         match state {
-            WorkloadStateEnum::AgentDisconnected => {
-                match ank_base::AgentDisconnected::from_i32(value) {
-                    Some(ank_base::AgentDisconnected::AgentDisconnected) => {
-                        Ok(WorkloadSubStateEnum::AgentDisconnected)
+            WorkloadStateEnum::AgentDisconnected => ank_base::AgentDisconnected::try_from(value)
+                .map(|substate| match substate {
+                    ank_base::AgentDisconnected::AgentDisconnected => {
+                        WorkloadSubStateEnum::AgentDisconnected
                     }
-                    None => Err("Invalid value for state AgentDisconnected".to_owned()),
-                }
-            }
-            WorkloadStateEnum::Pending => match ank_base::Pending::from_i32(value) {
-                Some(ank_base::Pending::Initial) => Ok(WorkloadSubStateEnum::PendingInitial),
-                Some(ank_base::Pending::WaitingToStart) => {
-                    Ok(WorkloadSubStateEnum::PendingWaitingToStart)
-                }
-                Some(ank_base::Pending::Starting) => Ok(WorkloadSubStateEnum::PendingStarting),
-                Some(ank_base::Pending::StartingFailed) => {
-                    Ok(WorkloadSubStateEnum::PendingStartingFailed)
-                }
-                None => Err("Invalid value for state Pending".to_owned()),
-            },
-            WorkloadStateEnum::Running => match ank_base::Running::from_i32(value) {
-                Some(ank_base::Running::Ok) => Ok(WorkloadSubStateEnum::RunningOk),
-                None => Err("Invalid value for state Running".to_owned()),
-            },
-            WorkloadStateEnum::Stopping => match ank_base::Stopping::from_i32(value) {
-                Some(ank_base::Stopping::Stopping) => Ok(WorkloadSubStateEnum::Stopping),
-                Some(ank_base::Stopping::WaitingToStop) => {
-                    Ok(WorkloadSubStateEnum::StoppingWaitingToStop)
-                }
-                Some(ank_base::Stopping::RequestedAtRuntime) => {
-                    Ok(WorkloadSubStateEnum::StoppingRequestedAtRuntime)
-                }
-                Some(ank_base::Stopping::DeleteFailed) => {
-                    Ok(WorkloadSubStateEnum::StoppingDeleteFailed)
-                }
-                None => Err("Invalid value for state Stopping".to_owned()),
-            },
-            WorkloadStateEnum::Succeeded => match ank_base::Succeeded::from_i32(value) {
-                Some(ank_base::Succeeded::Ok) => Ok(WorkloadSubStateEnum::SucceededOk),
-                None => Err("Invalid value for state Succeeded".to_owned()),
-            },
-            WorkloadStateEnum::Failed => match ank_base::Failed::from_i32(value) {
-                Some(ank_base::Failed::ExecFailed) => Ok(WorkloadSubStateEnum::FailedExecFailed),
-                Some(ank_base::Failed::Unknown) => Ok(WorkloadSubStateEnum::FailedUnknown),
-                Some(ank_base::Failed::Lost) => Ok(WorkloadSubStateEnum::FailedLost),
-                None => Err("Invalid value for state Failed".to_owned()),
-            },
-            WorkloadStateEnum::NotScheduled => match ank_base::NotScheduled::from_i32(value) {
-                Some(ank_base::NotScheduled::NotScheduled) => {
-                    Ok(WorkloadSubStateEnum::NotScheduled)
-                }
-                None => Err("Invalid value for state NotScheduled".to_owned()),
-            },
-            WorkloadStateEnum::Removed => match ank_base::Removed::from_i32(value) {
-                Some(ank_base::Removed::Removed) => Ok(WorkloadSubStateEnum::Removed),
-                None => Err("Invalid value for state Removed".to_owned()),
-            },
+                })
+                .map_err(|_| "Invalid value for state AgentDisconnected".to_owned()),
+            WorkloadStateEnum::Pending => ank_base::Pending::try_from(value)
+                .map(|substate| match substate {
+                    ank_base::Pending::Initial => WorkloadSubStateEnum::PendingInitial,
+                    ank_base::Pending::WaitingToStart => {
+                        WorkloadSubStateEnum::PendingWaitingToStart
+                    }
+                    ank_base::Pending::Starting => WorkloadSubStateEnum::PendingStarting,
+                    ank_base::Pending::StartingFailed => {
+                        WorkloadSubStateEnum::PendingStartingFailed
+                    }
+                })
+                .map_err(|_| "Invalid value for state Pending".to_owned()),
+            WorkloadStateEnum::Running => ank_base::Running::try_from(value)
+                .map(|substate| match substate {
+                    ank_base::Running::Ok => WorkloadSubStateEnum::RunningOk,
+                })
+                .map_err(|_| "Invalid value for state Running".to_owned()),
+            WorkloadStateEnum::Stopping => ank_base::Stopping::try_from(value)
+                .map(|substate| match substate {
+                    ank_base::Stopping::Stopping => WorkloadSubStateEnum::Stopping,
+                    ank_base::Stopping::WaitingToStop => {
+                        WorkloadSubStateEnum::StoppingWaitingToStop
+                    }
+                    ank_base::Stopping::RequestedAtRuntime => {
+                        WorkloadSubStateEnum::StoppingRequestedAtRuntime
+                    }
+                    ank_base::Stopping::DeleteFailed => WorkloadSubStateEnum::StoppingDeleteFailed,
+                })
+                .map_err(|_| "Invalid value for state Stopping".to_owned()),
+            WorkloadStateEnum::Succeeded => ank_base::Succeeded::try_from(value)
+                .map(|substate| match substate {
+                    ank_base::Succeeded::Ok => WorkloadSubStateEnum::SucceededOk,
+                })
+                .map_err(|_| "Invalid value for state Succeeded".to_owned()),
+            WorkloadStateEnum::Failed => ank_base::Failed::try_from(value)
+                .map(|substate| match substate {
+                    ank_base::Failed::ExecFailed => WorkloadSubStateEnum::FailedExecFailed,
+                    ank_base::Failed::Unknown => WorkloadSubStateEnum::FailedUnknown,
+                    ank_base::Failed::Lost => WorkloadSubStateEnum::FailedLost,
+                })
+                .map_err(|_| "Invalid value for state Failed".to_owned()),
+
+            WorkloadStateEnum::NotScheduled => ank_base::NotScheduled::try_from(value)
+                .map(|substate| match substate {
+                    ank_base::NotScheduled::NotScheduled => WorkloadSubStateEnum::NotScheduled,
+                })
+                .map_err(|_| "Invalid value for state NotScheduled".to_owned()),
+            WorkloadStateEnum::Removed => ank_base::Removed::try_from(value)
+                .map(|substate| match substate {
+                    ank_base::Removed::Removed => WorkloadSubStateEnum::Removed,
+                })
+                .map_err(|_| "Invalid value for state Removed".to_owned()),
         }
     }
 
@@ -288,7 +291,7 @@ mod tests {
     fn utest_workload_state_enum_helpers() {
         let state = WorkloadStateEnum::default();
         assert!(WorkloadStateEnum::is_valid(0));
-        assert_eq!(WorkloadStateEnum::from_i32(0).unwrap(), state);
+        assert_eq!(WorkloadStateEnum::try_from(0).unwrap(), state);
     }
 
     macro_rules! generate_test_for_workload_state_enum {
@@ -334,7 +337,7 @@ mod tests {
     fn utest_workload_sub_state_enum_helpers() {
         let substate = WorkloadSubStateEnum::default();
         assert_eq!(substate.to_i32(), 0i32);
-        assert_eq!(WorkloadSubStateEnum::from_i32(0).unwrap(), substate);
+        assert_eq!(WorkloadSubStateEnum::try_from(0).unwrap(), substate);
     }
 
     macro_rules! generate_test_for_workload_state_enum {

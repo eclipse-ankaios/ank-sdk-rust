@@ -15,6 +15,8 @@
 //! This module contains extensions to the standard library
 //! that are used throughout the project.
 
+use std::fmt::Display;
+
 /// Trait that provides a method to unwrap an `Option<T>` for cases where
 /// the `Option` is expected to always contain a value.
 pub trait UnreachableOption<T> {
@@ -42,6 +44,35 @@ impl<T> UnreachableOption<T> for Option<T> {
     }
 }
 
+/// Trait that provides a method to unwrap a `Result<T, E>` for cases where
+/// the `Result` is expected to always contain an Ok.
+pub trait UnreachableResult<T, E> {
+    /// Returns the contained [`Ok`] value or panics
+    /// by executing the unreachable! macro with logging the error E of the Result<T,E>.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,should_panic
+    /// use ankaios_sdk::extensions::UnreachableResult;
+    /// assert_eq!(Ok::<&str, &str>("foo").unwrap_or_unreachable(), "foo");
+    ///
+    /// // shall panic because unreachable is hit
+    /// Err::<&str, &str>("some error").unwrap_or_unreachable();
+    /// ```
+    fn unwrap_or_unreachable(self) -> T;
+}
+
+impl<T, E: Display> UnreachableResult<T, E> for Result<T, E> {
+    fn unwrap_or_unreachable(self) -> T {
+        match self {
+            Ok(value) => value,
+            Err(error) => {
+                std::unreachable!("{error}")
+            }
+        }
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////////
 //                 ########  #######    #########  #########                //
 //                    ##     ##        ##             ##                    //
@@ -52,11 +83,29 @@ impl<T> UnreachableOption<T> for Option<T> {
 
 mod tests {
     #[allow(unused_imports)]
-    use super::UnreachableOption;
+    use super::{UnreachableOption, UnreachableResult};
+
+    #[test]
+    fn test_unreachable_option_some() {
+        let result = Some("value").unwrap_or_unreachable();
+        assert_eq!(result, "value");
+    }
 
     #[test]
     #[should_panic(expected = "internal error: entered unreachable code")]
-    fn test_unreachable_case() {
+    fn test_unreachable_option_none() {
         let _ = None::<&str>.unwrap_or_unreachable();
+    }
+
+    #[test]
+    fn test_unreachable_result_ok() {
+        let result = Ok::<&str, &str>("value").unwrap_or_unreachable();
+        assert_eq!(result, "value");
+    }
+
+    #[test]
+    #[should_panic(expected = "internal error: entered unreachable code: test error")]
+    fn test_unreachable_result_err() {
+        let _ = Err::<&str, &str>("test error").unwrap_or_unreachable();
     }
 }
