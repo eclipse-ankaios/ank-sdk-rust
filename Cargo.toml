@@ -36,7 +36,7 @@ tokio = { version = "1.41", features = [
 ] }
 # home version is pinpointed because this is the only one
 # that works with the current version of rust (from the devcontainer)
-home = "=0.5.9"
+home = "=0.5.12"
 
 [dev-dependencies]
 tempfile = "3.4"
