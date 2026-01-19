@@ -28,7 +28,7 @@ jobs:
       - name: Check
         run: cargo check
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
         with:
           name: Cargo.lock
@@ -80,7 +80,7 @@ jobs:
       - name: Generate coverage report
         run: just cov-html
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
         with:
           name: coverage-report
@@ -102,7 +102,7 @@ jobs:
         run: just doc
 
       - name: Upload documentation
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
         with:
           name: docs-html
@@ -137,7 +137,7 @@ jobs:
         run: mv target/${{ env.TARGET }}/release/libankaios_sdk.rlib libankaios_sdk-${{ matrix.arch }}.rlib
 
       - name: Upload binary - ${{ matrix.arch }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
         with:
           name: libankaios_sdk-${{ matrix.arch }}
