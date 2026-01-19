@@ -23,35 +23,35 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - run: mkdir dist
 
       - name: "Prepare Cargo.lock artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: Cargo.lock
           path: dist/
 
       - name: "Prepare coverage artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: coverage-report
           path: dist/coverage-report
 
       - name: "Prepare docs artifact"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: docs-html
           path: dist/docs-html
 
       - name: "Prepare build artifact - amd64"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: libankaios_sdk-amd64
           path: dist/
 
       - name: "Prepare build artifact - arm64"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: libankaios_sdk-arm64
           path: dist/
@@ -80,15 +80,8 @@ jobs:
     env: 
       CRATES_TOKEN: ${{ secrets.CRATES_API_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Setup
-        run: |
-          sudo apt -y install protobuf-compiler
-          rustup target add x86_64-unknown-linux-musl
-          cargo install just
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: ./.github/actions/ci-setup
 
       - name: Check Build
         run: cargo check
