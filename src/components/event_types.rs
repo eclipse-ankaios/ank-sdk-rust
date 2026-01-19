@@ -61,7 +61,7 @@ use crate::{CompleteState, ankaios_api::ank_base::CompleteStateResponse};
 /// Struct that represents an event notification.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct EventEntry {
-    /// The complete state of the event.
+    /// The complete state of the event containing the changed state data.
     pub complete_state: CompleteState,
     /// The list of added fields of the state.
     pub added_fields: Vec<String>,

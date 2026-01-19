@@ -427,7 +427,8 @@ pub fn generate_test_response_event_entry(request_id: String) -> Response {
 mod tests {
     use super::{Response, ResponseType, UpdateStateSuccess};
     use crate::components::response::{
-        generate_test_proto_log_entries_response, get_test_proto_from_ankaios_log_entries_response,
+        generate_test_proto_log_entries_response, generate_test_response_event_entry,
+        get_test_proto_from_ankaios_log_entries_response,
     };
     use crate::{EventEntry, ankaios_api};
     use ankaios_api::ank_base::{
@@ -444,7 +445,7 @@ mod tests {
         response_type = ResponseType::CompleteState(Box::default());
         assert_eq!(
             format!("{response_type:?}"),
-            "CompleteState(CompleteState { complete_state: CompleteState { desired_state: Some(State { api_version: \"v1\", workloads: None, configs: None }), workload_states: None, agents: None } })"
+            "CompleteState(CompleteState { complete_state: CompleteState { desired_state: Some(State { api_version: \"v1\", workloads: Some(WorkloadMap { workloads: {} }), configs: None }), workload_states: None, agents: None } })"
         );
         response_type = ResponseType::UpdateStateSuccess(Box::default());
         assert_eq!(
@@ -485,7 +486,7 @@ mod tests {
                             complete_state: Some(ankaios_api::ank_base::CompleteState {
                                 desired_state: Some(ankaios_api::ank_base::State {
                                     api_version: "v1".to_owned(),
-                                    workloads: None,
+                                    workloads: Some(Default::default()),
                                     configs: None,
                                 }),
                                 workload_states: None,
@@ -728,23 +729,7 @@ mod tests {
 
     #[test]
     fn utest_response_event_entry() {
-        let response = Response::new(FromAnkaios {
-            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                AnkaiosResponse {
-                    request_id: String::from("123"),
-                    response_content: Some(AnkaiosResponseContent::CompleteStateResponse(
-                        Box::new(ankaios_api::ank_base::CompleteStateResponse {
-                            complete_state: Some(ankaios_api::ank_base::CompleteState::default()),
-                            altered_fields: Some(ankaios_api::ank_base::AlteredFields {
-                                added_fields: vec!["field1".to_owned()],
-                                updated_fields: vec!["field2".to_owned()],
-                                removed_fields: vec!["field3".to_owned()],
-                            }),
-                        }),
-                    )),
-                },
-            ))),
-        });
+        let response = generate_test_response_event_entry("123".to_owned());
         assert_eq!(response.get_request_id(), "123".to_owned());
         assert_eq!(
             response.get_content(),

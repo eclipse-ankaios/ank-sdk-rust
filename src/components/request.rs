@@ -331,6 +331,15 @@ pub struct EventsRequest {
 }
 
 impl EventsRequest {
+    /// Creates a new `EventsRequest`.
+    ///
+    /// ## Arguments
+    ///
+    /// * `masks` - The field masks to be used for the request.
+    ///
+    /// ## Returns
+    ///
+    /// A new [`EventsRequest`] object.
     pub fn new(masks: Vec<String>) -> Self {
         let request_id = Uuid::new_v4().to_string();
         log::debug!("Creating new request of type EventsRequest with id {request_id}");

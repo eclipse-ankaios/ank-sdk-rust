@@ -401,8 +401,8 @@ impl ControlInterface {
             .unwrap_or_else(|| unreachable!())
             .clone();
         let state_clone = Arc::<Mutex<ControlInterfaceState>>::clone(&self.state);
-        let mut logs_sender_map_clone = self.log_senders_map.clone();
-        let mut event_sender_map_clone = self.events_senders_map.clone();
+        let mut logs_sender_shared_map = self.log_senders_map.clone();
+        let mut event_sender_shared_map = self.events_senders_map.clone();
         self.read_thread_handler = Some(spawn(async move {
             let receiver = pipe::OpenOptions::new()
                 .open_receiver(input_path)
@@ -435,8 +435,8 @@ impl ControlInterface {
                                     &state_clone,
                                     received_response,
                                     &response_sender_clone,
-                                    &mut logs_sender_map_clone,
-                                    &mut event_sender_map_clone,
+                                    &mut logs_sender_shared_map,
+                                    &mut event_sender_shared_map,
                                 )
                                 .await;
 
@@ -485,7 +485,7 @@ impl ControlInterface {
     /// * `received_response` - A decoded [`Response`] object from the control interface;
     /// * `response_sender` - A [`Sender<Response>`] to forward the response;
     /// * `logs_sender_map` - A [`SynchronizedSenderMap<LogResponse>`] to forward log entries and stop responses for a log campaign;
-    /// * `event_sender_map` - A [`SynchronizedSenderMap<EventEntry>`] to forward event notifications for an event campaign
+    /// * `event_sender_map` - A [`SynchronizedSenderMap<EventEntry>`] to forward events for an event campaign
     ///
     async fn handle_decoded_response(
         state: &Arc<Mutex<ControlInterfaceState>>,
@@ -616,7 +616,7 @@ impl ControlInterface {
         request_id: String,
         events_sender: mpsc::Sender<EventEntry>,
     ) {
-        log::trace!("Add log campaign with request id: '{request_id}'");
+        log::trace!("Add event campaign with request id: '{request_id}'");
 
         self.events_senders_map.insert(request_id, events_sender);
     }
@@ -704,9 +704,9 @@ impl ControlInterface {
     ///
     /// ## Arguments
     ///
-    /// * `request_id` - A [String] representing the request ID of the initial logs request of the log campaign;
-    /// * `event_entry` - A [`EventEntry`] representing the event notification to be forwarded;
-    /// * `event_sender_map` - A [`SynchronizedSenderMap<EventEntry>`] to forward log entries and stop responses for a log campaign.
+    /// * `request_id` - A [String] representing the request ID of the initial event request of the events campaign;
+    /// * `event_entry` - A [`EventEntry`] representing the event to be forwarded;
+    /// * `event_sender_map` - A [`SynchronizedSenderMap<EventEntry>`] to forward an event for an event campaign.
     ///
     async fn forward_event_response(
         request_id: String,
