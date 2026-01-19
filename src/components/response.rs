@@ -486,7 +486,7 @@ mod tests {
                             complete_state: Some(ankaios_api::ank_base::CompleteState {
                                 desired_state: Some(ankaios_api::ank_base::State {
                                     api_version: "v1".to_owned(),
-                                    workloads: Some(Default::default()),
+                                    workloads: Some(ankaios_api::ank_base::WorkloadMap::default()),
                                     configs: None,
                                 }),
                                 workload_states: None,
