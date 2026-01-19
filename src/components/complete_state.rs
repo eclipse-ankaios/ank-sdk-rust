@@ -509,7 +509,7 @@ use crate::components::workload_mod::test_helpers::generate_test_workload_proto;
 use crate::components::workload_state_mod::generate_test_workload_states_proto;
 
 #[cfg(test)]
-fn generate_test_configs_proto() -> ank_base::ConfigMap {
+pub fn generate_test_configs_proto() -> ank_base::ConfigMap {
     ank_base::ConfigMap {
         configs: HashMap::from([
             (

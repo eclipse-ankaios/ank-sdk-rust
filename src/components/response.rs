@@ -402,6 +402,7 @@ pub fn generate_test_logs_stop_response(
 
 #[cfg(test)]
 pub fn generate_test_response_event_entry(request_id: String) -> Response {
+    let config_map = super::complete_state::generate_test_configs_proto();
     Response::new(FromAnkaios {
         from_ankaios_enum: Some(
             ankaios_api::control_api::from_ankaios::FromAnkaiosEnum::Response(Box::new(
@@ -409,11 +410,22 @@ pub fn generate_test_response_event_entry(request_id: String) -> Response {
                     request_id,
                     response_content: Some(AnkaiosResponseContent::CompleteStateResponse(
                         Box::new(ankaios_api::ank_base::CompleteStateResponse {
-                            complete_state: Some(ankaios_api::ank_base::CompleteState::default()),
+                            complete_state: Some(ankaios_api::ank_base::CompleteState {
+                                desired_state: Some(ankaios_api::ank_base::State {
+                                    api_version: "v1".to_owned(),
+                                    workloads: Some(ankaios_api::ank_base::WorkloadMap::default()),
+                                    configs: Some(config_map),
+                                }),
+                                workload_states: None,
+                                agents: None,
+                            }),
                             altered_fields: Some(ankaios_api::ank_base::AlteredFields {
-                                added_fields: vec!["field1".to_owned()],
-                                updated_fields: vec!["field2".to_owned()],
-                                removed_fields: vec!["field3".to_owned()],
+                                added_fields: vec![
+                                    "desiredState.configs.config2".to_owned(),
+                                    "desiredState.configs.config3".to_owned(),
+                                ],
+                                updated_fields: vec!["desiredState.configs.config1".to_owned()],
+                                removed_fields: vec!["desiredState.configs.config4".to_owned()],
                             }),
                         }),
                     )),
@@ -426,6 +438,7 @@ pub fn generate_test_response_event_entry(request_id: String) -> Response {
 #[cfg(test)]
 mod tests {
     use super::{Response, ResponseType, UpdateStateSuccess};
+    use crate::components::complete_state::generate_test_configs_proto;
     use crate::components::response::{
         generate_test_proto_log_entries_response, generate_test_response_event_entry,
         get_test_proto_from_ankaios_log_entries_response,
@@ -735,11 +748,22 @@ mod tests {
             response.get_content(),
             ResponseType::EventResponse(Box::new(EventEntry::from(
                 ankaios_api::ank_base::CompleteStateResponse {
-                    complete_state: Some(ankaios_api::ank_base::CompleteState::default()),
+                    complete_state: Some(ankaios_api::ank_base::CompleteState {
+                        desired_state: Some(ankaios_api::ank_base::State {
+                            api_version: "v1".to_owned(),
+                            workloads: Some(ankaios_api::ank_base::WorkloadMap::default()),
+                            configs: Some(generate_test_configs_proto()),
+                        }),
+                        workload_states: None,
+                        agents: None,
+                    }),
                     altered_fields: Some(ankaios_api::ank_base::AlteredFields {
-                        added_fields: vec!["field1".to_owned()],
-                        updated_fields: vec!["field2".to_owned()],
-                        removed_fields: vec!["field3".to_owned()],
+                        added_fields: vec![
+                            "desiredState.configs.config2".to_owned(),
+                            "desiredState.configs.config3".to_owned()
+                        ],
+                        updated_fields: vec!["desiredState.configs.config1".to_owned()],
+                        removed_fields: vec!["desiredState.configs.config4".to_owned()],
                     }),
                 }
             )))

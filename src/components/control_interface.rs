@@ -1500,9 +1500,22 @@ mod tests {
         assert!(response.is_some());
 
         let event_entry = response.unwrap();
-        assert_eq!(event_entry.added_fields, vec!["field1".to_owned()]);
-        assert_eq!(event_entry.updated_fields, vec!["field2".to_owned()]);
-        assert_eq!(event_entry.removed_fields, vec!["field3".to_owned()]);
+
+        assert_eq!(
+            event_entry.added_fields,
+            vec![
+                "desiredState.configs.config2".to_owned(),
+                "desiredState.configs.config3".to_owned(),
+            ]
+        );
+        assert_eq!(
+            event_entry.updated_fields,
+            vec!["desiredState.configs.config1".to_owned()]
+        );
+        assert_eq!(
+            event_entry.removed_fields,
+            vec!["desiredState.configs.config4".to_owned()]
+        );
 
         // Create a test event entry response with another request ID
         let event_entry_response = generate_test_response_event_entry(REQUEST_ID_2.to_owned());
