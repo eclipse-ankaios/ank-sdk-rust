@@ -120,6 +120,13 @@ impl CompleteState {
             complete_state: ank_base::CompleteState::default(),
         };
         obj.set_api_version(SUPPORTED_API_VERSION.to_owned());
+
+        if let Some(desired_state) = obj.complete_state.desired_state.as_mut() {
+            desired_state.workloads = Some(ank_base::WorkloadMap {
+                workloads: HashMap::default(),
+            });
+        }
+
         obj
     }
 

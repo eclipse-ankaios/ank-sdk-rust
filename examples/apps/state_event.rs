@@ -30,20 +30,17 @@ async fn main() {
         .build()
         .expect("Failed to build workload");
 
-    // Run the workload
-    let response = ank
-        .apply_workload(workload)
-        .await
-        .expect("Failed to apply workload");
-
-    // Get the WorkloadInstanceName to confirm the workload was added
-    let _workload_instance_name = response.added_workloads[0].clone();
-
     // Subscribe to changes of workload count_to_five
     let mut events_campaign_response = ank
         .register_event(vec!["desiredState.workloads.count_to_five".to_owned()])
         .await
         .expect("Failed to register events");
+
+    // Apply the workload
+    let _response = ank
+        .apply_workload(workload)
+        .await
+        .expect("Failed to apply workload");
 
     // Listen for events
     while let Some(event_entry) = events_campaign_response.events_receiver.recv().await {
@@ -57,7 +54,7 @@ async fn main() {
         if !event_entry.removed_fields.is_empty() {
             println!("Removed fields: {:?}", event_entry.removed_fields);
         }
-        println!("Current complete state: {}", event_entry.complete_state);
+        println!("Current complete state: {:?}", event_entry.complete_state);
     }
 
     // Unregister events
