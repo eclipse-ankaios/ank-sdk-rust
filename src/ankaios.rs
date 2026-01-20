@@ -36,7 +36,7 @@ use crate::components::workload_mod::{WORKLOADS_PREFIX, Workload};
 use crate::components::workload_state_mod::{
     WorkloadExecutionState, WorkloadInstanceName, WorkloadStateCollection, WorkloadStateEnum,
 };
-use crate::{AnkaiosError, CompleteState};
+use crate::{AgentAttributes, AnkaiosError, CompleteState};
 
 /// The prefix for the agents in the state.
 const AGENTS_PREFIX: &str = "agents";
@@ -865,9 +865,7 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
-    pub async fn get_agents(
-        &mut self,
-    ) -> Result<HashMap<String, HashMap<String, String>>, AnkaiosError> {
+    pub async fn get_agents(&mut self) -> Result<HashMap<String, AgentAttributes>, AnkaiosError> {
         let complete_state = self.get_state(vec![AGENTS_PREFIX.to_owned()]).await?;
         Ok(complete_state.get_agents())
     }
@@ -1259,9 +1257,9 @@ mod tests {
     };
 
     use super::{
-        AGENTS_PREFIX, Ankaios, AnkaiosError, CONFIGS_PREFIX, CompleteState, ControlInterface,
-        DEFAULT_TIMEOUT, EventsCampaignResponse, Response, WORKLOAD_STATES_PREFIX,
-        WorkloadInstanceName, WorkloadStateEnum, generate_test_ankaios,
+        AGENTS_PREFIX, AgentAttributes, Ankaios, AnkaiosError, CONFIGS_PREFIX, CompleteState,
+        ControlInterface, DEFAULT_TIMEOUT, EventsCampaignResponse, Response,
+        WORKLOAD_STATES_PREFIX, WorkloadInstanceName, WorkloadStateEnum, generate_test_ankaios,
     };
     use crate::components::{
         complete_state::generate_complete_state_proto,
@@ -2882,15 +2880,17 @@ mod tests {
         // Get the agents
         let ret_agents = method_handle.await.unwrap().unwrap();
 
+        let expected_agent_attributes = AgentAttributes {
+            tags: HashMap::from([("tag_key".to_owned(), "tag_value".to_owned())]),
+            status: HashMap::from([
+                ("free_memory".to_owned(), "1024".to_owned()),
+                ("cpu_usage".to_owned(), "50".to_owned()),
+            ]),
+        };
+
         assert_eq!(
             ret_agents,
-            HashMap::from([(
-                "agent_A".to_owned(),
-                HashMap::from([
-                    ("free_memory".to_owned(), "1024".to_owned()),
-                    ("cpu_usage".to_owned(), "50".to_owned()),
-                ])
-            ),])
+            HashMap::from([("agent_A".to_owned(), expected_agent_attributes)])
         );
     }
 
