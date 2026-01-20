@@ -132,7 +132,7 @@ pub struct CompleteState {
 pub struct AgentAttributes {
     /// A map of custom tags as key-value pairs.
     pub tags: HashMap<String, String>,
-    /// A map containing the status of the agent (e.g., cpu_usage, free_memory).
+    /// A map containing the status of the agent (e.g., `cpu_usage`, `free_memory`).
     pub status: HashMap<String, String>,
 }
 
@@ -389,6 +389,37 @@ impl CompleteState {
             }
         }
         agents
+    }
+
+    /// Sets the tags for a specific agent in the `CompleteState`.
+    ///
+    /// ## Arguments
+    ///
+    /// * `agent_name` - The name of the agent.
+    /// * `tags` - A [`HashMap`] containing the new tags to set for the agent.
+    pub fn set_agent_tags<T: Into<String>>(
+        &mut self,
+        agent_name: T,
+        tags: HashMap<String, String>,
+    ) {
+        let agent_name_str = agent_name.into();
+
+        if self.complete_state.agents.is_none() {
+            self.complete_state.agents = Some(ank_base::AgentMap {
+                agents: HashMap::new(),
+            });
+        }
+
+        if let Some(agent_map) = self.complete_state.agents.as_mut() {
+            let agent_attributes = agent_map.agents.entry(agent_name_str).or_insert_with(|| {
+                ank_base::AgentAttributes {
+                    status: None,
+                    tags: None,
+                }
+            });
+
+            agent_attributes.tags = Some(ank_base::Tags { tags });
+        }
     }
 
     /// Sets the configurations of the `CompleteState`.
@@ -800,6 +831,36 @@ mod tests {
             .as_mapping()
             .unwrap();
         assert_eq!(agents.len(), 1);
+        let agent_a = agents
+            .get(Value::String("agent_A".to_owned()))
+            .unwrap()
+            .as_mapping()
+            .unwrap();
+        assert_eq!(agent_a.len(), 2);
+        let agent_a_tags = agent_a
+            .get(Value::String("tags".to_owned()))
+            .unwrap()
+            .as_mapping()
+            .unwrap();
+        assert_eq!(agent_a_tags.len(), 1);
+        let agent_a_status = agent_a
+            .get(Value::String("status".to_owned()))
+            .unwrap()
+            .as_mapping()
+            .unwrap();
+        assert_eq!(agent_a_status.len(), 2);
+        assert_eq!(
+            agent_a_status
+                .get(Value::String("cpu_usage".to_owned()))
+                .unwrap(),
+            &Value::String("50".to_owned())
+        );
+        assert_eq!(
+            agent_a_status
+                .get(Value::String("free_memory".to_owned()))
+                .unwrap(),
+            &Value::String("1024".to_owned())
+        );
 
         let workload_states = complete_state_dict
             .get(Value::String("workload_states".to_owned()))
@@ -833,5 +894,33 @@ mod tests {
                 .get_for_instance_name(&workload_instance_name)
                 .is_some()
         );
+    }
+
+    #[test]
+    fn utest_get_agents() {
+        let mut complete_state = CompleteState::from(generate_complete_state_proto());
+
+        let agents = complete_state.get_agents();
+        assert_eq!(agents.len(), 1);
+        assert!(agents.contains_key("agent_A"));
+
+        let agent_a = agents.get("agent_A").unwrap();
+        assert_eq!(agent_a.tags.len(), 1);
+        assert_eq!(agent_a.tags.get("tag_key"), Some(&"tag_value".to_owned()));
+        assert_eq!(agent_a.status.get("cpu_usage"), Some(&"50".to_owned()));
+        assert_eq!(agent_a.status.get("free_memory"), Some(&"1024".to_owned()));
+
+        let new_tags = HashMap::from([
+            ("new_key".to_owned(), "new_value".to_owned()),
+            ("another_key".to_owned(), "another_value".to_owned()),
+        ]);
+        complete_state.set_agent_tags("agent_A", new_tags.clone());
+
+        let agents = complete_state.get_agents();
+        let agent_a = agents.get("agent_A").unwrap();
+        assert_eq!(agent_a.tags, new_tags);
+        assert!(!agent_a.tags.contains_key("tag_key"));
+        assert_eq!(agent_a.status.get("cpu_usage"), Some(&"50".to_owned()));
+        assert_eq!(agent_a.status.get("free_memory"), Some(&"1024".to_owned()));
     }
 }
