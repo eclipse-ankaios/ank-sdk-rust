@@ -920,6 +920,30 @@ impl Ankaios {
         Ok(complete_state.get_agents())
     }
 
+    /// Send a request to get the agents.
+    ///
+    /// ## Returns
+    ///
+    /// - the [`AgentAttributes`] of the requested agent if the request was successful.
+    ///
+    /// ## Errors
+    ///
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    pub async fn get_agent(&mut self, agent_name: String) -> Result<AgentAttributes, AnkaiosError> {
+        let agents = self
+            .get_state(vec![format!("{AGENTS_PREFIX}.{agent_name}")])
+            .await?
+            .get_agents();
+
+        agents.get(&agent_name).cloned().ok_or_else(|| {
+            AnkaiosError::AnkaiosResponseError(format!("Agent {agent_name} not found."))
+        })
+    }
+
     /// Send a request to get the workload states.
     ///
     /// ## Returns
@@ -3102,6 +3126,114 @@ mod tests {
             ret_agents,
             HashMap::from([("agent_A".to_owned(), expected_agent_attributes)])
         );
+    }
+
+    #[tokio::test]
+    async fn itest_get_agent_ok() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .withf(
+                move |request: &GetStateRequest| match &request.request.request_content {
+                    Some(RequestContent::CompleteStateRequest(content)) => {
+                        content.field_mask == vec![format!("{AGENTS_PREFIX}.agent_A")]
+                    }
+                    _ => false,
+                },
+            )
+            .return_once(move |request: GetStateRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare handle for getting the agents
+        let method_handle =
+            tokio::spawn(async move { ank.get_agent(String::from("agent_A")).await });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
+        let response = Response {
+            content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the agents
+        let ret_agents = method_handle.await.unwrap().unwrap();
+
+        let expected_agent_attributes = AgentAttributes {
+            tags: HashMap::from([("tag_key".to_owned(), "tag_value".to_owned())]),
+            status: HashMap::from([
+                ("free_memory".to_owned(), "1024".to_owned()),
+                ("cpu_usage".to_owned(), "50".to_owned()),
+            ]),
+        };
+
+        assert_eq!(ret_agents, expected_agent_attributes);
+    }
+
+    #[tokio::test]
+    async fn itest_get_agent_not_found() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .withf(
+                move |request: &GetStateRequest| match &request.request.request_content {
+                    Some(RequestContent::CompleteStateRequest(content)) => {
+                        content.field_mask == vec![format!("{AGENTS_PREFIX}.agent_not_there")]
+                    }
+                    _ => false,
+                },
+            )
+            .return_once(move |request: GetStateRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare handle for getting non-existing agent
+        let method_handle =
+            tokio::spawn(async move { ank.get_agent(String::from("agent_not_there")).await });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
+        let response = Response {
+            content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result - should be an error
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::AnkaiosResponseError(_))));
     }
 
     #[tokio::test]
