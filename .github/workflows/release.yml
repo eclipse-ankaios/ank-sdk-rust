@@ -23,7 +23,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - run: mkdir dist
 
       - name: "Prepare Cargo.lock artifact"
@@ -80,7 +80,7 @@ jobs:
     env: 
       CRATES_TOKEN: ${{ secrets.CRATES_API_TOKEN }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - uses: ./.github/actions/ci-setup
 
       - name: Check Build
