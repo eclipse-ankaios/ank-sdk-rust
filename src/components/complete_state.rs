@@ -111,23 +111,6 @@ pub struct CompleteState {
 /// Struct containing the attributes of an agent of the [Ankaios] system.
 ///
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
-///
-/// # Examples
-///
-/// ## Get the attributes of an agent:
-///
-/// ```rust
-/// # use ankaios_sdk::AgentAttributes;
-/// # use std::collections::HashMap;
-/// #
-/// # let agent_attributes = AgentAttributes {
-/// #     tags: HashMap::new(),
-/// #     status: HashMap::new(),
-/// # };
-/// #
-/// let tags = &agent_attributes.tags;
-/// let status = &agent_attributes.status;
-/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct AgentAttributes {
     /// A map of custom tags as key-value pairs.
@@ -404,22 +387,16 @@ impl CompleteState {
     ) {
         let agent_name_str = agent_name.into();
 
-        if self.complete_state.agents.is_none() {
-            self.complete_state.agents = Some(ank_base::AgentMap {
-                agents: HashMap::new(),
-            });
-        }
-
-        if let Some(agent_map) = self.complete_state.agents.as_mut() {
-            let agent_attributes = agent_map.agents.entry(agent_name_str).or_insert_with(|| {
-                ank_base::AgentAttributes {
+        let agent_map = self.complete_state.agents.get_or_insert_default();
+        let agent_attributes =
+            agent_map
+                .agents
+                .entry(agent_name_str)
+                .or_insert_with(|| ank_base::AgentAttributes {
                     status: None,
                     tags: None,
-                }
-            });
-
-            agent_attributes.tags = Some(ank_base::Tags { tags });
-        }
+                });
+        agent_attributes.tags = Some(ank_base::Tags { tags });
     }
 
     /// Sets the configurations of the `CompleteState`.

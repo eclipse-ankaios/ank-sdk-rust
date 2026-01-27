@@ -3188,7 +3188,7 @@ mod tests {
         response_sender.send(response).await.unwrap();
 
         // Get the agents
-        let ret_agents = method_handle.await.unwrap().unwrap();
+        let ret_agent_attributes = method_handle.await.unwrap().unwrap();
 
         let expected_agent_attributes = AgentAttributes {
             tags: HashMap::from([("tag_key".to_owned(), "tag_value".to_owned())]),
@@ -3198,7 +3198,7 @@ mod tests {
             ]),
         };
 
-        assert_eq!(ret_agents, expected_agent_attributes);
+        assert_eq!(ret_agent_attributes, expected_agent_attributes);
     }
 
     #[tokio::test]
