@@ -1592,7 +1592,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1641,7 +1641,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1693,7 +1693,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1745,7 +1745,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1794,7 +1794,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1846,7 +1846,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1898,7 +1898,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1947,7 +1947,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1999,7 +1999,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2092,14 +2092,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{WORKLOADS_PREFIX}.workload_Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2138,14 +2138,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{WORKLOADS_PREFIX}.workload_Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2187,14 +2187,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{WORKLOADS_PREFIX}.workload_Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2236,14 +2236,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![CONFIGS_PREFIX.to_owned()]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2284,14 +2284,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![CONFIGS_PREFIX.to_owned()]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2335,14 +2335,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![CONFIGS_PREFIX.to_owned()]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2386,14 +2386,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2435,14 +2435,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2487,14 +2487,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2642,14 +2642,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![CONFIGS_PREFIX]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2685,14 +2685,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![CONFIGS_PREFIX]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2733,14 +2733,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![CONFIGS_PREFIX]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2781,14 +2781,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2824,14 +2824,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2872,14 +2872,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2920,14 +2920,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{AGENTS_PREFIX}.agent_A.tags")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2970,14 +2970,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{AGENTS_PREFIX}.agent_A.tags")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3025,14 +3025,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{AGENTS_PREFIX}.agent_A.tags")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
