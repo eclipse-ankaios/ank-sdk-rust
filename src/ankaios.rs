@@ -2923,6 +2923,21 @@ mod tests {
                 |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{AGENTS_PREFIX}.agent_A.tags")]
+                            && content.new_state.as_ref().is_some_and(|state| {
+                                state.agents.as_ref().is_some_and(|agents| {
+                                    agents.agents.get("agent_A").is_some_and(|agent| {
+                                        agent.tags.as_ref().is_some_and(|tags| {
+                                            tags.tags
+                                                .get("environment")
+                                                .is_some_and(|v| v == "production")
+                                                && tags
+                                                    .tags
+                                                    .get("region")
+                                                    .is_some_and(|v| v == "us-west")
+                                        })
+                                    })
+                                })
+                            })
                     }
                     _ => false,
                 },
