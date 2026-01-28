@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the [`CompleteState`] struct.
+//! This module contains the [`CompleteState`] and [`AgentAttributes`] structs.
 
 use serde_yaml::Value;
 use std::collections::HashMap;
@@ -106,6 +106,17 @@ const SUPPORTED_API_VERSION: &str = "v1";
 pub struct CompleteState {
     /// The internal proto representation of the `CompleteState`.
     complete_state: ank_base::CompleteState,
+}
+
+/// Struct containing the attributes of an agent of the [Ankaios] system.
+///
+/// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
+#[derive(Debug, Clone, PartialEq)]
+pub struct AgentAttributes {
+    /// A map of custom tags as key-value pairs.
+    pub tags: HashMap<String, String>,
+    /// A map containing the status of the agent (e.g., `cpu_usage`, `free_memory`).
+    pub status: HashMap<String, String>,
 }
 
 impl CompleteState {
@@ -236,12 +247,11 @@ impl CompleteState {
         }
         dict.insert(Value::String("configs".to_owned()), Value::Mapping(configs));
         let mut agents = serde_yaml::Mapping::new();
-        for (agent_name, agent) in self.get_agents() {
-            let mut agent_dict = serde_yaml::Mapping::new();
-            for (k, v) in agent {
-                agent_dict.insert(Value::String(k), Value::String(v));
-            }
-            agents.insert(Value::String(agent_name), Value::Mapping(agent_dict));
+        for (agent_name, agent_attributes) in self.get_agents() {
+            agents.insert(
+                Value::String(agent_name),
+                Value::Mapping(agent_attributes.to_dict()),
+            );
         }
         dict.insert(Value::String("agents".to_owned()), Value::Mapping(agents));
         dict.insert(
@@ -354,36 +364,39 @@ impl CompleteState {
     ///
     /// A [`HashMap`] containing the connected agents.
     #[must_use]
-    pub fn get_agents(&self) -> HashMap<String, HashMap<String, String>> {
+    pub fn get_agents(&self) -> HashMap<String, AgentAttributes> {
         let mut agents = HashMap::new();
         if let Some(agent_map) = &self.complete_state.agents {
             for (name, attributes) in &agent_map.agents {
-                match &attributes.status {
-                    Some(status) => {
-                        let mut agent_status = HashMap::new();
-                        agent_status.insert(
-                            "cpu_usage".to_owned(),
-                            match &status.cpu_usage {
-                                Some(cpu_usage) => cpu_usage.cpu_usage.to_string(),
-                                None => "N/A".to_owned(),
-                            },
-                        );
-                        agent_status.insert(
-                            "free_memory".to_owned(),
-                            match &status.free_memory {
-                                Some(free_memory) => free_memory.free_memory.to_string(),
-                                None => "N/A".to_owned(),
-                            },
-                        );
-                        agents.insert(name.clone(), agent_status);
-                    }
-                    None => {
-                        agents.insert(name.clone(), HashMap::new());
-                    }
-                }
+                agents.insert(name.clone(), attributes.clone().into());
             }
         }
         agents
+    }
+
+    /// Sets the tags for a specific agent in the `CompleteState`.
+    ///
+    /// ## Arguments
+    ///
+    /// * `agent_name` - The name of the agent.
+    /// * `tags` - A [`HashMap`] containing the new tags to set for the agent.
+    pub fn set_agent_tags<T: Into<String>>(
+        &mut self,
+        agent_name: T,
+        tags: HashMap<String, String>,
+    ) {
+        let agent_name_str = agent_name.into();
+
+        let agent_map = self.complete_state.agents.get_or_insert_default();
+        let agent_attributes =
+            agent_map
+                .agents
+                .entry(agent_name_str)
+                .or_insert_with(|| ank_base::AgentAttributes {
+                    status: None,
+                    tags: None,
+                });
+        agent_attributes.tags = Some(ank_base::Tags { tags });
     }
 
     /// Sets the configurations of the `CompleteState`.
@@ -476,6 +489,75 @@ impl CompleteState {
     }
 }
 
+impl AgentAttributes {
+    #[doc(hidden)]
+    /// Creates a new `AgentAttributes` object from a [ank_base::AgentAttributes].
+    ///
+    /// ## Arguments
+    ///
+    /// * `proto` - The [ank_base::AgentAttributes] to create the [`AgentAttributes`] from.
+    ///
+    /// ## Returns
+    ///
+    /// A new [`AgentAttributes`] instance.
+    pub(crate) fn new_from_proto(proto: ank_base::AgentAttributes) -> Self {
+        let mut obj = AgentAttributes {
+            tags: HashMap::new(),
+            status: HashMap::new(),
+        };
+
+        if let Some(tags) = proto.tags {
+            obj.tags = tags.tags;
+        }
+
+        if let Some(status) = proto.status {
+            obj.status.insert(
+                "cpu_usage".to_owned(),
+                match status.cpu_usage {
+                    Some(cpu_usage) => cpu_usage.cpu_usage.to_string(),
+                    None => "N/A".to_owned(),
+                },
+            );
+            obj.status.insert(
+                "free_memory".to_owned(),
+                match status.free_memory {
+                    Some(free_memory) => free_memory.free_memory.to_string(),
+                    None => "N/A".to_owned(),
+                },
+            );
+        }
+
+        obj
+    }
+
+    /// Converts the `AgentAttributes` to a [`serde_yaml::Mapping`].
+    ///
+    /// ## Returns
+    ///
+    /// A [`serde_yaml::Mapping`] containing the `AgentAttributes` information.
+    #[must_use]
+    pub fn to_dict(&self) -> serde_yaml::Mapping {
+        let mut dict = serde_yaml::Mapping::new();
+
+        let mut tags_dict = serde_yaml::Mapping::new();
+        for (k, v) in &self.tags {
+            tags_dict.insert(Value::String(k.clone()), Value::String(v.clone()));
+        }
+        dict.insert(Value::String("tags".to_owned()), Value::Mapping(tags_dict));
+
+        let mut status_dict = serde_yaml::Mapping::new();
+        for (k, v) in &self.status {
+            status_dict.insert(Value::String(k.clone()), Value::String(v.clone()));
+        }
+        dict.insert(
+            Value::String("status".to_owned()),
+            Value::Mapping(status_dict),
+        );
+
+        dict
+    }
+}
+
 impl Default for CompleteState {
     fn default() -> Self {
         Self::new()
@@ -490,6 +572,12 @@ impl From<Manifest> for CompleteState {
 
 impl From<ank_base::CompleteState> for CompleteState {
     fn from(proto: ank_base::CompleteState) -> Self {
+        Self::new_from_proto(proto)
+    }
+}
+
+impl From<ank_base::AgentAttributes> for AgentAttributes {
+    fn from(proto: ank_base::AgentAttributes) -> Self {
         Self::new_from_proto(proto)
     }
 }
@@ -576,11 +664,13 @@ fn generate_agents_proto() -> ank_base::AgentMap {
         agents: HashMap::from([(
             "agent_A".to_owned(),
             ank_base::AgentAttributes {
+                tags: Some(ank_base::Tags {
+                    tags: HashMap::from([("tag_key".to_owned(), "tag_value".to_owned())]),
+                }),
                 status: Some(ank_base::AgentStatus {
                     cpu_usage: Some(ank_base::CpuUsage { cpu_usage: 50 }),
                     free_memory: Some(ank_base::FreeMemory { free_memory: 1024 }),
                 }),
-                ..Default::default()
             },
         )]),
     }
@@ -718,6 +808,36 @@ mod tests {
             .as_mapping()
             .unwrap();
         assert_eq!(agents.len(), 1);
+        let agent_a = agents
+            .get(Value::String("agent_A".to_owned()))
+            .unwrap()
+            .as_mapping()
+            .unwrap();
+        assert_eq!(agent_a.len(), 2);
+        let agent_a_tags = agent_a
+            .get(Value::String("tags".to_owned()))
+            .unwrap()
+            .as_mapping()
+            .unwrap();
+        assert_eq!(agent_a_tags.len(), 1);
+        let agent_a_status = agent_a
+            .get(Value::String("status".to_owned()))
+            .unwrap()
+            .as_mapping()
+            .unwrap();
+        assert_eq!(agent_a_status.len(), 2);
+        assert_eq!(
+            agent_a_status
+                .get(Value::String("cpu_usage".to_owned()))
+                .unwrap(),
+            &Value::String("50".to_owned())
+        );
+        assert_eq!(
+            agent_a_status
+                .get(Value::String("free_memory".to_owned()))
+                .unwrap(),
+            &Value::String("1024".to_owned())
+        );
 
         let workload_states = complete_state_dict
             .get(Value::String("workload_states".to_owned()))
@@ -751,5 +871,33 @@ mod tests {
                 .get_for_instance_name(&workload_instance_name)
                 .is_some()
         );
+    }
+
+    #[test]
+    fn utest_get_agents() {
+        let mut complete_state = CompleteState::from(generate_complete_state_proto());
+
+        let agents = complete_state.get_agents();
+        assert_eq!(agents.len(), 1);
+        assert!(agents.contains_key("agent_A"));
+
+        let agent_a = agents.get("agent_A").unwrap();
+        assert_eq!(agent_a.tags.len(), 1);
+        assert_eq!(agent_a.tags.get("tag_key"), Some(&"tag_value".to_owned()));
+        assert_eq!(agent_a.status.get("cpu_usage"), Some(&"50".to_owned()));
+        assert_eq!(agent_a.status.get("free_memory"), Some(&"1024".to_owned()));
+
+        let new_tags = HashMap::from([
+            ("new_key".to_owned(), "new_value".to_owned()),
+            ("another_key".to_owned(), "another_value".to_owned()),
+        ]);
+        complete_state.set_agent_tags("agent_A", new_tags.clone());
+
+        let agents = complete_state.get_agents();
+        let agent_a = agents.get("agent_A").unwrap();
+        assert_eq!(agent_a.tags, new_tags);
+        assert!(!agent_a.tags.contains_key("tag_key"));
+        assert_eq!(agent_a.status.get("cpu_usage"), Some(&"50".to_owned()));
+        assert_eq!(agent_a.status.get("free_memory"), Some(&"1024".to_owned()));
     }
 }

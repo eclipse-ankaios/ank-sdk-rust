@@ -36,7 +36,7 @@ use crate::components::workload_mod::{WORKLOADS_PREFIX, Workload};
 use crate::components::workload_state_mod::{
     WorkloadExecutionState, WorkloadInstanceName, WorkloadStateCollection, WorkloadStateEnum,
 };
-use crate::{AnkaiosError, CompleteState};
+use crate::{AgentAttributes, AnkaiosError, CompleteState};
 
 /// The prefix for the agents in the state.
 const AGENTS_PREFIX: &str = "agents";
@@ -852,6 +852,56 @@ impl Ankaios {
         }
     }
 
+    /// Send a request to set tags for a specific agent.
+    ///
+    /// ## Arguments
+    ///
+    /// * `agent_name` - The name of the agent.
+    /// * `tags` - A [`HashMap`] containing the tags to set for the agent.
+    ///
+    /// ## Errors
+    ///
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    pub async fn set_agent_tags(
+        &mut self,
+        agent_name: String,
+        tags: HashMap<String, String>,
+    ) -> Result<(), AnkaiosError> {
+        // Create CompleteState
+        let mut complete_state = CompleteState::new();
+        complete_state.set_agent_tags(&agent_name, tags);
+
+        // Create request
+        let request = UpdateStateRequest::new(
+            &complete_state,
+            vec![format!("{AGENTS_PREFIX}.{agent_name}.tags")],
+        );
+
+        // Wait for the response
+        let response = self.send_request(request).await?;
+
+        match response.content {
+            ResponseType::UpdateStateSuccess(_) => {
+                log::info!("Update successful");
+                Ok(())
+            }
+            ResponseType::Error(error) => {
+                log::error!("Error while trying to set agent tags: {error}");
+                Err(AnkaiosError::AnkaiosResponseError(error))
+            }
+            _ => {
+                log::error!("Received unexpected response type.");
+                Err(AnkaiosError::ResponseError(
+                    "Received unexpected response type.".to_owned(),
+                ))
+            }
+        }
+    }
+
     /// Send a request to get the agents.
     ///
     /// ## Returns
@@ -865,11 +915,33 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
-    pub async fn get_agents(
-        &mut self,
-    ) -> Result<HashMap<String, HashMap<String, String>>, AnkaiosError> {
+    pub async fn get_agents(&mut self) -> Result<HashMap<String, AgentAttributes>, AnkaiosError> {
         let complete_state = self.get_state(vec![AGENTS_PREFIX.to_owned()]).await?;
         Ok(complete_state.get_agents())
+    }
+
+    /// Send a request to get the agents.
+    ///
+    /// ## Returns
+    ///
+    /// - the [`AgentAttributes`] of the requested agent if the request was successful.
+    ///
+    /// ## Errors
+    ///
+    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
+    /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
+    /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
+    /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
+    pub async fn get_agent(&mut self, agent_name: String) -> Result<AgentAttributes, AnkaiosError> {
+        let agents = self
+            .get_state(vec![format!("{AGENTS_PREFIX}.{agent_name}")])
+            .await?
+            .get_agents();
+
+        agents.get(&agent_name).cloned().ok_or_else(|| {
+            AnkaiosError::AnkaiosResponseError(format!("Agent {agent_name} not found."))
+        })
     }
 
     /// Send a request to get the workload states.
@@ -1259,9 +1331,9 @@ mod tests {
     };
 
     use super::{
-        AGENTS_PREFIX, Ankaios, AnkaiosError, CONFIGS_PREFIX, CompleteState, ControlInterface,
-        DEFAULT_TIMEOUT, EventsCampaignResponse, Response, WORKLOAD_STATES_PREFIX,
-        WorkloadInstanceName, WorkloadStateEnum, generate_test_ankaios,
+        AGENTS_PREFIX, AgentAttributes, Ankaios, AnkaiosError, CONFIGS_PREFIX, CompleteState,
+        ControlInterface, DEFAULT_TIMEOUT, EventsCampaignResponse, Response,
+        WORKLOAD_STATES_PREFIX, WorkloadInstanceName, WorkloadStateEnum, generate_test_ankaios,
     };
     use crate::components::{
         complete_state::generate_complete_state_proto,
@@ -1520,7 +1592,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1569,7 +1641,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1621,7 +1693,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1673,7 +1745,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1722,7 +1794,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1774,7 +1846,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1826,7 +1898,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1875,7 +1947,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1927,7 +1999,7 @@ mod tests {
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2020,14 +2092,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{WORKLOADS_PREFIX}.workload_Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2066,14 +2138,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{WORKLOADS_PREFIX}.workload_Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2115,14 +2187,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{WORKLOADS_PREFIX}.workload_Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2164,14 +2236,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![CONFIGS_PREFIX.to_owned()]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2212,14 +2284,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![CONFIGS_PREFIX.to_owned()]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2263,14 +2335,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![CONFIGS_PREFIX.to_owned()]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2314,14 +2386,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2363,14 +2435,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2415,14 +2487,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2570,14 +2642,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![CONFIGS_PREFIX]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2613,14 +2685,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![CONFIGS_PREFIX]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2661,14 +2733,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![CONFIGS_PREFIX]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2709,14 +2781,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2752,14 +2824,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2800,14 +2872,14 @@ mod tests {
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                |request: &UpdateStateRequest| match &request.request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: UpdateStateRequest| {
+            .return_once(|request: UpdateStateRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2822,6 +2894,181 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
+        let response = Response {
+            content: super::ResponseType::CompleteState(Box::default()),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::ResponseError(_))));
+    }
+
+    #[tokio::test]
+    async fn itest_set_agent_tags_ok() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .withf(
+                |request: &UpdateStateRequest| match &request.request.request_content {
+                    Some(RequestContent::UpdateStateRequest(content)) => {
+                        content.update_mask == vec![format!("{AGENTS_PREFIX}.agent_A.tags")]
+                            && content.new_state.as_ref().is_some_and(|state| {
+                                state.agents.as_ref().is_some_and(|agents| {
+                                    agents.agents.get("agent_A").is_some_and(|agent| {
+                                        agent.tags.as_ref().is_some_and(|tags| {
+                                            tags.tags
+                                                .get("environment")
+                                                .is_some_and(|v| v == "production")
+                                                && tags
+                                                    .tags
+                                                    .get("region")
+                                                    .is_some_and(|v| v == "us-west")
+                                        })
+                                    })
+                                })
+                            })
+                    }
+                    _ => false,
+                },
+            )
+            .return_once(|request: UpdateStateRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare tags
+        let tags = HashMap::from([
+            ("environment".to_owned(), "production".to_owned()),
+            ("region".to_owned(), "us-west".to_owned()),
+        ]);
+
+        // Prepare handle for setting agent tags
+        let method_handle =
+            tokio::spawn(async move { ank.set_agent_tags("agent_A".to_owned(), tags).await });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let response = generate_test_response_update_state_success(request.get_id());
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        assert!(method_handle.await.unwrap().is_ok());
+    }
+
+    #[tokio::test]
+    async fn itest_set_agent_tags_err() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .withf(
+                |request: &UpdateStateRequest| match &request.request.request_content {
+                    Some(RequestContent::UpdateStateRequest(content)) => {
+                        content.update_mask == vec![format!("{AGENTS_PREFIX}.agent_A.tags")]
+                    }
+                    _ => false,
+                },
+            )
+            .return_once(|request: UpdateStateRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare tags
+        let tags = HashMap::from([
+            ("environment".to_owned(), "production".to_owned()),
+            ("region".to_owned(), "us-west".to_owned()),
+        ]);
+
+        // Prepare handle for setting agent tags
+        let method_handle =
+            tokio::spawn(async move { ank.set_agent_tags("agent_A".to_owned(), tags).await });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate an error response
+        let response = Response {
+            content: super::ResponseType::Error("test error".to_owned()),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::AnkaiosResponseError(_))));
+    }
+
+    #[tokio::test]
+    async fn itest_set_agent_tags_mismatch_response_type() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .withf(
+                |request: &UpdateStateRequest| match &request.request.request_content {
+                    Some(RequestContent::UpdateStateRequest(content)) => {
+                        content.update_mask == vec![format!("{AGENTS_PREFIX}.agent_A.tags")]
+                    }
+                    _ => false,
+                },
+            )
+            .return_once(|request: UpdateStateRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare tags
+        let tags = HashMap::from([
+            ("environment".to_owned(), "production".to_owned()),
+            ("region".to_owned(), "us-west".to_owned()),
+        ]);
+
+        // Prepare handle for setting agent tags
+        let method_handle =
+            tokio::spawn(async move { ank.set_agent_tags("agent_A".to_owned(), tags).await });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response with wrong type
         let response = Response {
             content: super::ResponseType::CompleteState(Box::default()),
             id: request.get_id(),
@@ -2882,16 +3129,126 @@ mod tests {
         // Get the agents
         let ret_agents = method_handle.await.unwrap().unwrap();
 
+        let expected_agent_attributes = AgentAttributes {
+            tags: HashMap::from([("tag_key".to_owned(), "tag_value".to_owned())]),
+            status: HashMap::from([
+                ("free_memory".to_owned(), "1024".to_owned()),
+                ("cpu_usage".to_owned(), "50".to_owned()),
+            ]),
+        };
+
         assert_eq!(
             ret_agents,
-            HashMap::from([(
-                "agent_A".to_owned(),
-                HashMap::from([
-                    ("free_memory".to_owned(), "1024".to_owned()),
-                    ("cpu_usage".to_owned(), "50".to_owned()),
-                ])
-            ),])
+            HashMap::from([("agent_A".to_owned(), expected_agent_attributes)])
         );
+    }
+
+    #[tokio::test]
+    async fn itest_get_agent_ok() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .withf(
+                move |request: &GetStateRequest| match &request.request.request_content {
+                    Some(RequestContent::CompleteStateRequest(content)) => {
+                        content.field_mask == vec![format!("{AGENTS_PREFIX}.agent_A")]
+                    }
+                    _ => false,
+                },
+            )
+            .return_once(move |request: GetStateRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare handle for getting the agents
+        let method_handle =
+            tokio::spawn(async move { ank.get_agent(String::from("agent_A")).await });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
+        let response = Response {
+            content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the agents
+        let ret_agent_attributes = method_handle.await.unwrap().unwrap();
+
+        let expected_agent_attributes = AgentAttributes {
+            tags: HashMap::from([("tag_key".to_owned(), "tag_value".to_owned())]),
+            status: HashMap::from([
+                ("free_memory".to_owned(), "1024".to_owned()),
+                ("cpu_usage".to_owned(), "50".to_owned()),
+            ]),
+        };
+
+        assert_eq!(ret_agent_attributes, expected_agent_attributes);
+    }
+
+    #[tokio::test]
+    async fn itest_get_agent_not_found() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // Prepare channel to intercept the request that is being
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .withf(
+                move |request: &GetStateRequest| match &request.request.request_content {
+                    Some(RequestContent::CompleteStateRequest(content)) => {
+                        content.field_mask == vec![format!("{AGENTS_PREFIX}.agent_not_there")]
+                    }
+                    _ => false,
+                },
+            )
+            .return_once(move |request: GetStateRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        // Prepare handle for getting non-existing agent
+        let method_handle =
+            tokio::spawn(async move { ank.get_agent(String::from("agent_not_there")).await });
+
+        // Get the request from the ControlInterface
+        let request = request_receiver.await.unwrap();
+
+        // Fabricate a response
+        let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
+        let response = Response {
+            content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
+            id: request.get_id(),
+        };
+
+        // Send the response
+        response_sender.send(response).await.unwrap();
+
+        // Get the result - should be an error
+        let result = method_handle.await.unwrap();
+        assert!(result.is_err());
+        assert!(matches!(result, Err(AnkaiosError::AnkaiosResponseError(_))));
     }
 
     #[tokio::test]
