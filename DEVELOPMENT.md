@@ -86,6 +86,27 @@ just cov-check       # Coverage threshold met
 just deny            # License compliance
 ```
 
+### Updating Documentation
+
+When making changes to project documentation, keep the following in mind:
+
+**Contributing section synchronization:**
+
+The contributing section is maintained in two locations:
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Used in the repository
+- [src/docs.rs](src/docs.rs) - Used in the generated Rust documentation
+
+If you update one, you must update the other to keep them synchronized. They are duplicated to ensure proper link resolution in both contexts.
+
+**Adding new tools:**
+
+When adding a new tool or script to the [tools](tools/) directory:
+
+1. Update this DEVELOPMENT.md file with the tool's description and usage
+2. Ensure the script includes a `--help` option with detailed usage information
+3. Follow the pattern established by existing scripts.
+
 ## Troubleshooting
 
 ### Checks pass locally but fail in the pipeline
