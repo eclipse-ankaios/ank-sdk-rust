@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# List all available commands
-help:
-    just -l
-
 # Build SDK
 build:
     cargo build
