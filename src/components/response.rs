@@ -458,7 +458,7 @@ mod tests {
         response_type = ResponseType::CompleteState(Box::default());
         assert_eq!(
             format!("{response_type:?}"),
-            "CompleteState(CompleteState { complete_state: CompleteState { desired_state: Some(State { api_version: \"v1\", workloads: Some(WorkloadMap { workloads: {} }), configs: None }), workload_states: None, agents: None } })"
+            "CompleteState(CompleteState { complete_state: CompleteState { desired_state: Some(State { api_version: \"v1\", workloads: None, configs: None }), workload_states: None, agents: None } })"
         );
         response_type = ResponseType::UpdateStateSuccess(Box::default());
         assert_eq!(
@@ -499,11 +499,9 @@ mod tests {
                             complete_state: Some(ankaios_api::ank_base::CompleteState {
                                 desired_state: Some(ankaios_api::ank_base::State {
                                     api_version: "v1".to_owned(),
-                                    workloads: Some(ankaios_api::ank_base::WorkloadMap::default()),
-                                    configs: None,
+                                    ..Default::default()
                                 }),
-                                workload_states: None,
-                                agents: None,
+                                ..Default::default()
                             }),
                             altered_fields: None,
                         }),
