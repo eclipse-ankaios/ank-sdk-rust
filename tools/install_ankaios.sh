@@ -197,41 +197,19 @@ if [ "$mode" = "branch" ]; then
     echo "Action ID found: $action_id"
 fi
 
-# Install by action
-
-provide_token() {
-    if [ -n "$GITHUB_TOKEN" ]; then
-        gh_token="$GITHUB_TOKEN"
-    else
-        echo -n "Enter GitHub token: "
-        read -sr gh_token
-    fi
-}
-check_token() {
-    if ! curl -s -H "Authorization: Bearer $gh_token" "https://api.github.com/user" | grep -q '"login":'; then
-        echo "Error: Invalid GitHub token." >&2
-        exit 1
-    fi
-}
-
-if [ -z "$gh_token" ]; then
-    provide_token
-fi
-check_token
-
 # Cleanup function
 cleanup() {
     rm -rf "$TEMP_DIR"
 }
 trap cleanup EXIT
 
+# Install by action
+
 # Get artifact name
 artifact_name="${ARTIFACT_NAME//\{target\}/$target}"
 
 # Fetch artifact list
-ARTIFACT_JSON=$(curl -s -H "Authorization: Bearer $gh_token" \
-    -H "Accept: application/vnd.github+json" \
-    "https://api.github.com/repos/$REPO/actions/runs/$action_id/artifacts")
+ARTIFACT_JSON=$(curl -s "https://api.github.com/repos/$REPO/actions/runs/$action_id/artifacts")
 
 # Find artifact ID
 ARTIFACT_ID=$(echo "$ARTIFACT_JSON" | python3 -c "
@@ -256,7 +234,27 @@ fi
 
 echo "Downloading artifact..."
 
-# Download artifact
+provide_token() {
+    if [ -n "$GITHUB_TOKEN" ]; then
+        gh_token="$GITHUB_TOKEN"
+    else
+        echo -n "Enter GitHub token: "
+        read -sr gh_token
+    fi
+}
+check_token() {
+    if ! curl -s -H "Authorization: Bearer $gh_token" "https://api.github.com/user" | grep -q '"login":'; then
+        echo "Error: Invalid GitHub token." >&2
+        exit 1
+    fi
+}
+
+if [ -z "$gh_token" ]; then
+    provide_token
+fi
+check_token
+
+# Download artifact - gh token required
 HTTP_CODE=$(curl -L -w "%{http_code}" -o "$TEMP_DIR/artifact.zip" \
     -H "Authorization: Bearer $gh_token" \
     -H "Accept: application/vnd.github+json" \
