@@ -17,6 +17,38 @@
 # Set threshold
 THRESHOLD=80
 
+# Help function
+usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Validates that code coverage meets the minimum threshold."
+    echo ""
+    echo "Options:"
+    echo "  -h, --help     Display this help message and exit"
+    echo ""
+    echo "Details:"
+    echo "  - Requires minimum ${THRESHOLD}% coverage across regions, functions, and lines"
+    echo "  - Automatically installs cargo-llvm-cov if not present"
+    echo "  - Exits with error (code 1) if any coverage metric is below threshold"
+    echo "  - Provides color-coded output for pass/fail status"
+}
+
+# Parse arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+    esac
+    shift
+done
+
 # Check if cargo-llvm-cov is installed
 if ! cargo llvm-cov --version &>/dev/null; then
     echo "Installing cargo-llvm-cov..."
