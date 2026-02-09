@@ -1,6 +1,6 @@
 [package]
 name = "ankaios_sdk"
-version = "0.8.0-pre"
+version = "1.0.0-rc1"
 edition = "2024"
 rust-version = "1.85.0"
 license = "Apache-2.0"
