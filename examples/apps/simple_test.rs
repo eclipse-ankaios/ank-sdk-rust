@@ -12,13 +12,15 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-// use std::thread::sleep;
-
 use ankaios_sdk::Ankaios;
 use tokio::time::{Duration, sleep};
 
 #[tokio::main]
 async fn main() {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Debug)
+        .init();
+
     {
         println!("Ankaios 1");
         let mut _ank = Ankaios::new().await.expect("Failed to initialize");

@@ -426,10 +426,13 @@ impl ControlInterface {
                         match decoded_response {
                             Ok(from_ankaios) => {
                                 let received_response = Response::new(from_ankaios);
-                                let is_con_closed = matches!(
-                                    received_response.content,
-                                    ResponseType::ConnectionClosedReason(_)
-                                );
+                                let con_closed_reason: Option<String> =
+                                    match &received_response.content {
+                                        ResponseType::ConnectionClosedReason(reason) => {
+                                            Some(reason.clone())
+                                        }
+                                        _ => None,
+                                    };
 
                                 Self::handle_decoded_response(
                                     &state_clone,
@@ -440,8 +443,8 @@ impl ControlInterface {
                                 )
                                 .await;
 
-                                if is_con_closed {
-                                    log::error!("Connection closed by the agent.");
+                                if let Some(reason) = con_closed_reason {
+                                    log::error!("Connection closed by the agent. Reason {reason}.");
                                     Self::change_state(
                                         &state_clone,
                                         ControlInterfaceState::ConnectionClosed,

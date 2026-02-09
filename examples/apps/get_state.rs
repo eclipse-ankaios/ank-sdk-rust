@@ -12,9 +12,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use std::thread::sleep;
-
 use ankaios_sdk::{Ankaios, AnkaiosError, Workload, WorkloadStateEnum};
+use std::thread::sleep;
 use tokio::time::Duration;
 
 async fn print_workload_states(ank: &mut Ankaios) {
