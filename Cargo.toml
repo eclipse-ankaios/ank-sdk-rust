@@ -1,12 +1,12 @@
 [package]
 name = "ankaios_sdk"
-version = "1.0.0-rc1"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.85.0"
 license = "Apache-2.0"
 authors = ["Elektrobit Automotive GmbH and Ankaios contributors"]
 description = "Eclipse Ankaios Rust SDK - provides a convenient Rust interface for interacting with the Ankaios platform."
-documentation = "https://docs.rs/ankaios-sdk/0.7.0"
+documentation = "https://docs.rs/ankaios-sdk/1.0.0"
 repository = "https://github.com/eclipse-ankaios/ank-sdk-rust"
 readme = "README.md"
 keywords = ["ankaios", "automotive", "sdk", "container", "orchestration"]
