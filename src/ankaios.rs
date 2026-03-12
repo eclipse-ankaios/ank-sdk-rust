@@ -466,7 +466,10 @@ impl Ankaios {
         &mut self,
         workload: Workload,
     ) -> Result<UpdateStateSuccess, AnkaiosError> {
-        let masks = workload.masks.clone();
+        let mut masks = workload.masks.clone();
+        if masks.is_empty() {
+            masks = vec![workload.main_mask.clone()];
+        }
 
         // Create CompleteState
         let complete_state = CompleteState::new_from_workloads(vec![workload]);
@@ -2026,6 +2029,48 @@ mod tests {
         let result = method_handle.await.unwrap();
         assert!(result.is_err());
         assert!(matches!(result, Err(AnkaiosError::ResponseError(_))));
+    }
+
+    #[tokio::test]
+    async fn itest_apply_workload_empty_masks_uses_main_mask() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
+
+        // Prepare workload with no masks (e.g. created via from_proto)
+        let mut workload = generate_test_workload("agent_Test", "workload_Test", "podman");
+        workload.masks.clear();
+        let main_mask = workload.main_mask.clone();
+
+        let mut ci_mock = ControlInterface::default();
+        ci_mock
+            .expect_write_request()
+            .times(1)
+            .withf(
+                move |request: &UpdateStateRequest| match &request.request.request_content {
+                    Some(RequestContent::UpdateStateRequest(content)) => {
+                        content.update_mask == vec![main_mask.clone()]
+                    }
+                    _ => false,
+                },
+            )
+            .return_once(|request: UpdateStateRequest| {
+                request_sender.send(request).unwrap();
+                Ok(())
+            });
+        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+
+        let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
+
+        let method_handle = tokio::spawn(async move { ank.apply_workload(workload).await });
+
+        let request = request_receiver.await.unwrap();
+        let response = generate_test_response_update_state_success(request.get_id());
+        response_sender.send(response).await.unwrap();
+
+        let ret = method_handle.await.unwrap().unwrap();
+        assert!(ret.added_workloads.len() == 1);
+        assert!(ret.deleted_workloads.is_empty());
     }
 
     #[tokio::test]
