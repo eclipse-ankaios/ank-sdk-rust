@@ -160,81 +160,111 @@ impl Manifest {
     }
 }
 
+/// Extract the `apiVersion` field from a manifest [`serde_yaml::Value`].
+///
+/// ## Arguments
+///
+/// * `manifest` - A [`serde_yaml::Value`] object representing the manifest.
+///
+/// ## Returns
+///
+/// The API version string if present and valid.
+///
+/// ## Errors
+///
+/// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError)
+/// if the field is missing or not a string.
+fn parse_api_version(manifest: &serde_yaml::Value) -> Result<String, AnkaiosError> {
+    manifest
+        .get("apiVersion")
+        .ok_or_else(|| AnkaiosError::ManifestParsingError("Missing apiVersion".to_owned()))?
+        .as_str()
+        .ok_or_else(|| AnkaiosError::ManifestParsingError("Invalid apiVersion".to_owned()))
+        .map(str::to_owned)
+}
+
+/// Extract and parse the `workloads` section from a manifest [`serde_yaml::Value`].
+///
+/// ## Arguments
+///
+/// * `manifest` - A [`serde_yaml::Value`] object representing the manifest.
+///
+/// ## Returns
+///
+/// A [`ank_base::WorkloadMap`] wrapped in `Some` if the section is present and non-empty,
+/// or `None` if the section is absent.
+///
+/// ## Errors
+///
+/// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError)
+/// if the section or any individual workload entry is malformed.
+fn parse_workloads(
+    manifest: &serde_yaml::Value,
+) -> Result<Option<ank_base::WorkloadMap>, AnkaiosError> {
+    let Some(workloads_value) = manifest.get("workloads") else {
+        return Ok(None);
+    };
+    let mapping = workloads_value.as_mapping().ok_or_else(|| {
+        AnkaiosError::ManifestParsingError("Invalid workloads mapping".to_owned())
+    })?;
+
+    let mut workloads = ank_base::WorkloadMap {
+        workloads: HashMap::new(),
+    };
+    for (key, value) in mapping {
+        let key_str = key
+            .as_str()
+            .ok_or_else(|| AnkaiosError::ManifestParsingError("Invalid workload key".to_owned()))?;
+        let value_mapping = value.as_mapping().ok_or_else(|| {
+            AnkaiosError::ManifestParsingError("Invalid workload mapping".to_owned())
+        })?;
+        let workload = Workload::new_from_dict(key_str.to_owned(), &value_mapping.clone())?;
+        workloads
+            .workloads
+            .insert(key_str.to_owned(), workload.to_proto());
+    }
+    Ok(if workloads.workloads.is_empty() {
+        None
+    } else {
+        Some(workloads)
+    })
+}
+
+/// Extract and deserialize the `configs` section from a manifest [`serde_yaml::Value`].
+///
+/// ## Arguments
+///
+/// * `manifest` - A [`serde_yaml::Value`] object representing the manifest.
+///
+/// ## Returns
+///
+/// A [`ank_base::ConfigMap`] wrapped in `Some` if the section is present, or `None` if absent.
+///
+/// ## Errors
+///
+/// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError)
+/// if the section cannot be deserialized into a [`ank_base::ConfigMap`].
+fn parse_configs(
+    manifest: &serde_yaml::Value,
+) -> Result<Option<ank_base::ConfigMap>, AnkaiosError> {
+    manifest
+        .get("configs")
+        .map(|v| {
+            serde_yaml::from_value::<ank_base::ConfigMap>(v.clone())
+                .map_err(|e| AnkaiosError::ManifestParsingError(e.to_string()))
+        })
+        .transpose()
+}
+
 impl TryFrom<serde_yaml::Value> for Manifest {
     type Error = AnkaiosError;
 
     fn try_from(manifest: serde_yaml::Value) -> Result<Self, Self::Error> {
-        // Extract api version
-        let api_version = match manifest.get("apiVersion") {
-            Some(value) => match value.as_str() {
-                Some(version) => version.to_owned(),
-                None => {
-                    return Err(AnkaiosError::ManifestParsingError(
-                        "Invalid apiVersion".to_owned(),
-                    ));
-                }
-            },
-            None => {
-                return Err(AnkaiosError::ManifestParsingError(
-                    "Missing apiVersion".to_owned(),
-                ));
-            }
-        };
-
-        // Extract workloads
-        let mut workloads: ank_base::WorkloadMap = ank_base::WorkloadMap {
-            workloads: HashMap::new(),
-        };
-        if let Some(workloads_value) = manifest.get("workloads") {
-            if let Some(workloads_mapping) = workloads_value.as_mapping() {
-                for (key, value) in workloads_mapping {
-                    if let Some(key_str) = key.as_str() {
-                        if let Some(value_mapping) = value.as_mapping() {
-                            let workload = Workload::new_from_dict(
-                                key_str.to_owned(),
-                                &value_mapping.clone(),
-                            )?;
-                            workloads
-                                .workloads
-                                .insert(key_str.to_owned(), workload.to_proto());
-                        } else {
-                            return Err(AnkaiosError::ManifestParsingError(
-                                "Invalid workload mapping".to_owned(),
-                            ));
-                        }
-                    } else {
-                        return Err(AnkaiosError::ManifestParsingError(
-                            "Invalid workload key".to_owned(),
-                        ));
-                    }
-                }
-            } else {
-                return Err(AnkaiosError::ManifestParsingError(
-                    "Invalid workloads mapping".to_owned(),
-                ));
-            }
-        }
-
-        // Extract configs
-        let configs = match manifest.get("configs") {
-            Some(configs_value) => {
-                match serde_yaml::from_value::<ank_base::ConfigMap>(configs_value.clone()) {
-                    Ok(configs) => Some(configs),
-                    Err(e) => return Err(AnkaiosError::ManifestParsingError(e.to_string())),
-                }
-            }
-            None => None,
-        };
-
         Ok(Self {
             desired_state: ank_base::State {
-                api_version,
-                workloads: if workloads.workloads.is_empty() {
-                    None
-                } else {
-                    Some(workloads)
-                },
-                configs,
+                api_version: parse_api_version(&manifest)?,
+                workloads: parse_workloads(&manifest)?,
+                configs: parse_configs(&manifest)?,
             },
         })
     }
