@@ -18,6 +18,8 @@
         "repr",
         "rustup",
         "serde",
+        "sonarcloud",
+        "sonarqube",
         "substate",
         "thiserror",
         "unistd",
