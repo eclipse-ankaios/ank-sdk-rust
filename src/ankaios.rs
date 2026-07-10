@@ -1617,7 +1617,7 @@ mod tests {
 
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
-        assert!(ret.added_workloads.len() == 1);
+        assert_eq!(ret.added_workloads.len(), 1);
         assert!(ret.deleted_workloads.is_empty());
     }
 
@@ -1770,7 +1770,7 @@ mod tests {
 
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
-        assert!(ret.added_workloads.len() == 1);
+        assert_eq!(ret.added_workloads.len(), 1);
         assert!(ret.deleted_workloads.is_empty());
     }
 
@@ -1923,7 +1923,7 @@ mod tests {
 
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
-        assert!(ret.added_workloads.len() == 1);
+        assert_eq!(ret.added_workloads.len(), 1);
         assert!(ret.deleted_workloads.is_empty());
     }
 
@@ -2069,7 +2069,7 @@ mod tests {
         response_sender.send(response).await.unwrap();
 
         let ret = method_handle.await.unwrap().unwrap();
-        assert!(ret.added_workloads.len() == 1);
+        assert_eq!(ret.added_workloads.len(), 1);
         assert!(ret.deleted_workloads.is_empty());
     }
 
@@ -2167,7 +2167,7 @@ mod tests {
 
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
-        assert!(ret.added_workloads.len() == 1);
+        assert_eq!(ret.added_workloads.len(), 1);
         assert!(ret.deleted_workloads.is_empty());
     }
 
@@ -2313,7 +2313,7 @@ mod tests {
 
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
-        assert!(ret.added_workloads.len() == 1);
+        assert_eq!(ret.added_workloads.len(), 1);
         assert!(ret.deleted_workloads.is_empty());
     }
 
@@ -2464,7 +2464,7 @@ mod tests {
 
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
-        assert!(ret.added_workloads.len() == 1);
+        assert_eq!(ret.added_workloads.len(), 1);
         assert!(ret.deleted_workloads.is_empty());
     }
 
