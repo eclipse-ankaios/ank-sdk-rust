@@ -18,7 +18,7 @@ use super::workload_mod::WORKLOADS_PREFIX;
 use crate::ankaios_api;
 use crate::{AnkaiosError, Workload};
 use ankaios_api::ank_base;
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
 // Disable this from coverage
 // https://github.com/rust-lang/rust/issues/84605
@@ -208,9 +208,7 @@ fn parse_workloads(
         AnkaiosError::ManifestParsingError("Invalid workloads mapping".to_owned())
     })?;
 
-    let mut workloads = ank_base::WorkloadMap {
-        workloads: HashMap::new(),
-    };
+    let mut workloads = ank_base::WorkloadMap::default();
     for (key, value) in mapping {
         let key_str = key
             .as_str()
@@ -238,7 +236,7 @@ fn parse_workloads(
 ///
 /// ## Returns
 ///
-/// A [`ank_base::ConfigMap`] wrapped in `Some` if the section is present, or `None` if absent.
+/// A [`ank_base::ConfigMap`] wrapped in an `Option`.
 ///
 /// ## Errors
 ///
