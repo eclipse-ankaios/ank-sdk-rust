@@ -18,7 +18,7 @@
 //! [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 
 pub mod complete_state;
-pub mod control_interface;
+pub mod connection;
 pub mod event_types;
 pub mod log_types;
 pub mod manifest;

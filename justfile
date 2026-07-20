@@ -2,11 +2,11 @@
 
 # Build SDK
 build:
-    cargo build
+    cargo build --all-features
 
 # Build SDK in release mode
 build-release:
-    cargo build --release
+    cargo build --release --all-features
 
 # Clean the build directory
 clean:
@@ -22,15 +22,15 @@ all-tests: test doctest
 
 # Run tests using cargo nextest if installed
 test:
-    bash -c 'if which cargo-nextest > /dev/null 2>&1; then cargo nextest run; else cargo test --tests; fi'
+    bash -c 'if which cargo-nextest > /dev/null 2>&1; then cargo nextest run --all-features; else cargo test --tests --all-features; fi'
 
 # Run documentation tests
 doctest:
-    cargo test --doc --target x86_64-unknown-linux-gnu
+    cargo test --doc --target x86_64-unknown-linux-gnu --all-features
 
 # Run code coverage
 cov:
-    cargo llvm-cov
+    cargo llvm-cov --all-features
 
 # Check coverage
 cov-check:
@@ -38,7 +38,7 @@ cov-check:
 
 # Generate code coverage HTML
 cov-html:
-    cargo llvm-cov --html
+    cargo llvm-cov --all-features --html
 
 # Open code coverage HTML
 cov-open:
@@ -59,4 +59,4 @@ deny:
 # Find the minimum supported Rust version (MSRV)
 msrv-find:
     bash -c 'if ! which cargo-msrv > /dev/null 2>&1; then cargo install cargo-msrv; fi'
-    cargo msrv find --include-all-patch-releases --linear # --output-format minimal
+    cargo msrv find --include-all-patch-releases --linear -- cargo check --all-features # --output-format minimal

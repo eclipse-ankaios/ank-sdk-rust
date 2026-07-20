@@ -54,9 +54,10 @@ use crate::components::event_types::EventEntry;
 use crate::components::log_types::LogEntry;
 use crate::extensions::UnreachableOption;
 use ankaios_api::ank_base::{
-    Error, UpdateStateSuccess as AnkaiosUpdateStateSuccess,
+    Error, Response as AnkaiosResponse, UpdateStateSuccess as AnkaiosUpdateStateSuccess,
     response::ResponseContent as AnkaiosResponseContent,
 };
+#[cfg(feature = "control_interface")]
 use ankaios_api::control_api::{FromAnkaios, from_ankaios::FromAnkaiosEnum};
 use std::collections::HashMap;
 use std::default;
@@ -73,6 +74,7 @@ pub enum ResponseType {
     /// An error provided by the cluster.
     Error(String),
     /// The response indicating that the connection has been accepted.
+    #[cfg(feature = "control_interface")]
     ControlInterfaceAccepted,
     /// The reason a connection closed was received.
     ConnectionClosedReason(String),
@@ -126,9 +128,82 @@ impl Response {
     /// ## Returns
     ///
     /// A new [Response] instance.
+    #[cfg(feature = "control_interface")]
     #[must_use]
     pub fn new(response: FromAnkaios) -> Self {
         Self::from(response)
+    }
+
+    /// Builds a [Response] from the transport-neutral `ank_base::Response` payload. Shared by
+    /// every [`Connection`](crate::components::connection::Connection) implementation, since the
+    /// payload itself carries no envelope-specific (control interface / gRPC) concepts.
+    ///
+    /// ## Arguments
+    ///
+    /// * `response` - The `ank_base::Response` to create the [Response] from.
+    ///
+    /// ## Returns
+    ///
+    /// A new [Response] instance.
+    pub(crate) fn from_ank_base(response: AnkaiosResponse) -> Self {
+        Self {
+            content: match response
+                .response_content
+                .unwrap_or(AnkaiosResponseContent::Error(Error {
+                    message: String::from("Response content is None."),
+                })) {
+                AnkaiosResponseContent::Error(err) => ResponseType::Error(err.message),
+                AnkaiosResponseContent::CompleteStateResponse(complete_state_response) => {
+                    if complete_state_response.altered_fields.is_some() {
+                        ResponseType::EventResponse(Box::new(EventEntry::from(
+                            *complete_state_response,
+                        )))
+                    } else {
+                        ResponseType::CompleteState(Box::new(CompleteState::new_from_proto(
+                            complete_state_response
+                                .complete_state
+                                .expect("Complete State response must contain Complete State."),
+                        )))
+                    }
+                }
+                AnkaiosResponseContent::UpdateStateSuccess(update_state_success) => {
+                    ResponseType::UpdateStateSuccess(Box::new(UpdateStateSuccess::new_from_proto(
+                        update_state_success,
+                    )))
+                }
+                AnkaiosResponseContent::LogsRequestAccepted(logs_request_accepted) => {
+                    ResponseType::LogsRequestAccepted(
+                        logs_request_accepted
+                            .workload_names
+                            .into_iter()
+                            .map(WorkloadInstanceName::from)
+                            .collect(),
+                    )
+                }
+                AnkaiosResponseContent::LogsCancelAccepted(_) => ResponseType::LogsCancelAccepted,
+                AnkaiosResponseContent::LogEntriesResponse(log_entries_response) => {
+                    let log_entries = log_entries_response
+                        .log_entries
+                        .into_iter()
+                        .map(LogEntry::from)
+                        .collect();
+
+                    ResponseType::LogEntriesResponse(log_entries)
+                }
+                AnkaiosResponseContent::LogsStopResponse(logs_stop_response) => {
+                    let instance_name = logs_stop_response
+                        .workload_name
+                        .map(WorkloadInstanceName::from)
+                        .unwrap_or_unreachable();
+
+                    ResponseType::LogsStopResponse(instance_name)
+                }
+                AnkaiosResponseContent::EventsCancelAccepted(_) => {
+                    ResponseType::EventsCancelAccepted
+                }
+            },
+            id: response.request_id,
+        }
     }
 
     /// Returns the request ID of the response.
@@ -153,86 +228,25 @@ impl Response {
     }
 }
 
+#[cfg(feature = "control_interface")]
 impl From<FromAnkaios> for Response {
     fn from(response: FromAnkaios) -> Self {
-        if let Some(response_enum) = response.from_ankaios_enum {
-            match response_enum {
-                FromAnkaiosEnum::Response(inner_response) => Self {
-                    content: match inner_response.response_content.unwrap_or(
-                        AnkaiosResponseContent::Error(Error {
-                            message: String::from("Response content is None."),
-                        }),
-                    ) {
-                        AnkaiosResponseContent::Error(err) => ResponseType::Error(err.message),
-                        AnkaiosResponseContent::CompleteStateResponse(complete_state_response) => {
-                            if complete_state_response.altered_fields.is_some() {
-                                ResponseType::EventResponse(Box::new(EventEntry::from(
-                                    *complete_state_response,
-                                )))
-                            } else {
-                                ResponseType::CompleteState(Box::new(
-                                    CompleteState::new_from_proto(
-                                        complete_state_response.complete_state.expect(
-                                            "Complete State response must contain Complete State.",
-                                        ),
-                                    ),
-                                ))
-                            }
-                        }
-                        AnkaiosResponseContent::UpdateStateSuccess(update_state_success) => {
-                            ResponseType::UpdateStateSuccess(Box::new(
-                                UpdateStateSuccess::new_from_proto(update_state_success),
-                            ))
-                        }
-                        AnkaiosResponseContent::LogsRequestAccepted(logs_request_accepted) => {
-                            ResponseType::LogsRequestAccepted(
-                                logs_request_accepted
-                                    .workload_names
-                                    .into_iter()
-                                    .map(WorkloadInstanceName::from)
-                                    .collect(),
-                            )
-                        }
-                        AnkaiosResponseContent::LogsCancelAccepted(_) => {
-                            ResponseType::LogsCancelAccepted
-                        }
-                        AnkaiosResponseContent::LogEntriesResponse(log_entries_response) => {
-                            let log_entries = log_entries_response
-                                .log_entries
-                                .into_iter()
-                                .map(LogEntry::from)
-                                .collect();
-
-                            ResponseType::LogEntriesResponse(log_entries)
-                        }
-                        AnkaiosResponseContent::LogsStopResponse(logs_stop_response) => {
-                            let instance_name = logs_stop_response
-                                .workload_name
-                                .map(WorkloadInstanceName::from)
-                                .unwrap_or_unreachable();
-
-                            ResponseType::LogsStopResponse(instance_name)
-                        }
-                        AnkaiosResponseContent::EventsCancelAccepted(_) => {
-                            ResponseType::EventsCancelAccepted
-                        }
-                    },
-                    id: inner_response.request_id,
-                },
-                FromAnkaiosEnum::ControlInterfaceAccepted(_) => Self {
-                    content: ResponseType::ControlInterfaceAccepted,
-                    id: String::default(),
-                },
-                FromAnkaiosEnum::ConnectionClosed(connection_closed) => Self {
-                    content: ResponseType::ConnectionClosedReason(connection_closed.reason),
-                    id: String::default(),
-                },
+        match response.from_ankaios_enum {
+            Some(FromAnkaiosEnum::Response(inner_response)) => {
+                Response::from_ank_base(*inner_response)
             }
-        } else {
-            Self {
+            Some(FromAnkaiosEnum::ControlInterfaceAccepted(_)) => Self {
+                content: ResponseType::ControlInterfaceAccepted,
+                id: String::default(),
+            },
+            Some(FromAnkaiosEnum::ConnectionClosed(connection_closed)) => Self {
+                content: ResponseType::ConnectionClosedReason(connection_closed.reason),
+                id: String::default(),
+            },
+            None => Self {
                 content: ResponseType::Error(String::from("Response is empty.")),
                 id: String::default(),
-            }
+            },
         }
     }
 }
@@ -317,6 +331,7 @@ impl UpdateStateSuccess {
 //////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
+#[cfg(feature = "control_interface")]
 pub fn generate_test_control_interface_accepted_response() -> Response {
     Response {
         content: ResponseType::ControlInterfaceAccepted,
@@ -325,43 +340,46 @@ pub fn generate_test_control_interface_accepted_response() -> Response {
 }
 
 #[cfg(test)]
+pub(crate) fn generate_test_ank_base_update_state_success(req_id: String) -> AnkaiosResponse {
+    AnkaiosResponse {
+        request_id: req_id,
+        response_content: Some(AnkaiosResponseContent::UpdateStateSuccess(
+            AnkaiosUpdateStateSuccess {
+                added_workloads: vec!["workload_test.1234.agent_Test".to_owned()],
+                deleted_workloads: Vec::default(),
+            },
+        )),
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "control_interface")]
 pub fn generate_test_proto_update_state_success(req_id: String) -> FromAnkaios {
     FromAnkaios {
         from_ankaios_enum: Some(FromAnkaiosEnum::Response(Box::new(
-            ankaios_api::ank_base::Response {
-                request_id: req_id,
-                response_content: Some(AnkaiosResponseContent::UpdateStateSuccess(
-                    AnkaiosUpdateStateSuccess {
-                        added_workloads: vec!["workload_test.1234.agent_Test".to_owned()],
-                        deleted_workloads: Vec::default(),
-                    },
-                )),
-            },
+            generate_test_ank_base_update_state_success(req_id),
         ))),
     }
 }
 
 #[cfg(test)]
 pub fn generate_test_response_update_state_success(req_id: String) -> Response {
-    Response::new(generate_test_proto_update_state_success(req_id))
+    Response::from_ank_base(generate_test_ank_base_update_state_success(req_id))
 }
 
 #[cfg(test)]
+#[cfg(feature = "control_interface")]
 pub fn get_test_proto_from_ankaios_log_entries_response(
     request_id: String,
     log_entries_response: ankaios_api::ank_base::LogEntriesResponse,
 ) -> FromAnkaios {
     FromAnkaios {
-        from_ankaios_enum: Some(
-            ankaios_api::control_api::from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                ankaios_api::ank_base::Response {
-                    request_id,
-                    response_content: Some(AnkaiosResponseContent::LogEntriesResponse(
-                        log_entries_response,
-                    )),
-                },
+        from_ankaios_enum: Some(FromAnkaiosEnum::Response(Box::new(AnkaiosResponse {
+            request_id,
+            response_content: Some(AnkaiosResponseContent::LogEntriesResponse(
+                log_entries_response,
             )),
-        ),
+        }))),
     }
 }
 
@@ -390,6 +408,7 @@ pub fn generate_test_proto_log_entries_response() -> ankaios_api::ank_base::LogE
 }
 
 #[cfg(test)]
+#[cfg(feature = "control_interface")]
 pub fn generate_test_logs_stop_response(
     request_id: String,
     workload_name: WorkloadInstanceName,
@@ -401,55 +420,50 @@ pub fn generate_test_logs_stop_response(
 }
 
 #[cfg(test)]
+#[cfg(feature = "control_interface")]
 pub fn generate_test_response_event_entry(request_id: String) -> Response {
     let config_map = super::complete_state::generate_test_configs_proto();
     Response::new(FromAnkaios {
-        from_ankaios_enum: Some(
-            ankaios_api::control_api::from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                ankaios_api::ank_base::Response {
-                    request_id,
-                    response_content: Some(AnkaiosResponseContent::CompleteStateResponse(
-                        Box::new(ankaios_api::ank_base::CompleteStateResponse {
-                            complete_state: Some(ankaios_api::ank_base::CompleteState {
-                                desired_state: Some(ankaios_api::ank_base::State {
-                                    api_version: "v1".to_owned(),
-                                    workloads: Some(ankaios_api::ank_base::WorkloadMap::default()),
-                                    configs: Some(config_map),
-                                }),
-                                workload_states: None,
-                                agents: None,
-                            }),
-                            altered_fields: Some(ankaios_api::ank_base::AlteredFields {
-                                added_fields: vec![
-                                    "desiredState.configs.config2".to_owned(),
-                                    "desiredState.configs.config3".to_owned(),
-                                ],
-                                updated_fields: vec!["desiredState.configs.config1".to_owned()],
-                                removed_fields: vec!["desiredState.configs.config4".to_owned()],
-                            }),
+        from_ankaios_enum: Some(FromAnkaiosEnum::Response(Box::new(AnkaiosResponse {
+            request_id,
+            response_content: Some(AnkaiosResponseContent::CompleteStateResponse(Box::new(
+                ankaios_api::ank_base::CompleteStateResponse {
+                    complete_state: Some(ankaios_api::ank_base::CompleteState {
+                        desired_state: Some(ankaios_api::ank_base::State {
+                            api_version: "v1".to_owned(),
+                            workloads: Some(ankaios_api::ank_base::WorkloadMap::default()),
+                            configs: Some(config_map),
                         }),
-                    )),
+                        workload_states: None,
+                        agents: None,
+                    }),
+                    altered_fields: Some(ankaios_api::ank_base::AlteredFields {
+                        added_fields: vec![
+                            "desiredState.configs.config2".to_owned(),
+                            "desiredState.configs.config3".to_owned(),
+                        ],
+                        updated_fields: vec!["desiredState.configs.config1".to_owned()],
+                        removed_fields: vec!["desiredState.configs.config4".to_owned()],
+                    }),
                 },
-            )),
-        ),
+            ))),
+        }))),
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Response, ResponseType, UpdateStateSuccess};
+    use super::{
+        AnkaiosResponse, AnkaiosResponseContent, Response, ResponseType, UpdateStateSuccess,
+    };
     use crate::components::complete_state::generate_test_configs_proto;
-    use crate::components::response::{
-        generate_test_proto_log_entries_response, generate_test_response_event_entry,
-        get_test_proto_from_ankaios_log_entries_response,
-    };
+    use crate::components::response::generate_test_proto_log_entries_response;
     use crate::{EventEntry, ankaios_api};
-    use ankaios_api::ank_base::{
-        Response as AnkaiosResponse, UpdateStateSuccess as AnkaiosUpdateStateSuccess,
-        response::ResponseContent as AnkaiosResponseContent,
-    };
-    use ankaios_api::control_api::{FromAnkaios, from_ankaios};
+    use ankaios_api::ank_base::UpdateStateSuccess as AnkaiosUpdateStateSuccess;
     use std::collections::HashMap;
+
+    #[cfg(feature = "control_interface")]
+    use ankaios_api::control_api::{FromAnkaios, from_ankaios};
 
     #[test]
     fn utest_response_type() {
@@ -471,15 +485,11 @@ mod tests {
 
     #[test]
     fn utest_response_error() {
-        let response = Response::new(FromAnkaios {
-            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                AnkaiosResponse {
-                    request_id: String::from("123"),
-                    response_content: Some(AnkaiosResponseContent::Error(
-                        ankaios_api::ank_base::Error::default(),
-                    )),
-                },
-            ))),
+        let response = Response::from_ank_base(AnkaiosResponse {
+            request_id: String::from("123"),
+            response_content: Some(AnkaiosResponseContent::Error(
+                ankaios_api::ank_base::Error::default(),
+            )),
         });
         assert_eq!(response.get_request_id(), "123".to_owned());
         assert_eq!(
@@ -490,22 +500,18 @@ mod tests {
 
     #[test]
     fn utest_response_complete_state() {
-        let response = Response::new(FromAnkaios {
-            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                AnkaiosResponse {
-                    request_id: String::from("123"),
-                    response_content: Some(AnkaiosResponseContent::CompleteStateResponse(
-                        Box::new(ankaios_api::ank_base::CompleteStateResponse {
-                            complete_state: Some(ankaios_api::ank_base::CompleteState {
-                                desired_state: Some(ankaios_api::ank_base::State {
-                                    api_version: "v1".to_owned(),
-                                    ..Default::default()
-                                }),
-                                ..Default::default()
-                            }),
-                            altered_fields: None,
+        let response = Response::from_ank_base(AnkaiosResponse {
+            request_id: String::from("123"),
+            response_content: Some(AnkaiosResponseContent::CompleteStateResponse(Box::new(
+                ankaios_api::ank_base::CompleteStateResponse {
+                    complete_state: Some(ankaios_api::ank_base::CompleteState {
+                        desired_state: Some(ankaios_api::ank_base::State {
+                            api_version: "v1".to_owned(),
+                            ..Default::default()
                         }),
-                    )),
+                        ..Default::default()
+                    }),
+                    altered_fields: None,
                 },
             ))),
         });
@@ -518,15 +524,11 @@ mod tests {
 
     #[test]
     fn utest_response_update_state_success() {
-        let response = Response::new(FromAnkaios {
-            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                AnkaiosResponse {
-                    request_id: String::from("123"),
-                    response_content: Some(AnkaiosResponseContent::UpdateStateSuccess(
-                        ankaios_api::ank_base::UpdateStateSuccess::default(),
-                    )),
-                },
-            ))),
+        let response = Response::from_ank_base(AnkaiosResponse {
+            request_id: String::from("123"),
+            response_content: Some(AnkaiosResponseContent::UpdateStateSuccess(
+                ankaios_api::ank_base::UpdateStateSuccess::default(),
+            )),
         });
         assert_eq!(response.get_request_id(), "123".to_owned());
         assert_eq!(
@@ -535,6 +537,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "control_interface")]
     #[test]
     fn utest_response_control_interface_accepted() {
         let response = Response::new(FromAnkaios {
@@ -549,6 +552,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "control_interface")]
     #[test]
     fn utest_response_connection_closed() {
         let response = Response::new(FromAnkaios {
@@ -563,6 +567,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "control_interface")]
     #[test]
     fn utest_response_empty() {
         let response = Response::new(FromAnkaios {
@@ -645,17 +650,13 @@ mod tests {
             },
         ];
 
-        let response = Response::new(FromAnkaios {
-            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                AnkaiosResponse {
-                    request_id: String::from("123"),
-                    response_content: Some(AnkaiosResponseContent::LogsRequestAccepted(
-                        ankaios_api::ank_base::LogsRequestAccepted {
-                            workload_names: workload_names.clone(),
-                        },
-                    )),
+        let response = Response::from_ank_base(AnkaiosResponse {
+            request_id: String::from("123"),
+            response_content: Some(AnkaiosResponseContent::LogsRequestAccepted(
+                ankaios_api::ank_base::LogsRequestAccepted {
+                    workload_names: workload_names.clone(),
                 },
-            ))),
+            )),
         });
 
         assert_eq!(response.get_request_id(), "123".to_owned());
@@ -672,15 +673,11 @@ mod tests {
 
     #[test]
     fn utest_response_logs_cancel_accepted() {
-        let response = Response::new(FromAnkaios {
-            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                AnkaiosResponse {
-                    request_id: String::from("123"),
-                    response_content: Some(AnkaiosResponseContent::LogsCancelAccepted(
-                        ankaios_api::ank_base::LogsCancelAccepted {},
-                    )),
-                },
-            ))),
+        let response = Response::from_ank_base(AnkaiosResponse {
+            request_id: String::from("123"),
+            response_content: Some(AnkaiosResponseContent::LogsCancelAccepted(
+                ankaios_api::ank_base::LogsCancelAccepted {},
+            )),
         });
         assert_eq!(response.get_request_id(), "123".to_owned());
         assert_eq!(response.get_content(), ResponseType::LogsCancelAccepted);
@@ -690,10 +687,12 @@ mod tests {
     fn utest_response_log_entries_response() {
         let log_entries_response = generate_test_proto_log_entries_response();
         let log_entries = log_entries_response.log_entries.clone();
-        let response = Response::new(get_test_proto_from_ankaios_log_entries_response(
-            "123".to_owned(),
-            log_entries_response.clone(),
-        ));
+        let response = Response::from_ank_base(AnkaiosResponse {
+            request_id: "123".to_owned(),
+            response_content: Some(AnkaiosResponseContent::LogEntriesResponse(
+                log_entries_response,
+            )),
+        });
         assert_eq!(response.get_request_id(), "123".to_owned());
         assert_eq!(
             response.get_content(),
@@ -714,22 +713,14 @@ mod tests {
             id: "id_a".to_owned(),
         };
 
-        let from_ankaios_response = FromAnkaios {
-            from_ankaios_enum: Some(
-                ankaios_api::control_api::from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                    ankaios_api::ank_base::Response {
-                        request_id: "123".to_owned(),
-                        response_content: Some(AnkaiosResponseContent::LogsStopResponse(
-                            ankaios_api::ank_base::LogsStopResponse {
-                                workload_name: Some(expected_instance_name.clone()),
-                            },
-                        )),
-                    },
-                )),
-            ),
-        };
-
-        let response = Response::new(from_ankaios_response);
+        let response = Response::from_ank_base(AnkaiosResponse {
+            request_id: "123".to_owned(),
+            response_content: Some(AnkaiosResponseContent::LogsStopResponse(
+                ankaios_api::ank_base::LogsStopResponse {
+                    workload_name: Some(expected_instance_name.clone()),
+                },
+            )),
+        });
 
         assert_eq!(response.get_request_id(), "123".to_owned());
         assert_eq!(
@@ -740,45 +731,46 @@ mod tests {
 
     #[test]
     fn utest_response_event_entry() {
-        let response = generate_test_response_event_entry("123".to_owned());
+        let complete_state_response = ankaios_api::ank_base::CompleteStateResponse {
+            complete_state: Some(ankaios_api::ank_base::CompleteState {
+                desired_state: Some(ankaios_api::ank_base::State {
+                    api_version: "v1".to_owned(),
+                    workloads: Some(ankaios_api::ank_base::WorkloadMap::default()),
+                    configs: Some(generate_test_configs_proto()),
+                }),
+                workload_states: None,
+                agents: None,
+            }),
+            altered_fields: Some(ankaios_api::ank_base::AlteredFields {
+                added_fields: vec![
+                    "desiredState.configs.config2".to_owned(),
+                    "desiredState.configs.config3".to_owned(),
+                ],
+                updated_fields: vec!["desiredState.configs.config1".to_owned()],
+                removed_fields: vec!["desiredState.configs.config4".to_owned()],
+            }),
+        };
+
+        let response = Response::from_ank_base(AnkaiosResponse {
+            request_id: "123".to_owned(),
+            response_content: Some(AnkaiosResponseContent::CompleteStateResponse(Box::new(
+                complete_state_response.clone(),
+            ))),
+        });
         assert_eq!(response.get_request_id(), "123".to_owned());
         assert_eq!(
             response.get_content(),
-            ResponseType::EventResponse(Box::new(EventEntry::from(
-                ankaios_api::ank_base::CompleteStateResponse {
-                    complete_state: Some(ankaios_api::ank_base::CompleteState {
-                        desired_state: Some(ankaios_api::ank_base::State {
-                            api_version: "v1".to_owned(),
-                            workloads: Some(ankaios_api::ank_base::WorkloadMap::default()),
-                            configs: Some(generate_test_configs_proto()),
-                        }),
-                        workload_states: None,
-                        agents: None,
-                    }),
-                    altered_fields: Some(ankaios_api::ank_base::AlteredFields {
-                        added_fields: vec![
-                            "desiredState.configs.config2".to_owned(),
-                            "desiredState.configs.config3".to_owned()
-                        ],
-                        updated_fields: vec!["desiredState.configs.config1".to_owned()],
-                        removed_fields: vec!["desiredState.configs.config4".to_owned()],
-                    }),
-                }
-            )))
+            ResponseType::EventResponse(Box::new(EventEntry::from(complete_state_response)))
         );
     }
 
     #[test]
     fn utest_response_events_cancel_accepted() {
-        let response = Response::new(FromAnkaios {
-            from_ankaios_enum: Some(from_ankaios::FromAnkaiosEnum::Response(Box::new(
-                AnkaiosResponse {
-                    request_id: String::from("123"),
-                    response_content: Some(AnkaiosResponseContent::EventsCancelAccepted(
-                        ankaios_api::ank_base::EventsCancelAccepted {},
-                    )),
-                },
-            ))),
+        let response = Response::from_ank_base(AnkaiosResponse {
+            request_id: String::from("123"),
+            response_content: Some(AnkaiosResponseContent::EventsCancelAccepted(
+                ankaios_api::ank_base::EventsCancelAccepted {},
+            )),
         });
         assert_eq!(response.get_request_id(), "123".to_owned());
         assert_eq!(response.get_content(), ResponseType::EventsCancelAccepted);

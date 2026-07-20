@@ -52,9 +52,9 @@ pub enum AnkaiosError {
     /// Represents an error that occurs when the response is invalid.
     #[error("Response error: {0}")]
     ResponseError(String),
-    /// Represents an error related to the connection with the control interface.
-    #[error("Control interface error: {0}")]
-    ControlInterfaceError(String),
+    /// Represents an error related to the connection.
+    #[error("Connection error: {0}")]
+    ConnectionError(String),
     /// Represents an error returned by the server in response to a distinct request.
     /// e.g. due to insufficient reading rights by the requester.
     #[error("Ankaios response error: {0}")]

@@ -22,8 +22,14 @@ use std::vec;
 use tokio::sync::mpsc;
 use tokio::time::{Duration, sleep, timeout as tokio_timeout};
 
-#[cfg_attr(test, mockall_double::double)]
-use crate::components::control_interface::ControlInterface;
+use crate::components::connection::Connection;
+#[cfg(test)]
+use crate::components::connection::MockConnection;
+#[cfg(feature = "control_interface")]
+use crate::components::connection::control_interface::ControlInterface;
+#[cfg(feature = "grpc_server_interface")]
+use crate::components::connection::grpc_interface::{GrpcConfig, GrpcConnection};
+
 use crate::components::event_types::{EventEntry, EventsCampaignResponse};
 use crate::components::log_types::{LogCampaignResponse, LogsRequest};
 use crate::components::manifest::{CONFIGS_PREFIX, Manifest};
@@ -63,7 +69,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
 ///
-/// let ankaios = Ankaios::new().await.unwrap();
+/// let ankaios = Ankaios::new_with_ci().await.unwrap();
 /// /* */
 /// drop(ankaios);
 /// # })
@@ -78,7 +84,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
 /// #
-/// let ankaios = Ankaios::new_with_timeout(Duration::from_secs(5)).await.unwrap();
+/// let ankaios = Ankaios::new_with_ci_and_timeout(Duration::from_secs(5)).await.unwrap();
 /// # })
 /// ```
 ///
@@ -89,7 +95,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use tokio::runtime::Runtime;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
 /// #
 /// let manifest: Manifest;
 /// # let manifest = Manifest::from_string("").unwrap();
@@ -105,7 +111,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use tokio::runtime::Runtime;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
 /// #
 /// let manifest: Manifest;
 /// # let manifest = Manifest::from_string("").unwrap();
@@ -121,7 +127,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use tokio::runtime::Runtime;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
 /// #
 /// let workload: Workload;
 /// # let workload = Workload::builder().build().unwrap();
@@ -137,7 +143,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use tokio::runtime::Runtime;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
 /// #
 /// let workload_name: String;
 /// # let workload_name = String::new();
@@ -152,7 +158,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::Ankaios;
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
 /// #
 /// let workload_name: String;
 /// # let workload_name = String::new();
@@ -167,7 +173,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::Ankaios;
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
 /// #
 /// let state = ankaios.get_state(Vec::default()).await.unwrap();
 /// println!("{:?}", state);
@@ -180,7 +186,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::Ankaios;
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
 /// #
 /// let agents = ankaios.get_agents().await.unwrap();
 /// println!("{:?}", agents);
@@ -193,7 +199,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::Ankaios;
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
 /// #
 /// let workload_states_collection = ankaios.get_workload_states().await.unwrap();
 /// let workload_states = workload_states_collection.as_list();
@@ -206,7 +212,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::Ankaios;
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
 /// #
 /// let agent_name: String;
 /// # let agent_name = String::new();
@@ -221,7 +227,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::{Ankaios, WorkloadInstanceName};
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
 /// #
 /// let workload_instance_name: WorkloadInstanceName;
 /// # let workload_instance_name = WorkloadInstanceName::default();
@@ -236,7 +242,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::{Ankaios, AnkaiosError, WorkloadInstanceName, WorkloadStateEnum};
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new().await.unwrap();
+/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
 /// #
 /// let workload_instance_name: WorkloadInstanceName;
 /// # let workload_instance_name = WorkloadInstanceName::default();
@@ -250,16 +256,18 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # })
 /// ```
 pub struct Ankaios {
-    /// The receiver end of the channel used to receive responses from the Control Interface.
+    /// The receiver end of the channel used to receive responses from Ankaios.
     response_receiver: mpsc::Receiver<Response>,
-    /// The control interface instance that is used to communicate with the Control Interface.
-    control_interface: ControlInterface,
+    /// The connection instance that is used to communicate with Ankaios, either via the
+    /// control interface or, with the `grpc` feature enabled, directly over gRPC.
+    connection: Box<dyn Connection>,
     /// The timeout used for the requests.
     pub timeout: Duration,
 }
 
 impl Ankaios {
-    /// Creates a new `Ankaios` object and connects to the Control Interface.
+    /// Creates a new `Ankaios` object and connects to the control interface.
+    /// Deprecated and has been replaced with [`Ankaios::new_with_ci`].
     ///
     /// ## Returns
     ///
@@ -267,13 +275,16 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if an error occurred when connecting.
+    /// [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if an error occurred when connecting.
     /// [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if a timeout occurred when testing the connection.
+    #[cfg(feature = "control_interface")]
+    #[deprecated(since = "1.1.0", note = "use `Ankaios::new_with_ci` instead")]
     pub async fn new() -> Result<Self, AnkaiosError> {
-        Self::new_with_timeout(Duration::from_secs(DEFAULT_TIMEOUT)).await
+        Self::new_with_ci().await
     }
 
-    /// Creates a new `Ankaios` object with a custom timeout and connects to the Control Interface.
+    /// Creates a new `Ankaios` object with a custom timeout and connects to the control interface.
+    /// Deprecated and has been replaced with [`Ankaios::new_with_ci_and_timeout`].
     ///
     /// ## Arguments
     ///
@@ -285,16 +296,115 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if an error occurred when connecting.
+    /// [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if an error occurred when connecting.
+    #[cfg(feature = "control_interface")]
+    #[deprecated(
+        since = "1.1.0",
+        note = "use `Ankaios::new_with_ci_and_timeout` instead"
+    )]
     pub async fn new_with_timeout(timeout: Duration) -> Result<Self, AnkaiosError> {
+        Self::new_with_ci_and_timeout(timeout).await
+    }
+
+    /// Creates a new `Ankaios` object and connects to the control interface, for use from
+    /// inside a workload.
+    ///
+    /// ## Returns
+    ///
+    /// A [Result] containing the [Ankaios] object if the connection was successful.
+    ///
+    /// ## Errors
+    ///
+    /// [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if an error occurred when connecting.
+    /// [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if a timeout occurred when testing the connection.
+    #[cfg(feature = "control_interface")]
+    pub async fn new_with_ci() -> Result<Self, AnkaiosError> {
+        Self::new_with_ci_and_timeout(Duration::from_secs(DEFAULT_TIMEOUT)).await
+    }
+
+    /// Creates a new `Ankaios` object with a custom timeout and connects to the control
+    /// interface, for use from inside a workload.
+    ///
+    /// ## Arguments
+    ///
+    /// - `timeout`: The maximum time to wait for the requests.
+    ///
+    /// ## Returns
+    ///
+    /// A [Result] containing the [Ankaios] object if the connection was successful.
+    ///
+    /// ## Errors
+    ///
+    /// [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if an error occurred when connecting.
+    #[cfg(feature = "control_interface")]
+    pub async fn new_with_ci_and_timeout(timeout: Duration) -> Result<Self, AnkaiosError> {
         let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
+        let connection = Box::new(ControlInterface::new(response_sender));
+        Self::from_connection(connection, response_receiver, timeout).await
+    }
+
+    /// Creates a new `Ankaios` object and connects to an Ankaios server over gRPC, for use from
+    /// outside a workload.
+    ///
+    /// ## Arguments
+    ///
+    /// - `config`: The [`GrpcConfig`] to use when connecting.
+    ///
+    /// ## Returns
+    ///
+    /// A [Result] containing the [Ankaios] object if the connection was successful.
+    ///
+    /// ## Errors
+    ///
+    /// [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if an error occurred when connecting.
+    /// [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if a timeout occurred when testing the connection.
+    #[cfg(feature = "grpc_server_interface")]
+    pub async fn new_with_grpc(config: GrpcConfig) -> Result<Self, AnkaiosError> {
+        Self::new_with_grpc_and_timeout(config, Duration::from_secs(DEFAULT_TIMEOUT)).await
+    }
+
+    /// Creates a new `Ankaios` object with a custom timeout and connects to an Ankaios server
+    /// over gRPC.
+    ///
+    /// ## Arguments
+    ///
+    /// - `config`: The [`GrpcConfig`] to use when connecting;
+    /// - `timeout`: The maximum time to wait for the requests.
+    ///
+    /// ## Returns
+    ///
+    /// A [Result] containing the [Ankaios] object if the connection was successful.
+    ///
+    /// ## Errors
+    ///
+    /// [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if an error occurred when connecting.
+    #[cfg(feature = "grpc_server_interface")]
+    pub async fn new_with_grpc_and_timeout(
+        config: GrpcConfig,
+        timeout: Duration,
+    ) -> Result<Self, AnkaiosError> {
+        let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
+        let connection = Box::new(GrpcConnection::new(config, response_sender));
+        Self::from_connection(connection, response_receiver, timeout).await
+    }
+
+    /// Builds an [Ankaios] object from an already-constructed [`Connection`], establishing it
+    /// before returning. Shared by every constructor (control interface, gRPC, ...) so that
+    /// connection setup and the resulting struct's fields stay in one place.
+    async fn from_connection(
+        connection: Box<dyn Connection>,
+        response_receiver: mpsc::Receiver<Response>,
+        timeout: Duration,
+    ) -> Result<Self, AnkaiosError> {
+        // Construct first, then connect: this way, `object` (and thus `impl Drop for Ankaios`,
+        // which disconnects) is still torn down correctly even if `connect` returns an error,
+        // e.g. cleaning up tasks that `connect` may have already spawned before timing out.
         let mut object = Self {
             response_receiver,
-            control_interface: ControlInterface::new(response_sender),
+            connection,
             timeout,
         };
-
-        object.control_interface.connect(timeout).await?;
+        object.connection.connect(timeout).await?;
         Ok(object)
     }
 
@@ -310,7 +420,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     async fn send_request(
@@ -318,7 +428,7 @@ impl Ankaios {
         request: impl Request + 'static,
     ) -> Result<Response, AnkaiosError> {
         let request_id = request.get_id();
-        self.control_interface.write_request(request).await?;
+        self.connection.write_request(request.to_proto()).await?;
         loop {
             match tokio_timeout(self.timeout, self.response_receiver.recv()).await {
                 Ok(Some(response)) => {
@@ -333,7 +443,7 @@ impl Ankaios {
                 }
                 Ok(None) => {
                     log::error!("Reading thread closed unexpectedly.");
-                    return Err(AnkaiosError::ControlInterfaceError(
+                    return Err(AnkaiosError::ConnectionError(
                         "Reading thread closed.".to_owned(),
                     ));
                 }
@@ -357,7 +467,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -407,7 +517,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -457,7 +567,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -514,7 +624,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -541,7 +651,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -593,7 +703,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -647,7 +757,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -698,7 +808,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -722,7 +832,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -741,7 +851,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -780,7 +890,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -825,7 +935,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -864,7 +974,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -913,7 +1023,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -931,7 +1041,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -955,7 +1065,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -979,7 +1089,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -1012,7 +1122,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -1039,7 +1149,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response;
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -1069,7 +1179,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response or waiting for the state to be reached.
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -1115,7 +1225,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response or waiting for the state to be reached.
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -1140,8 +1250,7 @@ impl Ankaios {
                     accepted_workload_names,
                     logs_receiver,
                 );
-                self.control_interface
-                    .add_log_campaign(request_id, logs_sender);
+                self.connection.add_log_campaign(request_id, logs_sender);
                 Ok(log_campaign_response)
             }
             ResponseType::Error(error) => {
@@ -1165,7 +1274,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response or waiting for the state to be reached.
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -1175,7 +1284,7 @@ impl Ankaios {
         log_campaign_response: LogCampaignResponse,
     ) -> Result<(), AnkaiosError> {
         let logs_cancel_request = LogsCancelRequest::new(log_campaign_response.get_request_id());
-        self.control_interface
+        self.connection
             .remove_log_campaign(&logs_cancel_request.get_id());
         let response = self.send_request(logs_cancel_request).await?;
 
@@ -1205,7 +1314,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response or waiting for the state to be reached.
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -1234,7 +1343,7 @@ impl Ankaios {
                     log::error!("Error while sending initial event: '{err}'");
                 });
 
-                self.control_interface
+                self.connection
                     .add_events_campaign(request_id, events_sender);
                 Ok(events_campaign_response)
             }
@@ -1259,7 +1368,7 @@ impl Ankaios {
     ///
     /// ## Errors
     ///
-    /// - [`AnkaiosError`]::[`ControlInterfaceError`](AnkaiosError::ControlInterfaceError) if not connected;
+    /// - [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if not connected;
     /// - [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if the timeout was reached while waiting for the response or waiting for the state to be reached.
     /// - [`AnkaiosError`]::[`AnkaiosResponseError`](AnkaiosError::AnkaiosResponseError) if [Ankaios](https://eclipse-ankaios.github.io/ankaios) returned an error;
     /// - [`AnkaiosError`]::[`ResponseError`](AnkaiosError::ResponseError) if the response has the wrong type;
@@ -1270,7 +1379,7 @@ impl Ankaios {
     ) -> Result<(), AnkaiosError> {
         let events_cancel_request =
             EventsCancelRequest::new(events_campaign_response.get_request_id());
-        self.control_interface
+        self.connection
             .remove_events_campaign(&events_cancel_request.get_id());
         let response = self.send_request(events_cancel_request).await?;
 
@@ -1296,7 +1405,7 @@ impl Ankaios {
 impl Drop for Ankaios {
     fn drop(&mut self) {
         log::trace!("Dropping Ankaios");
-        self.control_interface.disconnect().unwrap_or_else(|err| {
+        self.connection.disconnect().unwrap_or_else(|err| {
             log::error!("Error while disconnecting: '{err}'");
         });
     }
@@ -1311,14 +1420,12 @@ impl Drop for Ankaios {
 //////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
-fn generate_test_ankaios(
-    mock_control_interface: ControlInterface,
-) -> (Ankaios, mpsc::Sender<Response>) {
+fn generate_test_ankaios(mock_connection: MockConnection) -> (Ankaios, mpsc::Sender<Response>) {
     let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
     (
         Ankaios {
             response_receiver,
-            control_interface: mock_control_interface,
+            connection: Box::new(mock_connection),
             timeout: Duration::from_millis(50),
         },
         response_sender,
@@ -1334,17 +1441,15 @@ mod tests {
     };
 
     use super::{
-        AGENTS_PREFIX, AgentAttributes, Ankaios, AnkaiosError, CONFIGS_PREFIX, CompleteState,
-        ControlInterface, DEFAULT_TIMEOUT, EventsCampaignResponse, Response,
-        WORKLOAD_STATES_PREFIX, WorkloadInstanceName, WorkloadStateEnum, generate_test_ankaios,
+        AGENTS_PREFIX, AgentAttributes, Ankaios, AnkaiosError, CHANNEL_SIZE, CONFIGS_PREFIX,
+        CompleteState, DEFAULT_TIMEOUT, EventsCampaignResponse, Response, WORKLOAD_STATES_PREFIX,
+        WorkloadInstanceName, WorkloadStateEnum, generate_test_ankaios,
     };
+    use crate::ankaios_api::ank_base::Request as AnkaiosRequest;
+    use crate::components::connection::MockConnection;
     use crate::components::{
         complete_state::generate_complete_state_proto,
         manifest::generate_test_manifest,
-        request::{
-            AnkaiosLogsRequest, EventsCancelRequest, EventsRequest, GetStateRequest,
-            LogsCancelRequest, Request, UpdateStateRequest,
-        },
         response::generate_test_response_update_state_success,
         workload_mod::{WORKLOADS_PREFIX, test_helpers::generate_test_workload},
     };
@@ -1362,24 +1467,26 @@ mod tests {
     async fn itest_create_ankaios() {
         let _guard = MOCKALL_SYNC.lock().await;
 
-        let ci_new_context = ControlInterface::new_context();
-        let mut ci_mock = ControlInterface::default();
-
-        ci_mock
+        let mut mock_connection = MockConnection::default();
+        mock_connection
             .expect_connect()
             .times(1)
             .with(mockall::predicate::eq(Duration::from_millis(50)))
             .returning(|_| Ok(()));
+        mock_connection
+            .expect_disconnect()
+            .times(1)
+            .returning(|| Ok(()));
 
-        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+        let (_response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
 
-        ci_new_context.expect().return_once(move |_| ci_mock);
-
-        // Create Ankaios handle
-        let ankaios_handle = tokio::spawn(Ankaios::new_with_timeout(Duration::from_millis(50)));
-
-        // Create Ankaios fully and check the connection
-        let ankaios = ankaios_handle.await.unwrap();
+        // Exercises the same connection-setup wiring that `new_with_timeout` delegates to.
+        let ankaios = Ankaios::from_connection(
+            Box::new(mock_connection),
+            response_receiver,
+            Duration::from_millis(50),
+        )
+        .await;
         assert!(ankaios.is_ok());
     }
 
@@ -1387,28 +1494,47 @@ mod tests {
     async fn itest_timeout_while_connecting() {
         let _guard = MOCKALL_SYNC.lock().await;
 
-        let ci_new_context = ControlInterface::new_context();
-        let mut ci_mock = ControlInterface::default();
-
-        ci_mock
+        let mut mock_connection = MockConnection::default();
+        mock_connection
             .expect_connect()
             .with(mockall::predicate::eq(Duration::from_secs(DEFAULT_TIMEOUT)))
             .times(1)
-            .returning(|_| Err(AnkaiosError::ControlInterfaceError(String::default())));
-        ci_mock.expect_disconnect().times(1).returning(|| Ok(()));
+            .returning(|_| Err(AnkaiosError::ConnectionError(String::default())));
+        mock_connection
+            .expect_disconnect()
+            .times(1)
+            .returning(|| Ok(()));
 
-        ci_new_context.expect().return_once(move |_| ci_mock);
+        let (_response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
 
-        // Create Ankaios handle
-        let ankaios_handle = tokio::spawn(Ankaios::new());
-
-        // Create Ankaios fully and check the connection
-        let result = ankaios_handle.await.unwrap();
+        let result = Ankaios::from_connection(
+            Box::new(mock_connection),
+            response_receiver,
+            Duration::from_secs(DEFAULT_TIMEOUT),
+        )
+        .await;
         assert!(result.is_err());
         assert!(matches!(
             result,
-            Err(AnkaiosError::ControlInterfaceError(_))
+            Err(AnkaiosError::ConnectionError(_))
         ));
+    }
+
+    #[cfg(feature = "grpc_server_interface")]
+    #[tokio::test]
+    async fn itest_create_ankaios_with_grpc() {
+        let _guard = MOCKALL_SYNC.lock().await;
+
+        // No Ankaios server is running in the test environment, so these are expected to fail
+        // to connect; the SDK doesn't stand up a real (or fake) gRPC server to test the success
+        // path against. Port 0 is never a valid connection target, so this fails fast.
+        let config = super::GrpcConfig::new("http://127.0.0.1:0");
+        let result = Ankaios::new_with_grpc(config).await;
+        assert!(matches!(result, Err(AnkaiosError::ConnectionError(_))));
+
+        let config = super::GrpcConfig::new("http://127.0.0.1:0");
+        let result = Ankaios::new_with_grpc_and_timeout(config, Duration::from_secs(5)).await;
+        assert!(matches!(result, Err(AnkaiosError::ConnectionError(_))));
     }
 
     #[tokio::test]
@@ -1418,11 +1544,11 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1433,14 +1559,14 @@ mod tests {
         // Prepare handle for getting the state
         let method_handle = tokio::spawn(async move { ank.get_state(Vec::default()).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let complete_state = CompleteState::default();
         let response = Response {
             content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -1459,11 +1585,11 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1474,7 +1600,7 @@ mod tests {
         // Prepare handle for getting the state
         let method_handle = tokio::spawn(async move { ank.get_state(Vec::default()).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let _request = request_receiver.await.unwrap();
 
         // Fabricate a response
@@ -1499,11 +1625,11 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1514,13 +1640,13 @@ mod tests {
         // Prepare handle for getting the state
         let method_handle = tokio::spawn(async move { ank.get_state(Vec::default()).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::Error("test".to_owned()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -1539,11 +1665,11 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1554,13 +1680,13 @@ mod tests {
         // Prepare handle for getting the state
         let method_handle = tokio::spawn(async move { ank.get_state(Vec::default()).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::UpdateStateSuccess(Box::default()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -1583,19 +1709,19 @@ mod tests {
         let manifest = generate_test_manifest();
         let masks = manifest.calculate_masks();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == masks
                     }
                     _ => false,
                 },
             )
-            .return_once(|request: UpdateStateRequest| {
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1606,11 +1732,11 @@ mod tests {
         // Prepare handle for applying the manifest
         let method_handle = tokio::spawn(async move { ank.apply_manifest(manifest).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
-        let response = generate_test_response_update_state_success(request.get_id());
+        let response = generate_test_response_update_state_success(request.request_id.clone());
 
         // Send the response
         response_sender.send(response).await.unwrap();
@@ -1632,19 +1758,19 @@ mod tests {
         let manifest = generate_test_manifest();
         let masks = manifest.calculate_masks();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == masks
                     }
                     _ => false,
                 },
             )
-            .return_once(|request: UpdateStateRequest| {
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1655,13 +1781,13 @@ mod tests {
         // Prepare handle for applying the manifest
         let method_handle = tokio::spawn(async move { ank.apply_manifest(manifest).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::Error("test".to_owned()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -1684,19 +1810,19 @@ mod tests {
         let manifest = generate_test_manifest();
         let masks = manifest.calculate_masks();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == masks
                     }
                     _ => false,
                 },
             )
-            .return_once(|request: UpdateStateRequest| {
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1707,13 +1833,13 @@ mod tests {
         // Prepare handle for applying the manifest
         let method_handle = tokio::spawn(async move { ank.apply_manifest(manifest).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::CompleteState(Box::default()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -1736,19 +1862,19 @@ mod tests {
         let manifest = generate_test_manifest();
         let masks = manifest.calculate_masks();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == masks
                     }
                     _ => false,
                 },
             )
-            .return_once(|request: UpdateStateRequest| {
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1759,11 +1885,11 @@ mod tests {
         // Prepare handle for deleting the manifest
         let method_handle = tokio::spawn(async move { ank.delete_manifest(manifest).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
-        let response = generate_test_response_update_state_success(request.get_id());
+        let response = generate_test_response_update_state_success(request.request_id.clone());
 
         // Send the response
         response_sender.send(response).await.unwrap();
@@ -1785,19 +1911,19 @@ mod tests {
         let manifest = generate_test_manifest();
         let masks = manifest.calculate_masks();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == masks
                     }
                     _ => false,
                 },
             )
-            .return_once(|request: UpdateStateRequest| {
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1808,13 +1934,13 @@ mod tests {
         // Prepare handle for deleting the manifest
         let method_handle = tokio::spawn(async move { ank.delete_manifest(manifest).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::Error("test".to_owned()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -1837,19 +1963,19 @@ mod tests {
         let manifest = generate_test_manifest();
         let masks = manifest.calculate_masks();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == masks
                     }
                     _ => false,
                 },
             )
-            .return_once(|request: UpdateStateRequest| {
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1860,13 +1986,13 @@ mod tests {
         // Prepare handle for deleting the manifest
         let method_handle = tokio::spawn(async move { ank.delete_manifest(manifest).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::CompleteState(Box::default()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -1889,19 +2015,19 @@ mod tests {
         let workload = generate_test_workload("agent_Test", "workload_Test", "podman");
         let masks = workload.masks.clone();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == masks
                     }
                     _ => false,
                 },
             )
-            .return_once(|request: UpdateStateRequest| {
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1912,11 +2038,11 @@ mod tests {
         // Prepare handle for applying the workload
         let method_handle = tokio::spawn(async move { ank.apply_workload(workload).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
-        let response = generate_test_response_update_state_success(request.get_id());
+        let response = generate_test_response_update_state_success(request.request_id.clone());
 
         // Send the response
         response_sender.send(response).await.unwrap();
@@ -1938,19 +2064,19 @@ mod tests {
         let workload = generate_test_workload("agent_Test", "workload_Test", "podman");
         let masks = workload.masks.clone();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == masks
                     }
                     _ => false,
                 },
             )
-            .return_once(|request: UpdateStateRequest| {
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -1961,13 +2087,13 @@ mod tests {
         // Prepare handle for applying the workload
         let method_handle = tokio::spawn(async move { ank.apply_workload(workload).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::Error("test".to_owned()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -1990,19 +2116,19 @@ mod tests {
         let workload = generate_test_workload("agent_Test", "workload_Test", "podman");
         let masks = workload.masks.clone();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == masks
                     }
                     _ => false,
                 },
             )
-            .return_once(|request: UpdateStateRequest| {
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2013,13 +2139,13 @@ mod tests {
         // Prepare handle for applying the workload
         let method_handle = tokio::spawn(async move { ank.apply_workload(workload).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::CompleteState(Box::default()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2042,19 +2168,19 @@ mod tests {
         workload.masks.clear();
         let main_mask = workload.main_mask.clone();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &UpdateStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::UpdateStateRequest(content)) => {
                         content.update_mask == vec![main_mask.clone()]
                     }
                     _ => false,
                 },
             )
-            .return_once(|request: UpdateStateRequest| {
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2065,7 +2191,7 @@ mod tests {
         let method_handle = tokio::spawn(async move { ank.apply_workload(workload).await });
 
         let request = request_receiver.await.unwrap();
-        let response = generate_test_response_update_state_success(request.get_id());
+        let response = generate_test_response_update_state_success(request.request_id.clone());
         response_sender.send(response).await.unwrap();
 
         let ret = method_handle.await.unwrap().unwrap();
@@ -2080,19 +2206,19 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &GetStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::CompleteStateRequest(content)) => {
                         content.field_mask == vec![format!("{WORKLOADS_PREFIX}.workload_Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2104,7 +2230,7 @@ mod tests {
         let method_handle =
             tokio::spawn(async move { ank.get_workload("workload_Test".to_owned()).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
@@ -2112,7 +2238,7 @@ mod tests {
         let complete_state = CompleteState::new_from_workloads(vec![workload.clone()]);
         let response = Response {
             content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2132,19 +2258,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![format!("{WORKLOADS_PREFIX}.workload_Test")]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![format!("{WORKLOADS_PREFIX}.workload_Test")]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2156,11 +2280,11 @@ mod tests {
         let method_handle =
             tokio::spawn(async move { ank.delete_workload("workload_Test".to_owned()).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
-        let response = generate_test_response_update_state_success(request.get_id());
+        let response = generate_test_response_update_state_success(request.request_id.clone());
 
         // Send the response
         response_sender.send(response).await.unwrap();
@@ -2178,19 +2302,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![format!("{WORKLOADS_PREFIX}.workload_Test")]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![format!("{WORKLOADS_PREFIX}.workload_Test")]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2202,13 +2324,13 @@ mod tests {
         let method_handle =
             tokio::spawn(async move { ank.delete_workload("workload_Test".to_owned()).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::Error("test".to_owned()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2227,19 +2349,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![format!("{WORKLOADS_PREFIX}.workload_Test")]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![format!("{WORKLOADS_PREFIX}.workload_Test")]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2251,13 +2371,13 @@ mod tests {
         let method_handle =
             tokio::spawn(async move { ank.delete_workload("workload_Test".to_owned()).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::CompleteState(Box::default()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2276,19 +2396,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![CONFIGS_PREFIX.to_owned()]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![CONFIGS_PREFIX.to_owned()]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2302,11 +2420,11 @@ mod tests {
         // Prepare handle for updating the configs
         let method_handle = tokio::spawn(async move { ank.update_configs(configs).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
-        let response = generate_test_response_update_state_success(request.get_id());
+        let response = generate_test_response_update_state_success(request.request_id.clone());
 
         // Send the response
         response_sender.send(response).await.unwrap();
@@ -2324,19 +2442,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![CONFIGS_PREFIX.to_owned()]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![CONFIGS_PREFIX.to_owned()]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2350,13 +2466,13 @@ mod tests {
         // Prepare handle for updating the configs
         let method_handle = tokio::spawn(async move { ank.update_configs(configs).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::Error("test".to_owned()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2375,19 +2491,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![CONFIGS_PREFIX.to_owned()]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![CONFIGS_PREFIX.to_owned()]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2401,13 +2515,13 @@ mod tests {
         // Prepare handle for updating the configs
         let method_handle = tokio::spawn(async move { ank.update_configs(configs).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::CompleteState(Box::default()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2426,19 +2540,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2453,11 +2565,11 @@ mod tests {
         let method_handle =
             tokio::spawn(async move { ank.add_config("Test".to_owned(), config).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
-        let response = generate_test_response_update_state_success(request.get_id());
+        let response = generate_test_response_update_state_success(request.request_id.clone());
 
         // Send the response
         response_sender.send(response).await.unwrap();
@@ -2475,19 +2587,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2502,13 +2612,13 @@ mod tests {
         let method_handle =
             tokio::spawn(async move { ank.add_config("Test".to_owned(), config).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::Error("test".to_owned()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2527,19 +2637,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2554,13 +2662,13 @@ mod tests {
         let method_handle =
             tokio::spawn(async move { ank.add_config("Test".to_owned(), config).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::CompleteState(Box::default()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2579,19 +2687,19 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &GetStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::CompleteStateRequest(content)) => {
                         content.field_mask == vec![CONFIGS_PREFIX]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2602,7 +2710,7 @@ mod tests {
         // Prepare handle for getting the configs
         let method_handle = tokio::spawn(async move { ank.get_configs().await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
@@ -2610,7 +2718,7 @@ mod tests {
         let complete_state = CompleteState::new_from_configs(configs.clone());
         let response = Response {
             content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2629,19 +2737,19 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &GetStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::CompleteStateRequest(content)) => {
                         content.field_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2652,7 +2760,7 @@ mod tests {
         // Prepare handle for getting the configs
         let method_handle = tokio::spawn(async move { ank.get_config("Test".to_owned()).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
@@ -2663,7 +2771,7 @@ mod tests {
         let complete_state = CompleteState::new_from_configs(configs.clone());
         let response = Response {
             content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2682,19 +2790,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![CONFIGS_PREFIX]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![CONFIGS_PREFIX]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2705,11 +2811,11 @@ mod tests {
         // Prepare handle for deleting the workload
         let method_handle = tokio::spawn(async move { ank.delete_all_configs().await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
-        let response = generate_test_response_update_state_success(request.get_id());
+        let response = generate_test_response_update_state_success(request.request_id.clone());
 
         // Send the response
         response_sender.send(response).await.unwrap();
@@ -2725,19 +2831,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![CONFIGS_PREFIX]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![CONFIGS_PREFIX]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2748,13 +2852,13 @@ mod tests {
         // Prepare handle for deleting the workload
         let method_handle = tokio::spawn(async move { ank.delete_all_configs().await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::Error("test".to_owned()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2773,19 +2877,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![CONFIGS_PREFIX]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![CONFIGS_PREFIX]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2796,13 +2898,13 @@ mod tests {
         // Prepare handle for deleting the workload
         let method_handle = tokio::spawn(async move { ank.delete_all_configs().await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::CompleteState(Box::default()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2821,19 +2923,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2844,11 +2944,11 @@ mod tests {
         // Prepare handle for deleting a config
         let method_handle = tokio::spawn(async move { ank.delete_config("Test".to_owned()).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
-        let response = generate_test_response_update_state_success(request.get_id());
+        let response = generate_test_response_update_state_success(request.request_id.clone());
 
         // Send the response
         response_sender.send(response).await.unwrap();
@@ -2864,19 +2964,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2887,13 +2985,13 @@ mod tests {
         // Prepare handle for deleting a config
         let method_handle = tokio::spawn(async move { ank.delete_config("Test".to_owned()).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::Error("test".to_owned()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2912,19 +3010,17 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![format!("{CONFIGS_PREFIX}.Test")]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -2935,13 +3031,13 @@ mod tests {
         // Prepare handle for deleting a config
         let method_handle = tokio::spawn(async move { ank.delete_config("Test".to_owned()).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let response = Response {
             content: super::ResponseType::CompleteState(Box::default()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -2960,34 +3056,32 @@ mod tests {
         // Prepare channel to intercept the request
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![format!("{AGENTS_PREFIX}.agent_A.tags")]
-                            && content.new_state.as_ref().is_some_and(|state| {
-                                state.agents.as_ref().is_some_and(|agents| {
-                                    agents.agents.get("agent_A").is_some_and(|agent| {
-                                        agent.tags.as_ref().is_some_and(|tags| {
-                                            tags.tags
-                                                .get("environment")
-                                                .is_some_and(|v| v == "production")
-                                                && tags
-                                                    .tags
-                                                    .get("region")
-                                                    .is_some_and(|v| v == "us-west")
-                                        })
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![format!("{AGENTS_PREFIX}.agent_A.tags")]
+                        && content.new_state.as_ref().is_some_and(|state| {
+                            state.agents.as_ref().is_some_and(|agents| {
+                                agents.agents.get("agent_A").is_some_and(|agent| {
+                                    agent.tags.as_ref().is_some_and(|tags| {
+                                        tags.tags
+                                            .get("environment")
+                                            .is_some_and(|v| v == "production")
+                                            && tags
+                                                .tags
+                                                .get("region")
+                                                .is_some_and(|v| v == "us-west")
                                     })
                                 })
                             })
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+                        })
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3005,11 +3099,11 @@ mod tests {
         let method_handle =
             tokio::spawn(async move { ank.set_agent_tags("agent_A".to_owned(), tags).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
-        let response = generate_test_response_update_state_success(request.get_id());
+        let response = generate_test_response_update_state_success(request.request_id.clone());
 
         // Send the response
         response_sender.send(response).await.unwrap();
@@ -3025,19 +3119,17 @@ mod tests {
         // Prepare channel to intercept the request
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![format!("{AGENTS_PREFIX}.agent_A.tags")]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![format!("{AGENTS_PREFIX}.agent_A.tags")]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3055,13 +3147,13 @@ mod tests {
         let method_handle =
             tokio::spawn(async move { ank.set_agent_tags("agent_A".to_owned(), tags).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate an error response
         let response = Response {
             content: super::ResponseType::Error("test error".to_owned()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -3080,19 +3172,17 @@ mod tests {
         // Prepare channel to intercept the request
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .withf(
-                |request: &UpdateStateRequest| match &request.request.request_content {
-                    Some(RequestContent::UpdateStateRequest(content)) => {
-                        content.update_mask == vec![format!("{AGENTS_PREFIX}.agent_A.tags")]
-                    }
-                    _ => false,
-                },
-            )
-            .return_once(|request: UpdateStateRequest| {
+            .withf(|request: &AnkaiosRequest| match &request.request_content {
+                Some(RequestContent::UpdateStateRequest(content)) => {
+                    content.update_mask == vec![format!("{AGENTS_PREFIX}.agent_A.tags")]
+                }
+                _ => false,
+            })
+            .return_once(|request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3110,13 +3200,13 @@ mod tests {
         let method_handle =
             tokio::spawn(async move { ank.set_agent_tags("agent_A".to_owned(), tags).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response with wrong type
         let response = Response {
             content: super::ResponseType::CompleteState(Box::default()),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -3135,19 +3225,19 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &GetStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::CompleteStateRequest(content)) => {
                         content.field_mask == vec![AGENTS_PREFIX]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3158,14 +3248,14 @@ mod tests {
         // Prepare handle for getting the agents
         let method_handle = tokio::spawn(async move { ank.get_agents().await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
         let response = Response {
             content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -3195,19 +3285,19 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &GetStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::CompleteStateRequest(content)) => {
                         content.field_mask == vec![format!("{AGENTS_PREFIX}.agent_A")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3219,14 +3309,14 @@ mod tests {
         let method_handle =
             tokio::spawn(async move { ank.get_agent(String::from("agent_A")).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
         let response = Response {
             content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -3253,19 +3343,19 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &GetStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::CompleteStateRequest(content)) => {
                         content.field_mask == vec![format!("{AGENTS_PREFIX}.agent_not_there")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3277,14 +3367,14 @@ mod tests {
         let method_handle =
             tokio::spawn(async move { ank.get_agent(String::from("agent_not_there")).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
         let response = Response {
             content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -3303,19 +3393,19 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &GetStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::CompleteStateRequest(content)) => {
                         content.field_mask == vec![WORKLOAD_STATES_PREFIX]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3326,14 +3416,14 @@ mod tests {
         // Prepare handle for getting the workload states
         let method_handle = tokio::spawn(async move { ank.get_workload_states().await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
         let response = Response {
             content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -3360,19 +3450,19 @@ mod tests {
         );
         let masks = vec![wl_instance_name.get_filter_mask()];
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &GetStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::CompleteStateRequest(content)) => {
                         content.field_mask == masks
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3386,14 +3476,14 @@ mod tests {
                 .await
         });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
         let response = Response {
             content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -3415,19 +3505,19 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &GetStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::CompleteStateRequest(content)) => {
                         content.field_mask == vec![format!("{WORKLOAD_STATES_PREFIX}.agent_A")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3441,14 +3531,14 @@ mod tests {
                 async move { ank.get_workload_states_on_agent("agent_A".to_owned()).await },
             );
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
         let response = Response {
             content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -3467,19 +3557,19 @@ mod tests {
         // Prepare channel to intercept the request that is being
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &GetStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::CompleteStateRequest(content)) => {
                         content.field_mask == vec![format!("{WORKLOAD_STATES_PREFIX}")]
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3491,14 +3581,14 @@ mod tests {
         let method_handle =
             tokio::spawn(async move { ank.get_workload_states_for_name("nginx".to_owned()).await });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
         let response = Response {
             content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -3525,19 +3615,19 @@ mod tests {
         );
         let masks = vec![wl_instance_name.get_filter_mask()];
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .withf(
-                move |request: &GetStateRequest| match &request.request.request_content {
+                move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::CompleteStateRequest(content)) => {
                         content.field_mask == masks
                     }
                     _ => false,
                 },
             )
-            .return_once(move |request: GetStateRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3551,14 +3641,14 @@ mod tests {
                 .await
         });
 
-        // Get the request from the ControlInterface
+        // Get the request from the Connection
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
         let complete_state = CompleteState::new_from_proto(generate_complete_state_proto());
         let response = Response {
             content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
-            id: request.get_id(),
+            id: request.request_id.clone(),
         };
 
         // Send the response
@@ -3584,12 +3674,12 @@ mod tests {
         );
 
         let mut call_sequence = mockall::Sequence::new();
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .in_sequence(&mut call_sequence)
-            .return_once(move |request: AnkaiosLogsRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3630,14 +3720,14 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         let logs_accept_requested = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::LogsRequestAccepted(vec![instance_name.clone()]),
         };
 
         assert!(response_sender.send(logs_accept_requested).await.is_ok());
 
         let logs_entries_response = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::LogEntriesResponse(log_entries.clone()),
         };
 
@@ -3668,11 +3758,11 @@ mod tests {
             "1234".to_owned(),
         );
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: AnkaiosLogsRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3693,7 +3783,7 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         let response_error = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::Error("connection interruption".to_owned()),
         };
 
@@ -3719,11 +3809,11 @@ mod tests {
             "1234".to_owned(),
         );
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: AnkaiosLogsRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3744,7 +3834,7 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         let response_error = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::UpdateStateSuccess(Box::default()),
         };
 
@@ -3770,11 +3860,11 @@ mod tests {
             "1234".to_owned(),
         );
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: LogsCancelRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3802,7 +3892,7 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         let logs_cancel_accepted = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::LogsCancelAccepted,
         };
 
@@ -3826,11 +3916,11 @@ mod tests {
             "1234".to_owned(),
         );
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: LogsCancelRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3858,7 +3948,7 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         let response_error = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::Error("failed to cancel logs".to_owned()),
         };
 
@@ -3886,11 +3976,11 @@ mod tests {
             "1234".to_owned(),
         );
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: LogsCancelRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3918,7 +4008,7 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         let response_error = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::UpdateStateSuccess(Box::default()),
         };
 
@@ -3941,12 +4031,12 @@ mod tests {
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
         let mut call_sequence = mockall::Sequence::new();
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
             .in_sequence(&mut call_sequence)
-            .return_once(move |request: EventsRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -3980,14 +4070,14 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         let events_accept_requested = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::CompleteState(Box::default()),
         };
 
         assert!(response_sender.send(events_accept_requested).await.is_ok());
 
         let events_entry_response = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::EventResponse(Box::new(event_entry.clone())),
         };
 
@@ -4011,11 +4101,11 @@ mod tests {
 
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: EventsRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -4032,7 +4122,7 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         let response_error = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::Error("connection interruption".to_owned()),
         };
 
@@ -4052,11 +4142,11 @@ mod tests {
 
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: EventsRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -4073,7 +4163,7 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         let response_error = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::UpdateStateSuccess(Box::default()),
         };
 
@@ -4093,11 +4183,11 @@ mod tests {
 
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: EventsCancelRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -4121,7 +4211,7 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         let events_cancel_accepted = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::EventsCancelAccepted,
         };
 
@@ -4139,11 +4229,11 @@ mod tests {
 
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: EventsCancelRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -4167,7 +4257,7 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         let response_error = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::Error("failed to unregister".to_owned()),
         };
 
@@ -4189,11 +4279,11 @@ mod tests {
 
         let (request_sender, request_receiver) = tokio::sync::oneshot::channel();
 
-        let mut ci_mock = ControlInterface::default();
+        let mut ci_mock = MockConnection::default();
         ci_mock
             .expect_write_request()
             .times(1)
-            .return_once(move |request: EventsCancelRequest| {
+            .return_once(move |request: AnkaiosRequest| {
                 request_sender.send(request).unwrap();
                 Ok(())
             });
@@ -4217,7 +4307,7 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         let response_error = Response {
-            id: request.get_id(),
+            id: request.request_id.clone(),
             content: super::ResponseType::UpdateStateSuccess(Box::default()),
         };
 

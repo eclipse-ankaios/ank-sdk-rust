@@ -23,14 +23,14 @@ async fn main() {
 
     {
         println!("Ankaios 1");
-        let mut _ank = Ankaios::new().await.expect("Failed to initialize");
+        let mut _ank = Ankaios::new_with_ci().await.expect("Failed to initialize");
         sleep(Duration::from_secs(5)).await;
     }
     println!("Pause");
     sleep(Duration::from_secs(5)).await;
     {
         println!("Ankaios 2");
-        let mut _ank = Ankaios::new().await.expect("Failed to initialize");
+        let mut _ank = Ankaios::new_with_ci().await.expect("Failed to initialize");
         sleep(Duration::from_secs(5)).await;
     }
     println!("End");

@@ -20,6 +20,8 @@ crate-type = ["lib"]
 [dependencies]
 prost = "0.14"
 tonic = "0.14"
+tonic-prost = { version = "0.14", optional = true }
+tokio-stream = { version = "0.1", optional = true }
 log = "0.4"
 env_logger = "0.11"
 serde = { version = "1.0", features = ["derive"] }
@@ -42,11 +44,15 @@ home = "=0.5.9"
 tempfile = "3.4"
 nix = { version = "0.30", features = ["fs", "user"] }
 mockall = "0.14"
-mockall_double = "0.3"
 
 [build-dependencies]
 tonic-prost-build = "0.14"
 
 [features]
-default = []
+default = ["control_interface"]
 test_utils = []
+# Enables connecting to Ankaios from inside a workload via the control interface (named pipes).
+control_interface = []
+# Enables connecting to an Ankaios server directly over gRPC (e.g. from outside a workload).
+# Independent of `control_interface`; both may be enabled at once.
+grpc_server_interface = ["dep:tonic-prost", "dep:tokio-stream", "tonic/tls-ring"]

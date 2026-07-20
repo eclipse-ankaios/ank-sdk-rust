@@ -17,14 +17,26 @@ mod build;
 use build::setup_proto_annotations;
 
 fn main() {
-    let mut builder = tonic_prost_build::configure()
-        .build_server(true)
-        .type_attribute("WorkloadState", "#[allow(dead_code)]"); // Workaround until the release of the ankaios api
+    if std::env::var("CARGO_FEATURE_CONTROL_INTERFACE").is_ok() {
+        let mut builder = tonic_prost_build::configure()
+            .build_server(true)
+            .type_attribute("WorkloadState", "#[allow(dead_code)]"); // Workaround until the release of the ankaios api
 
-    // Setup the proto objects
-    builder = setup_proto_annotations(builder);
+        // Setup the proto objects
+        builder = setup_proto_annotations(builder);
 
-    builder
-        .compile_protos(&["proto/control_api.proto"], &["proto"])
-        .unwrap();
+        builder
+            .compile_protos(&["proto/control_api.proto"], &["proto"])
+            .unwrap();
+    }
+
+    if std::env::var("CARGO_FEATURE_GRPC_SERVER_INTERFACE").is_ok() {
+        // Client-only: this SDK never needs to run a CliConnection/AgentConnection server.
+        let mut grpc_builder = tonic_prost_build::configure().build_server(false);
+        grpc_builder = setup_proto_annotations(grpc_builder);
+
+        grpc_builder
+            .compile_protos(&["proto/grpc_api.proto"], &["proto"])
+            .unwrap();
+    }
 }

@@ -23,6 +23,7 @@
         "substate",
         "thiserror",
         "unistd",
+        "unregisters",
         "utest",
         "varint",
         "withf",
