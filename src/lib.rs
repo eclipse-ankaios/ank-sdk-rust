@@ -134,7 +134,7 @@
 //! async fn main() {
 //!     // Create a new Ankaios object.
 //!     // The connection to the control interface is automatically done at this step.
-//!     let mut ank = Ankaios::new().await.expect("Failed to initialize");
+//!     let mut ank = Ankaios::new_with_ci().await.expect("Failed to initialize");
 //!
 //!     // Create a new workload
 //!     let workload = Workload::builder()
@@ -207,6 +207,12 @@
 //! Ankaios Rust SDK is licensed using the Apache License Version 2.0.
 //!
 
+#[cfg(not(any(feature = "control_interface", feature = "grpc_server_interface")))]
+compile_error!(
+    "ankaios_sdk requires at least one connection feature to be enabled: \
+     `control_interface` and/or `grpc_server_interface`."
+);
+
 mod ankaios_api;
 mod docs;
 pub mod extensions;
@@ -216,8 +222,12 @@ pub use errors::AnkaiosError;
 
 mod components;
 
+#[cfg(feature = "control_interface")]
+pub use components::connection::control_interface::ControlInterfaceState;
+#[cfg(feature = "grpc_server_interface")]
+pub use components::connection::grpc_interface::GrpcConfig;
+
 pub use components::complete_state::{AgentAttributes, CompleteState};
-pub use components::control_interface::ControlInterfaceState;
 pub use components::event_types::{EventEntry, EventsCampaignResponse};
 pub use components::log_types::{LogCampaignResponse, LogEntry, LogResponse, LogsRequest};
 pub use components::manifest::Manifest;

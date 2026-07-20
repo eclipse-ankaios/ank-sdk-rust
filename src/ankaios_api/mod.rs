@@ -22,8 +22,14 @@
     clippy::shadow_reuse
 )]
 
+#[cfg(feature = "control_interface")]
 pub mod control_api {
     tonic::include_proto!("control_api");
+}
+
+#[cfg(feature = "grpc_server_interface")]
+pub mod grpc_api {
+    tonic::include_proto!("grpc_api");
 }
 
 pub mod ank_base;

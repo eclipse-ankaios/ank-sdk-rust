@@ -61,7 +61,7 @@ fi
 
 # Extract the last coverage line with the TOTAL stats
 echo "Running coverage analysis..."
-TOTAL_LINE=$(cargo llvm-cov 2>/dev/null | grep "TOTAL")
+TOTAL_LINE=$(cargo llvm-cov --all-features 2>/dev/null | grep "TOTAL")
 
 # Check if we got a coverage result
 if [[ -z "$TOTAL_LINE" ]]; then

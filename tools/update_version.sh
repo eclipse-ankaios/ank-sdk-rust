@@ -109,7 +109,7 @@ fi
 
 if [ -n "$ankaios_version" ]; then
     echo "Updating Ankaios version to $ankaios_version"
-    sed -i "s/const ANKAIOS_VERSION: &str = .*/const ANKAIOS_VERSION: \&str = \"$ankaios_version\";/" "$base_dir"/src/components/control_interface.rs
+    sed -i "s/const ANKAIOS_VERSION: &str = .*/const ANKAIOS_VERSION: \&str = \"$ankaios_version\";/" "$base_dir"/src/components/connection/mod.rs
 fi
 
 if [ -n "$api_version" ]; then
