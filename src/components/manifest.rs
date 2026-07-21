@@ -191,8 +191,7 @@ fn parse_api_version(manifest: &serde_yaml::Value) -> Result<String, AnkaiosErro
 ///
 /// ## Returns
 ///
-/// A [`ank_base::WorkloadMap`] wrapped in `Some` if the section is present and non-empty,
-/// or `None` if the section is absent.
+/// A [`ank_base::WorkloadMap`] wrapped in an `Option`.
 ///
 /// ## Errors
 ///
