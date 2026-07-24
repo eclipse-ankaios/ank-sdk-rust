@@ -28,7 +28,7 @@ use tonic::transport::{Certificate, Channel, ClientTlsConfig, Identity};
 use crate::AnkaiosError;
 use crate::ankaios_api::ank_base::Request as AnkaiosRequest;
 use crate::ankaios_api::grpc_api::{
-    CommanderHello, FromServer, ToServer, cli_connection_client::CliConnectionClient,
+    CommanderHello, FromServer, ToServer, command_connection_client::CommandConnectionClient,
     from_server::FromServerEnum, to_server::ToServerEnum,
 };
 use crate::components::connection::{ANKAIOS_VERSION, Connection, SynchronizedSenderMap};
@@ -130,7 +130,7 @@ pub enum GrpcConnectionState {
 const RECONNECT_INTERVAL_SECS: u64 = 1;
 
 /// This struct handles the interaction with an [Ankaios](https://eclipse-ankaios.github.io/ankaios)
-/// server over gRPC, playing the "Cli"/commander role via `CliConnection.ConnectCli`. The
+/// server over gRPC, playing the commander role via `CommandConnection.ConnectCommand`. The
 /// initial [`connect`](Connection::connect) attempt is never retried. Once a connection has
 /// been successfully established, losing it is treated as transient: the connection is rebuilt
 /// and retried every [`RECONNECT_INTERVAL_SECS`] until it succeeds.
@@ -214,13 +214,14 @@ impl GrpcConnection {
         })
     }
 
-    /// Builds the gRPC channel, sends the initial [`CommanderHello`] and opens the `ConnectCli`
-    /// bidi stream. Used both for the initial connect and for every reconnect attempt.
+    /// Builds the gRPC channel, sends the initial [`CommanderHello`] and opens the
+    /// `ConnectCommand` bidi stream. Used both for the initial connect and for every reconnect
+    /// attempt.
     async fn open_stream(
         config: &GrpcConfig,
     ) -> Result<(mpsc::Sender<ToServer>, tonic::Streaming<FromServer>), AnkaiosError> {
         let channel = Self::build_channel(config).await?;
-        let mut client = CliConnectionClient::new(channel);
+        let mut client = CommandConnectionClient::new(channel);
 
         let (grpc_tx, grpc_rx) = mpsc::channel::<ToServer>(5);
         grpc_tx
@@ -237,7 +238,7 @@ impl GrpcConnection {
             })?;
 
         let streaming = client
-            .connect_cli(ReceiverStream::new(grpc_rx))
+            .connect_command(ReceiverStream::new(grpc_rx))
             .await
             .map_err(|status| {
                 AnkaiosError::ConnectionError(format!(
@@ -250,7 +251,7 @@ impl GrpcConnection {
     }
 
     /// Establishes the gRPC channel, sends the initial [`CommanderHello`], opens the
-    /// `ConnectCli` bidi stream and spawns the task reading from it (which transparently
+    /// `ConnectCommand` bidi stream and spawns the task reading from it (which transparently
     /// reconnects if the connection is later lost).
     async fn connect_internal(&mut self) -> Result<(), AnkaiosError> {
         let (sender, streaming) = Self::open_stream(&self.config).await?;
@@ -392,21 +393,9 @@ impl GrpcConnection {
             Some(FromServerEnum::ServerHello(_)) => {
                 log::trace!("Received server hello.");
             }
-            // The server broadcasts this to every commander connection on any workload state
-            // change cluster-wide, not just in response to a request; a commander has no use
-            // for it, but it's expected traffic, not a warning-worthy condition.
-            Some(FromServerEnum::UpdateWorkloadState(_)) => {
-                log::trace!("Ignoring unsolicited workload state update.");
-            }
-            // The server has no way to know which agent still owns a log campaign once it's
-            // cancelled, so it broadcasts this to every connection (agents and commanders
-            // alike) unconditionally, even back to whoever sent the cancel request.
-            Some(FromServerEnum::LogsCancelRequest(_)) => {
-                log::trace!("Ignoring broadcast logs cancel request.");
-            }
-            // The remaining variants (UpdateWorkload, ServerHello handled above, LogsRequest)
-            // are targeted at a specific agent by name and not expected on a commander
-            // connection.
+            // The remaining variants (UpdateWorkload, UpdateWorkloadState, LogsRequest,
+            // LogsCancelRequest) are targeted at a specific agent by name and not expected on a
+            // `CommandConnection`.
             Some(other) => {
                 log::warn!("Received unexpected message from the Ankaios server: '{other:?}'");
             }
