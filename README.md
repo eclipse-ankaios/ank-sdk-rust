@@ -79,7 +79,7 @@ use tokio::time::Duration;
 async fn main() {
     // Create a new Ankaios object.
     // The connection to the control interface is automatically done at this step.
-    let mut ank = Ankaios::new_with_ci().await.expect("Failed to initialize");
+    let mut ank = Ankaios::builder().control_interface().connect().await.expect("Failed to initialize");
 
     // Create a new workload
     let workload = Workload::builder()

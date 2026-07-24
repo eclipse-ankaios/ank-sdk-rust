@@ -32,7 +32,6 @@ use tokio::{
     time::{Duration, sleep, timeout as tokio_timeout},
 };
 
-use async_trait::async_trait;
 use crate::components::connection::{ANKAIOS_VERSION, Connection, SynchronizedSenderMap};
 use crate::components::event_types::EventEntry;
 use crate::components::log_types::LogResponse;
@@ -40,6 +39,7 @@ use crate::components::response::{Response, ResponseType};
 use crate::{AnkaiosError, ankaios_api};
 use ankaios_api::ank_base::Request as AnkaiosRequest;
 use ankaios_api::control_api::{FromAnkaios, Hello, ToAnkaios, to_ankaios::ToAnkaiosEnum};
+use async_trait::async_trait;
 
 /// Base path for the control interface FIFO pipes.
 const ANKAIOS_CONTROL_INTERFACE_BASE_PATH: &str = "/run/ankaios/control_interface";
@@ -524,11 +524,7 @@ impl Connection for ControlInterface {
         }
     }
 
-    fn add_events_campaign(
-        &mut self,
-        request_id: String,
-        events_sender: mpsc::Sender<EventEntry>,
-    ) {
+    fn add_events_campaign(&mut self, request_id: String, events_sender: mpsc::Sender<EventEntry>) {
         log::trace!("Add event campaign with request id: '{request_id}'");
 
         self.events_senders_map.insert(request_id, events_sender);
@@ -570,7 +566,9 @@ mod tests {
         ANKAIOS_INPUT_FIFO_PATH, ANKAIOS_OUTPUT_FIFO_PATH, ANKAIOS_VERSION, ControlInterface,
         ControlInterfaceState, read_protobuf_data,
     };
-    use crate::components::connection::{Connection, forward_log_entries, forward_logs_stop_response};
+    use crate::components::connection::{
+        Connection, forward_log_entries, forward_logs_stop_response,
+    };
     use crate::{
         AnkaiosError, EventEntry, LogResponse,
         ankaios::CHANNEL_SIZE,

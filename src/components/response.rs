@@ -134,18 +134,33 @@ impl Response {
         Self::from(response)
     }
 
-    /// Builds a [Response] from the transport-neutral `ank_base::Response` payload. Shared by
-    /// every [`Connection`](crate::components::connection::Connection) implementation, since the
-    /// payload itself carries no envelope-specific (control interface / gRPC) concepts.
-    ///
-    /// ## Arguments
-    ///
-    /// * `response` - The `ank_base::Response` to create the [Response] from.
+    /// Returns the request ID of the response.
     ///
     /// ## Returns
     ///
-    /// A new [Response] instance.
-    pub(crate) fn from_ank_base(response: AnkaiosResponse) -> Self {
+    /// A [String] containing the request ID of the response.
+    #[must_use]
+    pub fn get_request_id(&self) -> String {
+        self.id.clone()
+    }
+
+    /// Returns the content of the response.
+    ///
+    /// ## Returns
+    ///
+    /// A [`ResponseType`] containing the content of the response.
+    #[must_use]
+    #[allow(dead_code)]
+    pub fn get_content(&self) -> ResponseType {
+        self.content.clone()
+    }
+}
+
+/// Builds a [Response] from the transport-neutral `ank_base::Response` payload. Shared by
+/// every [`Connection`](crate::components::connection::Connection) implementation, since the
+/// payload itself carries no envelope-specific concepts.
+impl From<AnkaiosResponse> for Response {
+    fn from(response: AnkaiosResponse) -> Self {
         Self {
             content: match response
                 .response_content
@@ -205,36 +220,13 @@ impl Response {
             id: response.request_id,
         }
     }
-
-    /// Returns the request ID of the response.
-    ///
-    /// ## Returns
-    ///
-    /// A [String] containing the request ID of the response.
-    #[must_use]
-    pub fn get_request_id(&self) -> String {
-        self.id.clone()
-    }
-
-    /// Returns the content of the response.
-    ///
-    /// ## Returns
-    ///
-    /// A [`ResponseType`] containing the content of the response.
-    #[must_use]
-    #[allow(dead_code)]
-    pub fn get_content(&self) -> ResponseType {
-        self.content.clone()
-    }
 }
 
 #[cfg(feature = "control_interface")]
 impl From<FromAnkaios> for Response {
     fn from(response: FromAnkaios) -> Self {
         match response.from_ankaios_enum {
-            Some(FromAnkaiosEnum::Response(inner_response)) => {
-                Response::from_ank_base(*inner_response)
-            }
+            Some(FromAnkaiosEnum::Response(inner_response)) => Response::from(*inner_response),
             Some(FromAnkaiosEnum::ControlInterfaceAccepted(_)) => Self {
                 content: ResponseType::ControlInterfaceAccepted,
                 id: String::default(),
@@ -364,7 +356,7 @@ pub fn generate_test_proto_update_state_success(req_id: String) -> FromAnkaios {
 
 #[cfg(test)]
 pub fn generate_test_response_update_state_success(req_id: String) -> Response {
-    Response::from_ank_base(generate_test_ank_base_update_state_success(req_id))
+    Response::from(generate_test_ank_base_update_state_success(req_id))
 }
 
 #[cfg(test)]
@@ -485,7 +477,7 @@ mod tests {
 
     #[test]
     fn utest_response_error() {
-        let response = Response::from_ank_base(AnkaiosResponse {
+        let response = Response::from(AnkaiosResponse {
             request_id: String::from("123"),
             response_content: Some(AnkaiosResponseContent::Error(
                 ankaios_api::ank_base::Error::default(),
@@ -500,7 +492,7 @@ mod tests {
 
     #[test]
     fn utest_response_complete_state() {
-        let response = Response::from_ank_base(AnkaiosResponse {
+        let response = Response::from(AnkaiosResponse {
             request_id: String::from("123"),
             response_content: Some(AnkaiosResponseContent::CompleteStateResponse(Box::new(
                 ankaios_api::ank_base::CompleteStateResponse {
@@ -524,7 +516,7 @@ mod tests {
 
     #[test]
     fn utest_response_update_state_success() {
-        let response = Response::from_ank_base(AnkaiosResponse {
+        let response = Response::from(AnkaiosResponse {
             request_id: String::from("123"),
             response_content: Some(AnkaiosResponseContent::UpdateStateSuccess(
                 ankaios_api::ank_base::UpdateStateSuccess::default(),
@@ -650,7 +642,7 @@ mod tests {
             },
         ];
 
-        let response = Response::from_ank_base(AnkaiosResponse {
+        let response = Response::from(AnkaiosResponse {
             request_id: String::from("123"),
             response_content: Some(AnkaiosResponseContent::LogsRequestAccepted(
                 ankaios_api::ank_base::LogsRequestAccepted {
@@ -673,7 +665,7 @@ mod tests {
 
     #[test]
     fn utest_response_logs_cancel_accepted() {
-        let response = Response::from_ank_base(AnkaiosResponse {
+        let response = Response::from(AnkaiosResponse {
             request_id: String::from("123"),
             response_content: Some(AnkaiosResponseContent::LogsCancelAccepted(
                 ankaios_api::ank_base::LogsCancelAccepted {},
@@ -687,7 +679,7 @@ mod tests {
     fn utest_response_log_entries_response() {
         let log_entries_response = generate_test_proto_log_entries_response();
         let log_entries = log_entries_response.log_entries.clone();
-        let response = Response::from_ank_base(AnkaiosResponse {
+        let response = Response::from(AnkaiosResponse {
             request_id: "123".to_owned(),
             response_content: Some(AnkaiosResponseContent::LogEntriesResponse(
                 log_entries_response,
@@ -713,7 +705,7 @@ mod tests {
             id: "id_a".to_owned(),
         };
 
-        let response = Response::from_ank_base(AnkaiosResponse {
+        let response = Response::from(AnkaiosResponse {
             request_id: "123".to_owned(),
             response_content: Some(AnkaiosResponseContent::LogsStopResponse(
                 ankaios_api::ank_base::LogsStopResponse {
@@ -751,7 +743,7 @@ mod tests {
             }),
         };
 
-        let response = Response::from_ank_base(AnkaiosResponse {
+        let response = Response::from(AnkaiosResponse {
             request_id: "123".to_owned(),
             response_content: Some(AnkaiosResponseContent::CompleteStateResponse(Box::new(
                 complete_state_response.clone(),
@@ -766,7 +758,7 @@ mod tests {
 
     #[test]
     fn utest_response_events_cancel_accepted() {
-        let response = Response::from_ank_base(AnkaiosResponse {
+        let response = Response::from(AnkaiosResponse {
             request_id: String::from("123"),
             response_content: Some(AnkaiosResponseContent::EventsCancelAccepted(
                 ankaios_api::ank_base::EventsCancelAccepted {},

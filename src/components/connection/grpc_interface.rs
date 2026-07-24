@@ -15,7 +15,7 @@
 //! This module contains the [`GrpcConfig`] struct and the gRPC implementation of the
 //! [`Connection`] trait, used to connect to an
 //! [Ankaios](https://eclipse-ankaios.github.io/ankaios) server directly over gRPC, e.g. from
-//! outside a workload.
+//! outside of the cluster.
 
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
@@ -39,18 +39,20 @@ use crate::components::response::{Response, ResponseType};
 /// Configuration for connecting to an [Ankaios](https://eclipse-ankaios.github.io/ankaios)
 /// server over gRPC.
 ///
-/// Defaults to an insecure (plaintext) connection; call [`GrpcConfig::tls`] to switch to mTLS.
+/// Constructed either insecure (plaintext, via [`GrpcConfig::insecure`]) or mTLS-secured (via
+/// [`GrpcConfig::mtls`]) — the certificate material is mandatory context for a secured
+/// connection, not an optional add-on, so there is no default-then-upgrade path between the two.
 ///
 /// ## Examples
 ///
 /// ```rust
 /// # use ankaios_sdk::GrpcConfig;
 /// // Insecure connection.
-/// let config = GrpcConfig::new("http://127.0.0.1:25551");
+/// let config = GrpcConfig::insecure("http://127.0.0.1:25551");
 ///
 /// // mTLS connection.
 /// # let (ca_pem, crt_pem, key_pem) = (String::new(), String::new(), String::new());
-/// let config = GrpcConfig::new("https://127.0.0.1:25551").tls(ca_pem, crt_pem, key_pem);
+/// let config = GrpcConfig::mtls("https://127.0.0.1:25551", ca_pem, crt_pem, key_pem);
 /// ```
 #[derive(Clone)]
 pub struct GrpcConfig {
@@ -67,7 +69,8 @@ impl GrpcConfig {
     /// ## Arguments
     ///
     /// * `server_url` - The URL of the Ankaios server, e.g. `http://127.0.0.1:25551`.
-    pub fn new(server_url: impl Into<String>) -> Self {
+    #[must_use]
+    pub fn insecure(server_url: impl Into<String>) -> Self {
         Self {
             server_url: server_url.into(),
             insecure: true,
@@ -77,25 +80,29 @@ impl GrpcConfig {
         }
     }
 
-    /// Switches this configuration to mTLS, using the given PEM-encoded certificate content.
+    /// Creates a new mTLS-secured [`GrpcConfig`] for the given server URL, using the given
+    /// PEM-encoded certificate content.
     ///
     /// ## Arguments
     ///
+    /// * `server_url` - The URL of the Ankaios server, e.g. `https://127.0.0.1:25551`;
     /// * `ca_pem` - The PEM-encoded CA certificate content;
     /// * `crt_pem` - The PEM-encoded client certificate content;
     /// * `key_pem` - The PEM-encoded client private key content.
     #[must_use]
-    pub fn tls(
-        mut self,
+    pub fn mtls(
+        server_url: impl Into<String>,
         ca_pem: impl Into<String>,
         crt_pem: impl Into<String>,
         key_pem: impl Into<String>,
     ) -> Self {
-        self.insecure = false;
-        self.ca_pem = Some(ca_pem.into());
-        self.crt_pem = Some(crt_pem.into());
-        self.key_pem = Some(key_pem.into());
-        self
+        Self {
+            server_url: server_url.into(),
+            insecure: false,
+            ca_pem: Some(ca_pem.into()),
+            crt_pem: Some(crt_pem.into()),
+            key_pem: Some(key_pem.into()),
+        }
     }
 }
 
@@ -127,13 +134,13 @@ pub enum GrpcConnectionState {
 
 /// How long to wait between reconnect attempts once a previously established connection is
 /// lost.
-const RECONNECT_INTERVAL_SECS: u64 = 1;
+const RECONNECT_INTERVAL_MILLIS: u64 = 500;
 
 /// This struct handles the interaction with an [Ankaios](https://eclipse-ankaios.github.io/ankaios)
 /// server over gRPC, playing the commander role via `CommandConnection.ConnectCommand`. The
 /// initial [`connect`](Connection::connect) attempt is never retried. Once a connection has
 /// been successfully established, losing it is treated as transient: the connection is rebuilt
-/// and retried every [`RECONNECT_INTERVAL_SECS`] until it succeeds.
+/// and retried every [`RECONNECT_INTERVAL_MILLIS`] until it succeeds.
 pub struct GrpcConnection {
     /// Configuration used to connect to the Ankaios server.
     config: GrpcConfig,
@@ -189,8 +196,6 @@ impl GrpcConnection {
             plain_endpoint
         } else {
             let ca = Certificate::from_pem(config.ca_pem.as_deref().unwrap_or_default());
-            // `Certificate`/`Identity::from_pem` both accept `impl AsRef<[u8]>`, so the PEM
-            // strings can be passed directly without an intermediate `Certificate::from_pem`.
             let identity = Identity::from_pem(
                 config.crt_pem.as_deref().unwrap_or_default(),
                 config.key_pem.as_deref().unwrap_or_default(),
@@ -266,7 +271,7 @@ impl GrpcConnection {
     /// Spawns the [tokio] task that reads continuously from the gRPC bidi stream. If the
     /// connection is lost after having been established, the task reconnects (rebuilding the
     /// channel, resending [`CommanderHello`] and reopening the stream) every
-    /// [`RECONNECT_INTERVAL_SECS`] until it succeeds or [`disconnect`](Connection::disconnect)
+    /// [`RECONNECT_INTERVAL_MILLIS`] until it succeeds or [`disconnect`](Connection::disconnect)
     /// is called.
     fn spawn_reader_task(&mut self, mut streaming: tonic::Streaming<FromServer>) {
         let config = self.config.clone();
@@ -309,11 +314,11 @@ impl GrpcConnection {
                     *state_guard = GrpcConnectionState::Reconnecting;
                 }
                 log::warn!(
-                    "Lost connection to the Ankaios server, attempting to reconnect every {RECONNECT_INTERVAL_SECS}s..."
+                    "Lost connection to the Ankaios server, attempting to reconnect every {RECONNECT_INTERVAL_MILLIS}ms..."
                 );
 
                 streaming = loop {
-                    sleep(Duration::from_secs(RECONNECT_INTERVAL_SECS)).await;
+                    sleep(Duration::from_millis(RECONNECT_INTERVAL_MILLIS)).await;
                     if *state.lock().unwrap_or_else(|_| unreachable!())
                         == GrpcConnectionState::Terminated
                     {
@@ -354,7 +359,7 @@ impl GrpcConnection {
     ) {
         match from_server.from_server_enum {
             Some(FromServerEnum::Response(response)) => {
-                let received_response = Response::from_ank_base(response);
+                let received_response = Response::from(response);
                 match received_response.content {
                     ResponseType::LogEntriesResponse(log_entries) => {
                         super::forward_log_entries(
@@ -409,18 +414,20 @@ impl GrpcConnection {
 #[async_trait]
 impl Connection for GrpcConnection {
     async fn connect(&mut self, timeout: Duration) -> Result<(), AnkaiosError> {
-        if matches!(
-            *self.state.lock().unwrap_or_else(|_| unreachable!()),
-            GrpcConnectionState::Initialized
-                | GrpcConnectionState::Connected
-                | GrpcConnectionState::Reconnecting
-        ) {
-            return Err(AnkaiosError::ConnectionError(
-                "Already connected.".to_owned(),
-            ));
+        {
+            let mut state_guard = self.state.lock().unwrap_or_else(|_| unreachable!());
+            if matches!(
+                *state_guard,
+                GrpcConnectionState::Initialized
+                    | GrpcConnectionState::Connected
+                    | GrpcConnectionState::Reconnecting
+            ) {
+                return Err(AnkaiosError::ConnectionError(
+                    "Already connected.".to_owned(),
+                ));
+            }
+            *state_guard = GrpcConnectionState::Initialized;
         }
-
-        *self.state.lock().unwrap_or_else(|_| unreachable!()) = GrpcConnectionState::Initialized;
         match tokio_timeout(timeout, self.connect_internal()).await {
             Ok(Ok(())) => {
                 *self.state.lock().unwrap_or_else(|_| unreachable!()) =
@@ -436,14 +443,15 @@ impl Connection for GrpcConnection {
     }
 
     fn disconnect(&mut self) -> Result<(), AnkaiosError> {
-        let mut state_guard = self.state.lock().unwrap_or_else(|_| unreachable!());
-        if *state_guard == GrpcConnectionState::Terminated {
-            return Err(AnkaiosError::ConnectionError(
-                "Already disconnected.".to_owned(),
-            ));
+        {
+            let mut state_guard = self.state.lock().unwrap_or_else(|_| unreachable!());
+            if *state_guard == GrpcConnectionState::Terminated {
+                return Err(AnkaiosError::ConnectionError(
+                    "Already disconnected.".to_owned(),
+                ));
+            }
+            *state_guard = GrpcConnectionState::Terminated;
         }
-        *state_guard = GrpcConnectionState::Terminated;
-        drop(state_guard);
 
         if let Some(handler) = self.reader_task_handle.take() {
             handler.abort();
@@ -528,19 +536,20 @@ mod tests {
     use crate::{AnkaiosError, EventEntry, LogResponse, Response};
 
     const SERVER_URL: &str = "http://127.0.0.1:25551";
+    const REQUEST_ID: &str = "request_id_1";
     const CHANNEL_SIZE: usize = 10;
 
     fn generate_test_grpc_connection() -> (GrpcConnection, mpsc::Receiver<Response>) {
         let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
         (
-            GrpcConnection::new(GrpcConfig::new(SERVER_URL), response_sender),
+            GrpcConnection::new(GrpcConfig::insecure(SERVER_URL), response_sender),
             response_receiver,
         )
     }
 
     #[test]
     fn utest_grpc_config_without_tls() {
-        let config = GrpcConfig::new(SERVER_URL);
+        let config = GrpcConfig::insecure(SERVER_URL);
 
         assert_eq!(config.server_url, SERVER_URL);
         assert!(config.insecure);
@@ -556,7 +565,7 @@ mod tests {
 
     #[test]
     fn utest_grpc_config_with_tls() {
-        let config = GrpcConfig::new(SERVER_URL).tls("ca-secret", "crt-secret", "key-secret");
+        let config = GrpcConfig::mtls(SERVER_URL, "ca-secret", "crt-secret", "key-secret");
 
         assert_eq!(config.server_url, SERVER_URL);
         assert!(!config.insecure);
@@ -585,7 +594,7 @@ mod tests {
         // Port 0 is never a valid connection target, so this fails fast without needing a
         // real (or even reachable) Ankaios server.
         let mut connection =
-            GrpcConnection::new(GrpcConfig::new("http://127.0.0.1:0"), response_sender);
+            GrpcConnection::new(GrpcConfig::insecure("http://127.0.0.1:0"), response_sender);
 
         let result = connection.connect(Duration::from_secs(5)).await;
         assert!(result.is_err());
@@ -636,24 +645,24 @@ mod tests {
         let (mut connection, _response_receiver) = generate_test_grpc_connection();
         let (logs_sender, _logs_receiver) = mpsc::channel(CHANNEL_SIZE);
 
-        connection.add_log_campaign("request_id_1".to_owned(), logs_sender);
+        connection.add_log_campaign(REQUEST_ID.to_owned(), logs_sender);
         assert!(
             connection
                 .log_senders_map
                 .senders_map
                 .lock()
                 .unwrap()
-                .contains_key("request_id_1")
+                .contains_key(REQUEST_ID)
         );
 
-        connection.remove_log_campaign("request_id_1");
+        connection.remove_log_campaign(REQUEST_ID);
         assert!(
             !connection
                 .log_senders_map
                 .senders_map
                 .lock()
                 .unwrap()
-                .contains_key("request_id_1")
+                .contains_key(REQUEST_ID)
         );
     }
 
@@ -662,24 +671,24 @@ mod tests {
         let (mut connection, _response_receiver) = generate_test_grpc_connection();
         let (events_sender, _events_receiver) = mpsc::channel(CHANNEL_SIZE);
 
-        connection.add_events_campaign("request_id_1".to_owned(), events_sender);
+        connection.add_events_campaign(REQUEST_ID.to_owned(), events_sender);
         assert!(
             connection
                 .events_senders_map
                 .senders_map
                 .lock()
                 .unwrap()
-                .contains_key("request_id_1")
+                .contains_key(REQUEST_ID)
         );
 
-        connection.remove_events_campaign("request_id_1");
+        connection.remove_events_campaign(REQUEST_ID);
         assert!(
             !connection
                 .events_senders_map
                 .senders_map
                 .lock()
                 .unwrap()
-                .contains_key("request_id_1")
+                .contains_key(REQUEST_ID)
         );
     }
 
@@ -688,8 +697,7 @@ mod tests {
         let (connection, mut response_receiver) = generate_test_grpc_connection();
         let mut log_senders_map = connection.log_senders_map.clone();
         let mut events_senders_map = connection.events_senders_map.clone();
-        let ank_base_response =
-            generate_test_ank_base_update_state_success("request_id_1".to_owned());
+        let ank_base_response = generate_test_ank_base_update_state_success(REQUEST_ID.to_owned());
 
         GrpcConnection::handle_decoded_response(
             FromServer {
@@ -705,7 +713,7 @@ mod tests {
             .await
             .expect("response should have been forwarded")
             .expect("channel should not be closed");
-        assert_eq!(result.get_request_id(), "request_id_1");
+        assert_eq!(result.get_request_id(), REQUEST_ID);
     }
 
     #[tokio::test]
@@ -714,10 +722,10 @@ mod tests {
         let mut log_senders_map = connection.log_senders_map.clone();
         let mut events_senders_map = connection.events_senders_map.clone();
         let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
-        log_senders_map.insert("request_id_1".to_owned(), logs_sender);
+        log_senders_map.insert(REQUEST_ID.to_owned(), logs_sender);
 
         let ank_base_response = ank_base::Response {
-            request_id: "request_id_1".to_owned(),
+            request_id: REQUEST_ID.to_owned(),
             response_content: Some(AnkaiosResponseContent::LogEntriesResponse(
                 generate_test_proto_log_entries_response(),
             )),
@@ -745,10 +753,10 @@ mod tests {
         let mut log_senders_map = connection.log_senders_map.clone();
         let mut events_senders_map = connection.events_senders_map.clone();
         let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
-        log_senders_map.insert("request_id_1".to_owned(), logs_sender);
+        log_senders_map.insert(REQUEST_ID.to_owned(), logs_sender);
 
         let ank_base_response = ank_base::Response {
-            request_id: "request_id_1".to_owned(),
+            request_id: REQUEST_ID.to_owned(),
             response_content: Some(AnkaiosResponseContent::LogsStopResponse(
                 ank_base::LogsStopResponse {
                     workload_name: Some(ank_base::WorkloadInstanceName {
@@ -782,10 +790,10 @@ mod tests {
         let mut log_senders_map = connection.log_senders_map.clone();
         let mut events_senders_map = connection.events_senders_map.clone();
         let (events_sender, mut events_receiver) = mpsc::channel::<EventEntry>(CHANNEL_SIZE);
-        events_senders_map.insert("request_id_1".to_owned(), events_sender);
+        events_senders_map.insert(REQUEST_ID.to_owned(), events_sender);
 
         let ank_base_response = ank_base::Response {
-            request_id: "request_id_1".to_owned(),
+            request_id: REQUEST_ID.to_owned(),
             response_content: Some(AnkaiosResponseContent::CompleteStateResponse(Box::new(
                 ank_base::CompleteStateResponse {
                     complete_state: Some(ank_base::CompleteState::default()),
