@@ -97,7 +97,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # Runtime::new().unwrap().block_on(async {
 ///
 /// # let server_url = String::new();
-/// let grpc_config = GrpcConfig::new(server_url);
+/// let grpc_config = GrpcConfig::insecure(server_url);
 /// let ankaios = Ankaios::builder().command_interface(grpc_config).connect().await.unwrap();
 /// /* */
 /// drop(ankaios);
@@ -316,7 +316,11 @@ impl Ankaios {
     #[cfg(feature = "control_interface")]
     #[deprecated(since = "1.1.0", note = "use `Ankaios::builder` instead")]
     pub async fn new_with_timeout(timeout: Duration) -> Result<Self, AnkaiosError> {
-        Self::builder().control_interface().timeout(timeout).connect().await
+        Self::builder()
+            .control_interface()
+            .timeout(timeout)
+            .connect()
+            .await
     }
 
     /// Creates a builder for constructing an [Ankaios] object, letting the caller pick the
@@ -1560,11 +1564,11 @@ mod tests {
         // No Ankaios server is running in the test environment, so these are expected to fail
         // to connect; the SDK doesn't stand up a real (or fake) gRPC server to test the success
         // path against. Port 0 is never a valid connection target, so this fails fast.
-        let config = super::GrpcConfig::new("http://127.0.0.1:0");
+        let config = super::GrpcConfig::insecure("http://127.0.0.1:0");
         let result = Ankaios::builder().command_interface(config).connect().await;
         assert!(matches!(result, Err(AnkaiosError::ConnectionError(_))));
 
-        let config = super::GrpcConfig::new("http://127.0.0.1:0");
+        let config = super::GrpcConfig::insecure("http://127.0.0.1:0");
         let result = Ankaios::builder()
             .command_interface(config)
             .timeout(Duration::from_secs(5))

@@ -54,5 +54,6 @@ test_utils = []
 # Enables connecting to Ankaios from inside a workload via the control interface (named pipes).
 control_interface = []
 # Enables connecting to an Ankaios server directly over gRPC (e.g. from outside a workload).
-# Independent of `control_interface`; both may be enabled at once.
+# Independent of `control_interface`; although enabling both at once works, it makes sense to
+# only use the one fitting the use case.
 grpc_server_interface = ["dep:tonic-prost", "dep:tokio-stream", "tonic/tls-ring"]
