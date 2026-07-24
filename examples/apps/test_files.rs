@@ -38,7 +38,7 @@ async fn main() {
     // The connection to the control interface is automatically done at this step.
     println!("PLEASE PROVIDE VALID FILES' PATHS IF YOU WANT TO FULLY USE THIS EXAMPLE");
 
-    let mut ank = Ankaios::new_with_ci().await.expect("Failed to initialize");
+    let mut ank = Ankaios::builder().control_interface().connect().await.expect("Failed to initialize");
 
     // Create a workload with text file
     let workload_with_text_file = Workload::builder()

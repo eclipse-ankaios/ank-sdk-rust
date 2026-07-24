@@ -69,7 +69,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
 ///
-/// let ankaios = Ankaios::new_with_ci().await.unwrap();
+/// let ankaios = Ankaios::builder().control_interface().connect().await.unwrap();
 /// /* */
 /// drop(ankaios);
 /// # })
@@ -84,7 +84,23 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
 /// #
-/// let ankaios = Ankaios::new_with_ci_and_timeout(Duration::from_secs(5)).await.unwrap();
+/// let ankaios = Ankaios::builder().control_interface().timeout(Duration::from_secs(5)).connect().await.unwrap();
+/// # })
+/// ```
+///
+/// ## Create an Ankaios object, connect and disconnect from the grpc command interface:
+///
+/// ```rust,no_run
+/// use ankaios_sdk::{Ankaios, GrpcConfig};
+/// # use tokio::runtime::Runtime;
+/// #
+/// # Runtime::new().unwrap().block_on(async {
+///
+/// # let server_url = String::new();
+/// let grpc_config = GrpcConfig::new(server_url);
+/// let ankaios = Ankaios::builder().command_interface(grpc_config).connect().await.unwrap();
+/// /* */
+/// drop(ankaios);
 /// # })
 /// ```
 ///
@@ -95,7 +111,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use tokio::runtime::Runtime;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
+/// # let mut ankaios = Ankaios::builder().control_interface().connect().await.unwrap();
 /// #
 /// let manifest: Manifest;
 /// # let manifest = Manifest::from_string("").unwrap();
@@ -111,7 +127,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use tokio::runtime::Runtime;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
+/// # let mut ankaios = Ankaios::builder().control_interface().connect().await.unwrap();
 /// #
 /// let manifest: Manifest;
 /// # let manifest = Manifest::from_string("").unwrap();
@@ -127,7 +143,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use tokio::runtime::Runtime;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
+/// # let mut ankaios = Ankaios::builder().control_interface().connect().await.unwrap();
 /// #
 /// let workload: Workload;
 /// # let workload = Workload::builder().build().unwrap();
@@ -143,7 +159,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use tokio::runtime::Runtime;
 /// #
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
+/// # let mut ankaios = Ankaios::builder().control_interface().connect().await.unwrap();
 /// #
 /// let workload_name: String;
 /// # let workload_name = String::new();
@@ -158,7 +174,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::Ankaios;
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
+/// # let mut ankaios = Ankaios::builder().control_interface().connect().await.unwrap();
 /// #
 /// let workload_name: String;
 /// # let workload_name = String::new();
@@ -173,7 +189,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::Ankaios;
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
+/// # let mut ankaios = Ankaios::builder().control_interface().connect().await.unwrap();
 /// #
 /// let state = ankaios.get_state(Vec::default()).await.unwrap();
 /// println!("{:?}", state);
@@ -186,7 +202,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::Ankaios;
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
+/// # let mut ankaios = Ankaios::builder().control_interface().connect().await.unwrap();
 /// #
 /// let agents = ankaios.get_agents().await.unwrap();
 /// println!("{:?}", agents);
@@ -199,7 +215,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::Ankaios;
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
+/// # let mut ankaios = Ankaios::builder().control_interface().connect().await.unwrap();
 /// #
 /// let workload_states_collection = ankaios.get_workload_states().await.unwrap();
 /// let workload_states = workload_states_collection.as_list();
@@ -212,7 +228,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::Ankaios;
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
+/// # let mut ankaios = Ankaios::builder().control_interface().connect().await.unwrap();
 /// #
 /// let agent_name: String;
 /// # let agent_name = String::new();
@@ -227,7 +243,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::{Ankaios, WorkloadInstanceName};
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
+/// # let mut ankaios = Ankaios::builder().control_interface().connect().await.unwrap();
 /// #
 /// let workload_instance_name: WorkloadInstanceName;
 /// # let workload_instance_name = WorkloadInstanceName::default();
@@ -242,7 +258,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # use ankaios_sdk::{Ankaios, AnkaiosError, WorkloadInstanceName, WorkloadStateEnum};
 /// # use tokio::runtime::Runtime;
 /// # Runtime::new().unwrap().block_on(async {
-/// # let mut ankaios = Ankaios::new_with_ci().await.unwrap();
+/// # let mut ankaios = Ankaios::builder().control_interface().connect().await.unwrap();
 /// #
 /// let workload_instance_name: WorkloadInstanceName;
 /// # let workload_instance_name = WorkloadInstanceName::default();
@@ -267,7 +283,7 @@ pub struct Ankaios {
 
 impl Ankaios {
     /// Creates a new `Ankaios` object and connects to the control interface.
-    /// Deprecated and has been replaced with [`Ankaios::new_with_ci`].
+    /// Deprecated and has been replaced with [`Ankaios::builder`].
     ///
     /// ## Returns
     ///
@@ -278,13 +294,13 @@ impl Ankaios {
     /// [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if an error occurred when connecting.
     /// [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if a timeout occurred when testing the connection.
     #[cfg(feature = "control_interface")]
-    #[deprecated(since = "1.1.0", note = "use `Ankaios::new_with_ci` instead")]
+    #[deprecated(since = "1.1.0", note = "use `Ankaios::builder` instead")]
     pub async fn new() -> Result<Self, AnkaiosError> {
-        Self::new_with_ci().await
+        Self::builder().control_interface().connect().await
     }
 
     /// Creates a new `Ankaios` object with a custom timeout and connects to the control interface.
-    /// Deprecated and has been replaced with [`Ankaios::new_with_ci_and_timeout`].
+    /// Deprecated and has been replaced with [`Ankaios::builder`].
     ///
     /// ## Arguments
     ///
@@ -298,99 +314,24 @@ impl Ankaios {
     ///
     /// [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if an error occurred when connecting.
     #[cfg(feature = "control_interface")]
-    #[deprecated(
-        since = "1.1.0",
-        note = "use `Ankaios::new_with_ci_and_timeout` instead"
-    )]
+    #[deprecated(since = "1.1.0", note = "use `Ankaios::builder` instead")]
     pub async fn new_with_timeout(timeout: Duration) -> Result<Self, AnkaiosError> {
-        Self::new_with_ci_and_timeout(timeout).await
+        Self::builder().control_interface().timeout(timeout).connect().await
     }
 
-    /// Creates a new `Ankaios` object and connects to the control interface, for use from
-    /// inside a workload.
+    /// Creates a builder for constructing an [Ankaios] object, letting the caller pick the
+    /// connection type, depending on which features are enabled, and optionally, a custom timeout.
     ///
     /// ## Returns
     ///
-    /// A [Result] containing the [Ankaios] object if the connection was successful.
-    ///
-    /// ## Errors
-    ///
-    /// [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if an error occurred when connecting.
-    /// [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if a timeout occurred when testing the connection.
-    #[cfg(feature = "control_interface")]
-    pub async fn new_with_ci() -> Result<Self, AnkaiosError> {
-        Self::new_with_ci_and_timeout(Duration::from_secs(DEFAULT_TIMEOUT)).await
-    }
-
-    /// Creates a new `Ankaios` object with a custom timeout and connects to the control
-    /// interface, for use from inside a workload.
-    ///
-    /// ## Arguments
-    ///
-    /// - `timeout`: The maximum time to wait for the requests.
-    ///
-    /// ## Returns
-    ///
-    /// A [Result] containing the [Ankaios] object if the connection was successful.
-    ///
-    /// ## Errors
-    ///
-    /// [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if an error occurred when connecting.
-    #[cfg(feature = "control_interface")]
-    pub async fn new_with_ci_and_timeout(timeout: Duration) -> Result<Self, AnkaiosError> {
-        let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
-        let connection = Box::new(ControlInterface::new(response_sender));
-        Self::from_connection(connection, response_receiver, timeout).await
-    }
-
-    /// Creates a new `Ankaios` object and connects to an Ankaios server over gRPC, for use from
-    /// outside a workload.
-    ///
-    /// ## Arguments
-    ///
-    /// - `config`: The [`GrpcConfig`] to use when connecting.
-    ///
-    /// ## Returns
-    ///
-    /// A [Result] containing the [Ankaios] object if the connection was successful.
-    ///
-    /// ## Errors
-    ///
-    /// [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if an error occurred when connecting.
-    /// [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if a timeout occurred when testing the connection.
-    #[cfg(feature = "grpc_server_interface")]
-    pub async fn new_with_grpc(config: GrpcConfig) -> Result<Self, AnkaiosError> {
-        Self::new_with_grpc_and_timeout(config, Duration::from_secs(DEFAULT_TIMEOUT)).await
-    }
-
-    /// Creates a new `Ankaios` object with a custom timeout and connects to an Ankaios server
-    /// over gRPC.
-    ///
-    /// ## Arguments
-    ///
-    /// - `config`: The [`GrpcConfig`] to use when connecting;
-    /// - `timeout`: The maximum time to wait for the requests.
-    ///
-    /// ## Returns
-    ///
-    /// A [Result] containing the [Ankaios] object if the connection was successful.
-    ///
-    /// ## Errors
-    ///
-    /// [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if an error occurred when connecting.
-    #[cfg(feature = "grpc_server_interface")]
-    pub async fn new_with_grpc_and_timeout(
-        config: GrpcConfig,
-        timeout: Duration,
-    ) -> Result<Self, AnkaiosError> {
-        let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
-        let connection = Box::new(GrpcConnection::new(config, response_sender));
-        Self::from_connection(connection, response_receiver, timeout).await
+    /// A new [`AnkaiosBuilder`].
+    #[must_use]
+    pub fn builder() -> AnkaiosBuilder {
+        AnkaiosBuilder::new()
     }
 
     /// Builds an [Ankaios] object from an already-constructed [`Connection`], establishing it
-    /// before returning. Shared by every constructor (control interface, gRPC, ...) so that
-    /// connection setup and the resulting struct's fields stay in one place.
+    /// before returning. Used by the builder.
     async fn from_connection(
         connection: Box<dyn Connection>,
         response_receiver: mpsc::Receiver<Response>,
@@ -1402,6 +1343,100 @@ impl Ankaios {
     }
 }
 
+/// Builder for constructing an [Ankaios] object.
+///
+/// Created via [`Ankaios::builder`]. Pick a connection type with
+/// [`AnkaiosBuilder::control_interface`] or [`AnkaiosBuilder::command_interface`] (whichever
+/// the corresponding feature enables), optionally override the timeout with
+/// [`AnkaiosBuilder::timeout`], then call [`AnkaiosBuilder::connect`].
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// # use ankaios_sdk::Ankaios;
+/// # use tokio::runtime::Runtime;
+/// # Runtime::new().unwrap().block_on(async {
+/// let ankaios = Ankaios::builder().control_interface().connect().await.unwrap();
+/// # })
+/// ```
+pub struct AnkaiosBuilder {
+    connection: Option<(Box<dyn Connection>, mpsc::Receiver<Response>)>,
+    timeout: Duration,
+}
+
+impl AnkaiosBuilder {
+    fn new() -> Self {
+        Self {
+            connection: None,
+            timeout: Duration::from_secs(DEFAULT_TIMEOUT),
+        }
+    }
+
+    /// Connects via the **Control Interface**: the Unix FIFO pipes
+    /// (`/run/ankaios/control_interface/{input,output}`) that an Ankaios **agent** mounts into a
+    /// workload's own container. Use this from inside a workload that is itself run by Ankaios
+    #[cfg(feature = "control_interface")]
+    #[must_use]
+    pub fn control_interface(mut self) -> Self {
+        let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
+        let connection: Box<dyn Connection> = Box::new(ControlInterface::new(response_sender));
+        self.connection = Some((connection, response_receiver));
+        self
+    }
+
+    /// Connects via the **Command Interface**: a gRPC connection made directly to the Ankaios
+    /// **server**. Use this from outside the cluster — e.g. a standalone tool, service, or CLI
+    /// that isn't itself a workload managed by Ankaios.
+    ///
+    /// ## Arguments
+    ///
+    /// - `config`: The [`GrpcConfig`] (server URL, optional mTLS material) to use when connecting.
+    #[cfg(feature = "grpc_server_interface")]
+    #[must_use]
+    pub fn command_interface(mut self, config: GrpcConfig) -> Self {
+        let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
+        let connection: Box<dyn Connection> =
+            Box::new(GrpcConnection::new(config, response_sender));
+        self.connection = Some((connection, response_receiver));
+        self
+    }
+
+    /// Sets a custom timeout for the requests.
+    ///
+    /// ## Arguments
+    ///
+    /// - `timeout`: The maximum time to wait for the requests.
+    #[must_use]
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
+    /// Establishes the connection configured on this builder and returns the resulting
+    /// [Ankaios] object.
+    ///
+    /// ## Returns
+    ///
+    /// A [Result] containing the [Ankaios] object if the connection was successful.
+    ///
+    /// ## Errors
+    ///
+    /// [`AnkaiosError`]::[`ConnectionError`](AnkaiosError::ConnectionError) if no connection type
+    /// was configured, or if an error occurred when connecting.
+    /// [`AnkaiosError`]::[`TimeoutError`](AnkaiosError::TimeoutError) if a timeout occurred when
+    /// testing the connection.
+    pub async fn connect(self) -> Result<Ankaios, AnkaiosError> {
+        let (connection, response_receiver) = self.connection.ok_or_else(|| {
+            AnkaiosError::ConnectionError(
+                "No connection type configured; call `.control_interface()` or \
+                 `.command_interface(..)` before `.connect()`."
+                    .to_owned(),
+            )
+        })?;
+        Ankaios::from_connection(connection, response_receiver, self.timeout).await
+    }
+}
+
 impl Drop for Ankaios {
     fn drop(&mut self) {
         log::trace!("Dropping Ankaios");
@@ -1514,10 +1549,7 @@ mod tests {
         )
         .await;
         assert!(result.is_err());
-        assert!(matches!(
-            result,
-            Err(AnkaiosError::ConnectionError(_))
-        ));
+        assert!(matches!(result, Err(AnkaiosError::ConnectionError(_))));
     }
 
     #[cfg(feature = "grpc_server_interface")]
@@ -1529,11 +1561,15 @@ mod tests {
         // to connect; the SDK doesn't stand up a real (or fake) gRPC server to test the success
         // path against. Port 0 is never a valid connection target, so this fails fast.
         let config = super::GrpcConfig::new("http://127.0.0.1:0");
-        let result = Ankaios::new_with_grpc(config).await;
+        let result = Ankaios::builder().command_interface(config).connect().await;
         assert!(matches!(result, Err(AnkaiosError::ConnectionError(_))));
 
         let config = super::GrpcConfig::new("http://127.0.0.1:0");
-        let result = Ankaios::new_with_grpc_and_timeout(config, Duration::from_secs(5)).await;
+        let result = Ankaios::builder()
+            .command_interface(config)
+            .timeout(Duration::from_secs(5))
+            .connect()
+            .await;
         assert!(matches!(result, Err(AnkaiosError::ConnectionError(_))));
     }
 
