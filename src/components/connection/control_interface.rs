@@ -167,9 +167,6 @@ impl ControlInterfaceConnection {
     /// * `state` - A reference to the current state;
     /// * `new_state` - The new state to be set.
     fn change_state(state: &Arc<Mutex<ControlInterfaceState>>, new_state: ControlInterfaceState) {
-        if *state.lock().unwrap_or_else(|_| unreachable!()) == new_state {
-            return;
-        }
         state
             .lock()
             .unwrap_or_else(|_| unreachable!())
@@ -177,7 +174,34 @@ impl ControlInterfaceConnection {
         log::info!("State changed: {new_state:?}");
     }
 
-    /// Prepares the writer thread for the control interface connection.
+    /// Atomically changes the state to `new_state` only if the current state equals `expected`.
+    /// The check and the update are performed while holding the lock, so no other task can
+    /// change the state in between (compare-and-swap).
+    ///
+    /// ## Arguments
+    ///
+    /// * `state` - A reference to the current state;
+    /// * `expected` - The state the current state must equal for the change to happen;
+    /// * `new_state` - The new state to be set.
+    ///
+    /// ## Returns
+    ///
+    /// `true` if the state matched `expected` and was changed to `new_state`, `false` otherwise.
+    fn change_state_if(
+        state: &Arc<Mutex<ControlInterfaceState>>,
+        expected: ControlInterfaceState,
+        new_state: ControlInterfaceState,
+    ) -> bool {
+        let mut state_guard = state.lock().unwrap_or_else(|_| unreachable!());
+        if *state_guard != expected {
+            return false;
+        }
+        state_guard.clone_from(&new_state);
+        log::info!("State changed: {new_state:?}");
+        true
+    }
+
+    /// Prepares the writer thread for the control interface.
     /// It uses a [tokio] task that waits for messages and sends them to the output FIFO.
     fn prepare_writer(&mut self) {
         let (writer_ch_sender, mut writer_ch_receiver) = mpsc::channel::<ToAnkaios>(5);
@@ -203,17 +227,13 @@ impl ControlInterfaceConnection {
                         log::error!("Error while writing to output fifo: '{err}'");
                         // let _ = self.disconnect();
                     });
-                #[allow(clippy::else_if_without_else)]
                 if let Err(err) = output_file.flush().await {
                     if err.kind() == ErrorKind::BrokenPipe {
-                        if *state_clone.lock().unwrap_or_else(|_| unreachable!())
-                            == ControlInterfaceState::Connected
-                        {
-                            ControlInterfaceConnection::change_state(
-                                &state_clone,
-                                ControlInterfaceState::AgentDisconnected,
-                            );
-                        }
+                        ControlInterfaceConnection::change_state_if(
+                            &state_clone,
+                            ControlInterfaceState::Connected,
+                            ControlInterfaceState::AgentDisconnected,
+                        );
                         log::warn!("Waiting for the agent..");
                         sleep(Duration::from_secs(AGENT_RECONNECT_INTERVAL)).await;
                         ControlInterfaceConnection::send_initial_hello(&writer_ch_sender).await;
@@ -221,11 +241,10 @@ impl ControlInterfaceConnection {
                         log::error!("Error while flushing to output fifo: '{err}'");
                         // let _ = self.disconnect();
                     }
-                } else if *state_clone.lock().unwrap_or_else(|_| unreachable!())
-                    == ControlInterfaceState::AgentDisconnected
-                {
-                    ControlInterfaceConnection::change_state(
+                } else {
+                    ControlInterfaceConnection::change_state_if(
                         &state_clone,
+                        ControlInterfaceState::AgentDisconnected,
                         ControlInterfaceState::Initialized,
                     );
                 }
@@ -264,11 +283,12 @@ impl ControlInterfaceConnection {
             loop {
                 match read_protobuf_data(&mut input_file).await {
                     Ok(binary) => {
-                        if *state_clone.lock().unwrap_or_else(|_| unreachable!())
-                            == ControlInterfaceState::AgentDisconnected
-                        {
+                        if Self::change_state_if(
+                            &state_clone,
+                            ControlInterfaceState::AgentDisconnected,
+                            ControlInterfaceState::Initialized,
+                        ) {
                             log::info!("Agent reconnected successfully.");
-                            Self::change_state(&state_clone, ControlInterfaceState::Initialized);
                         }
 
                         let decoded_response = FromAnkaios::decode(&mut Box::new(binary.as_ref()));
@@ -306,13 +326,11 @@ impl ControlInterfaceConnection {
                         }
                     }
                     Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
-                        if *state_clone.lock().unwrap_or_else(|_| unreachable!())
-                            == ControlInterfaceState::Connected
-                        {
-                            Self::change_state(
-                                &state_clone,
-                                ControlInterfaceState::AgentDisconnected,
-                            );
+                        if Self::change_state_if(
+                            &state_clone,
+                            ControlInterfaceState::Connected,
+                            ControlInterfaceState::AgentDisconnected,
+                        ) {
                             Self::send_initial_hello(&writer_ch_sender_clone).await;
                         }
                         sleep(Duration::from_millis(SLEEP_DURATION)).await;
@@ -354,8 +372,9 @@ impl ControlInterfaceConnection {
             ControlInterfaceState::Initialized => {
                 if received_response.content == ResponseType::ControlInterfaceAccepted {
                     log::debug!("Received control interface accepted response.");
-                    ControlInterfaceConnection::change_state(
+                    ControlInterfaceConnection::change_state_if(
                         state,
+                        ControlInterfaceState::Initialized,
                         ControlInterfaceState::Connected,
                     );
                 }
