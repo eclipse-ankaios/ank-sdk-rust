@@ -226,6 +226,7 @@ pub use components::response::{Response, UpdateStateSuccess};
 pub use components::workload_mod::{File, FileContent, Workload, WorkloadBuilder};
 pub use components::workload_state_mod::{
     WorkloadInstanceName, WorkloadState, WorkloadStateCollection, WorkloadStateEnum,
+    WorkloadSubStateEnum,
 };
 
 mod ankaios;
