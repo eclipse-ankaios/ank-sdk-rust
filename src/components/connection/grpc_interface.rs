@@ -319,17 +319,15 @@ impl GrpcConnection {
 
                 streaming = loop {
                     sleep(Duration::from_millis(RECONNECT_INTERVAL_MILLIS)).await;
-                    if *state.lock().unwrap_or_else(|_| unreachable!())
-                        == GrpcConnectionState::Terminated
-                    {
-                        break 'connection;
-                    }
                     match Self::open_stream(&config).await {
                         Ok((sender, new_streaming)) => {
+                            let mut state_guard = state.lock().unwrap_or_else(|_| unreachable!());
+                            if *state_guard == GrpcConnectionState::Terminated {
+                                break 'connection; // disconnect() won; drop sender/new_streaming
+                            }
                             *writer_ch_sender.lock().unwrap_or_else(|_| unreachable!()) =
                                 Some(sender);
-                            *state.lock().unwrap_or_else(|_| unreachable!()) =
-                                GrpcConnectionState::Connected;
+                            *state_guard = GrpcConnectionState::Connected;
                             log::info!("Reconnected to the Ankaios server.");
                             break new_streaming;
                         }
