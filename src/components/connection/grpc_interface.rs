@@ -18,6 +18,8 @@
 //! outside of the cluster.
 
 use async_trait::async_trait;
+#[cfg(test)]
+use mockall::automock;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -160,6 +162,107 @@ pub struct GrpcConnection {
     events_senders_map: SynchronizedSenderMap<EventEntry>,
 }
 
+/// What the reader task needs from a connection: read the next message, or (re)connect. Lets
+/// tests mock the connection instead of needing a real server.
+#[cfg_attr(test, automock)]
+#[async_trait]
+trait ReaderTransport: Send {
+    async fn next_message(&mut self) -> Result<Option<FromServer>, tonic::Status>;
+
+    /// Also used for the initial connect, not just reconnects.
+    async fn attempt_connect(&mut self) -> Result<mpsc::Sender<ToServer>, AnkaiosError>;
+}
+
+/// The real [`ReaderTransport`]. `streaming` is `None` until the first `attempt_connect` call.
+struct GrpcTransport {
+    config: GrpcConfig,
+    streaming: Option<tonic::Streaming<FromServer>>,
+}
+
+#[async_trait]
+impl ReaderTransport for GrpcTransport {
+    async fn next_message(&mut self) -> Result<Option<FromServer>, tonic::Status> {
+        self.streaming
+            .as_mut()
+            .expect("attempt_connect must succeed before next_message is called")
+            .message()
+            .await
+    }
+
+    async fn attempt_connect(&mut self) -> Result<mpsc::Sender<ToServer>, AnkaiosError> {
+        let (sender, streaming) = GrpcConnection::open_stream(&self.config).await?;
+        self.streaming = Some(streaming);
+        Ok(sender)
+    }
+}
+
+/// Reads continuously from `transport`, reconnecting every [`RECONNECT_INTERVAL_MILLIS`] if the
+/// connection is lost, until `state` becomes [`GrpcConnectionState::Terminated`]. A free function
+/// so tests can call it directly instead of through [`tokio::spawn`].
+async fn run_reader_loop<T: ReaderTransport>(
+    mut transport: T,
+    state: Arc<Mutex<GrpcConnectionState>>,
+    writer_ch_sender: Arc<Mutex<Option<mpsc::Sender<ToServer>>>>,
+    response_sender: mpsc::Sender<Response>,
+    mut logs_sender_map: SynchronizedSenderMap<LogResponse>,
+    mut events_sender_map: SynchronizedSenderMap<EventEntry>,
+) {
+    'connection: loop {
+        loop {
+            match transport.next_message().await {
+                Ok(Some(from_server)) => {
+                    GrpcConnection::handle_decoded_response(
+                        from_server,
+                        &response_sender,
+                        &mut logs_sender_map,
+                        &mut events_sender_map,
+                    )
+                    .await;
+                }
+                Ok(None) => {
+                    log::warn!("The gRPC connection to the Ankaios server was closed.");
+                    break;
+                }
+                Err(status) => {
+                    log::error!("Error while reading from the gRPC connection: '{status}'");
+                    break;
+                }
+            }
+        }
+
+        {
+            let mut state_guard = state.lock().unwrap_or_else(|_| unreachable!());
+            if *state_guard == GrpcConnectionState::Terminated {
+                // disconnect() was called; don't try to reconnect.
+                break 'connection;
+            }
+            *state_guard = GrpcConnectionState::Reconnecting;
+        }
+        log::warn!(
+            "Lost connection to the Ankaios server, attempting to reconnect every {RECONNECT_INTERVAL_MILLIS}ms..."
+        );
+
+        loop {
+            sleep(Duration::from_millis(RECONNECT_INTERVAL_MILLIS)).await;
+            match transport.attempt_connect().await {
+                Ok(sender) => {
+                    let mut state_guard = state.lock().unwrap_or_else(|_| unreachable!());
+                    if *state_guard == GrpcConnectionState::Terminated {
+                        break 'connection; // disconnect() won; drop the new sender/stream.
+                    }
+                    *writer_ch_sender.lock().unwrap_or_else(|_| unreachable!()) = Some(sender);
+                    *state_guard = GrpcConnectionState::Connected;
+                    log::info!("Reconnected to the Ankaios server.");
+                    break;
+                }
+                Err(err) => {
+                    log::debug!("Reconnect attempt failed: '{err}'");
+                }
+            }
+        }
+    }
+}
+
 impl GrpcConnection {
     /// Creates a new instance of the gRPC connection.
     ///
@@ -259,85 +362,29 @@ impl GrpcConnection {
     /// `ConnectCommand` bidi stream and spawns the task reading from it (which transparently
     /// reconnects if the connection is later lost).
     async fn connect_internal(&mut self) -> Result<(), AnkaiosError> {
-        let (sender, streaming) = Self::open_stream(&self.config).await?;
+        let mut transport = GrpcTransport {
+            config: self.config.clone(),
+            streaming: None,
+        };
+        let sender = transport.attempt_connect().await?;
         *self
             .writer_ch_sender
             .lock()
             .unwrap_or_else(|_| unreachable!()) = Some(sender);
-        self.spawn_reader_task(streaming);
+        self.spawn_reader_task(transport);
         Ok(())
     }
 
-    /// Spawns the [tokio] task that reads continuously from the gRPC bidi stream. If the
-    /// connection is lost after having been established, the task reconnects (rebuilding the
-    /// channel, resending [`CommanderHello`] and reopening the stream) every
-    /// [`RECONNECT_INTERVAL_MILLIS`] until it succeeds or [`disconnect`](Connection::disconnect)
-    /// is called.
-    fn spawn_reader_task(&mut self, mut streaming: tonic::Streaming<FromServer>) {
-        let config = self.config.clone();
-        let state = Arc::<Mutex<GrpcConnectionState>>::clone(&self.state);
-        let writer_ch_sender = Arc::clone(&self.writer_ch_sender);
-        let response_sender = self.response_sender.clone();
-        let mut logs_sender_map = self.log_senders_map.clone();
-        let mut events_sender_map = self.events_senders_map.clone();
-
-        self.reader_task_handle = Some(tokio::spawn(async move {
-            'connection: loop {
-                loop {
-                    match streaming.message().await {
-                        Ok(Some(from_server)) => {
-                            Self::handle_decoded_response(
-                                from_server,
-                                &response_sender,
-                                &mut logs_sender_map,
-                                &mut events_sender_map,
-                            )
-                            .await;
-                        }
-                        Ok(None) => {
-                            log::warn!("The gRPC connection to the Ankaios server was closed.");
-                            break;
-                        }
-                        Err(status) => {
-                            log::error!("Error while reading from the gRPC connection: '{status}'");
-                            break;
-                        }
-                    }
-                }
-
-                {
-                    let mut state_guard = state.lock().unwrap_or_else(|_| unreachable!());
-                    if *state_guard == GrpcConnectionState::Terminated {
-                        // disconnect() was called; don't try to reconnect.
-                        break 'connection;
-                    }
-                    *state_guard = GrpcConnectionState::Reconnecting;
-                }
-                log::warn!(
-                    "Lost connection to the Ankaios server, attempting to reconnect every {RECONNECT_INTERVAL_MILLIS}ms..."
-                );
-
-                streaming = loop {
-                    sleep(Duration::from_millis(RECONNECT_INTERVAL_MILLIS)).await;
-                    match Self::open_stream(&config).await {
-                        Ok((sender, new_streaming)) => {
-                            let mut state_guard = state.lock().unwrap_or_else(|_| unreachable!());
-                            if *state_guard == GrpcConnectionState::Terminated {
-                                break 'connection; // disconnect() won; drop sender/new_streaming
-                            }
-                            *writer_ch_sender.lock().unwrap_or_else(|_| unreachable!()) =
-                                Some(sender);
-                            *state_guard = GrpcConnectionState::Connected;
-                            log::info!("Reconnected to the Ankaios server.");
-                            break new_streaming;
-                        }
-                        Err(err) => {
-                            log::debug!("Reconnect attempt failed: '{err}'");
-                        }
-                    }
-                };
-            }
-        }));
+    /// Spawns [`run_reader_loop`] as a background task.
+    fn spawn_reader_task<T: ReaderTransport + 'static>(&mut self, transport: T) {
+        self.reader_task_handle = Some(tokio::spawn(run_reader_loop(
+            transport,
+            Arc::clone(&self.state),
+            Arc::clone(&self.writer_ch_sender),
+            self.response_sender.clone(),
+            self.log_senders_map.clone(),
+            self.events_senders_map.clone(),
+        )));
     }
 
     #[doc(hidden)]
@@ -519,12 +566,14 @@ impl Connection for GrpcConnection {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
     use tokio::sync::mpsc;
-    use tokio::time::Duration;
+    use tokio::time::{Duration, sleep};
 
     use super::{
         Connection, FromServer, FromServerEnum, GrpcConfig, GrpcConnection, GrpcConnectionState,
-        ToServer, ToServerEnum,
+        MockReaderTransport, SynchronizedSenderMap, ToServer, ToServerEnum, run_reader_loop,
     };
     use crate::ankaios_api::ank_base::{self, response::ResponseContent as AnkaiosResponseContent};
     use crate::components::request::{Request, generate_test_request};
@@ -861,5 +910,94 @@ mod tests {
         .await;
 
         assert!(response_receiver.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn utest_run_reader_loop_reconnects_after_stream_drop() {
+        let (response_sender, mut response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
+        let state = Arc::new(Mutex::new(GrpcConnectionState::Connected));
+        let writer_ch_sender = Arc::new(Mutex::new(None));
+
+        let mut mock_transport = MockReaderTransport::new();
+        let mut seq = mockall::Sequence::new();
+
+        mock_transport
+            .expect_next_message()
+            .times(1)
+            .in_sequence(&mut seq)
+            .return_once(|| {
+                Ok(Some(FromServer {
+                    from_server_enum: Some(FromServerEnum::Response(
+                        generate_test_ank_base_update_state_success("req_1".to_owned()),
+                    )),
+                }))
+            });
+        mock_transport
+            .expect_next_message()
+            .times(1)
+            .in_sequence(&mut seq)
+            .return_once(|| Err(tonic::Status::unavailable("connection dropped")));
+
+        let (new_sender, _new_receiver) = mpsc::channel::<ToServer>(1);
+        mock_transport
+            .expect_attempt_connect()
+            .times(1)
+            .in_sequence(&mut seq)
+            .return_once(move || Ok(new_sender));
+        // No further expectations on purpose: the next next_message() call panics (harmlessly,
+        // inside the task), freezing state/writer_ch_sender right after reconnecting instead of
+        // racing them.
+
+        let task = tokio::spawn(run_reader_loop(
+            mock_transport,
+            Arc::clone(&state),
+            Arc::clone(&writer_ch_sender),
+            response_sender,
+            SynchronizedSenderMap::default(),
+            SynchronizedSenderMap::default(),
+        ));
+
+        let first = tokio::time::timeout(Duration::from_millis(200), response_receiver.recv())
+            .await
+            .expect("first response should have been forwarded")
+            .expect("channel should not be closed");
+        assert_eq!(first.get_request_id(), "req_1");
+
+        // Give the loop enough headroom to notice the drop, wait RECONNECT_INTERVAL_MILLIS,
+        // reconnect and (harmlessly) panic on the unmocked call after that.
+        sleep(Duration::from_secs(2)).await;
+
+        assert_eq!(*state.lock().unwrap(), GrpcConnectionState::Connected);
+        assert!(writer_ch_sender.lock().unwrap().is_some());
+        assert!(task.is_finished(), "task should have ended (panicked on the unmocked call)");
+    }
+
+    #[tokio::test]
+    async fn utest_run_reader_loop_stops_reconnecting_once_terminated() {
+        let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
+        let state = Arc::new(Mutex::new(GrpcConnectionState::Connected));
+        let writer_ch_sender = Arc::new(Mutex::new(None));
+
+        let mut mock_transport = MockReaderTransport::new();
+        // The stream is already gone from the very first read.
+        mock_transport.expect_next_message().returning(|| Ok(None));
+        // attempt_connect() must never be called once disconnect() has set Terminated.
+        mock_transport.expect_attempt_connect().times(0);
+
+        *state.lock().unwrap() = GrpcConnectionState::Terminated;
+
+        let task = tokio::spawn(run_reader_loop(
+            mock_transport,
+            Arc::clone(&state),
+            Arc::clone(&writer_ch_sender),
+            response_sender,
+            SynchronizedSenderMap::default(),
+            SynchronizedSenderMap::default(),
+        ));
+
+        tokio::time::timeout(Duration::from_millis(200), task)
+            .await
+            .expect("loop should exit promptly once state is Terminated")
+            .expect("task should not panic");
     }
 }
