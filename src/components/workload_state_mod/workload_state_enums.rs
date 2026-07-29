@@ -218,6 +218,7 @@ impl WorkloadSubStateEnum {
     /// ## Returns
     ///
     /// An [i32] value representing the [`WorkloadSubStateEnum`].
+    #[must_use]
     pub fn to_i32(self) -> i32 {
         match self {
             WorkloadSubStateEnum::AgentDisconnected => {
