@@ -16,7 +16,7 @@
 //! SDK can connect to [Ankaios] through: the Control Interface (Unix FIFO pipes an agent mounts
 //! into a workload's own container, for use from inside that workload; behind the
 //! `control_interface` feature) and the Command Interface (a direct gRPC connection to the
-//! Ankaios server, for use from outside the cluster; behind the `grpc_server_interface` feature).
+//! Ankaios server, for use from outside the cluster; behind the `command_interface` feature).
 //!
 //! [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 
@@ -31,10 +31,10 @@ use crate::ankaios_api::ank_base::Request as AnkaiosRequest;
 use crate::components::event_types::EventEntry;
 use crate::components::log_types::LogResponse;
 
+#[cfg(feature = "command_interface")]
+pub mod command_interface;
 #[cfg(feature = "control_interface")]
 pub mod control_interface;
-#[cfg(feature = "grpc_server_interface")]
-pub mod grpc_interface;
 mod helpers;
 
 pub(crate) use helpers::{
@@ -43,13 +43,13 @@ pub(crate) use helpers::{
 };
 
 /// Version of [Ankaios](https://eclipse-ankaios.github.io/ankaios) that is compatible with this
-/// SDK, sent as part of every connection handshake (control interface or gRPC), regardless of
-/// transport.
+/// SDK, sent as part of every connection handshake (control interface or command interface),
+/// regardless of transport.
 pub(crate) const ANKAIOS_VERSION: &str = "1.0.0";
 
 /// Abstracts over the transport used to exchange [`AnkaiosRequest`]/[`Response`](crate::Response)
 /// messages with Ankaios, so that [`Ankaios`](crate::Ankaios) can work identically regardless of
-/// whether it is connected via the control interface or via gRPC.
+/// whether it is connected via the control interface or the command interface.
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub(crate) trait Connection: Send {

@@ -122,6 +122,8 @@
 //! After setup, you can use the Ankaios SDK to configure and run workloads
 //! and request the state of the Ankaios system and the connected agents.
 //!
+//! ### Connecting over The Control Interface
+//!
 //! The following example assumes that the code is running in a workload managed by
 //! Ankaios with configured control interface access. This can also be tested from the
 //! examples folder by running `./run_example.sh hello_ankaios`.
@@ -191,7 +193,44 @@
 //!     }
 //! }
 //! ```
-//!
+//! 
+//! ### Connecting over The Command Interface
+//! 
+//! To connect to an Ankaios server directly from outside a workload (e.g. from
+//! a CI job or a management tool), use the command interface instead, which relies on
+//! a gRPC connection directly to the Ankaios agent:
+//! 
+//! ```rust
+//! use ankaios_sdk::{Ankaios, GrpcConfig};
+//! use tokio::time::Duration;
+//! 
+//! #[tokio::main]
+//! async fn main() {
+//!     // Setup the gRPC connection
+//!     let grpc_config = GrpcConfig::insecure(server_url); // or GrpcConfig::mtls
+//!     // Create a new Ankaios object.
+//! 
+//!     // The connection to the command interface is automatically done at this step.
+//!     let mut ank = Ankaios::builder().command_interface(grpc_config).connect().await.expect("Failed to initialize");
+//! 
+//!     ...
+//! }
+//! ```
+//! 
+//! This requires the command interface feature to be enabled:
+//! 
+//! ```toml
+//! ankaios_sdk = { ..., default-features = false, features = ["command_interface"] }
+//! ```
+//! 
+//! > **_NOTE:_**  The default feature is the control interface. Without disabling it,
+//! > both features will be available.
+//! 
+//! For mTLS-secured connections, also pass `ca_pem`, `crt_pem` and `key_pem`
+//! (the PEM-encoded CA certificate, client certificate and client key content).
+//! 
+//! ### Resources
+//! 
 //! For more details, please visit:
 //!
 //! * [Ankaios documentation](https://eclipse-ankaios.github.io/ankaios/latest/)
@@ -207,10 +246,10 @@
 //! Ankaios Rust SDK is licensed using the Apache License Version 2.0.
 //!
 
-#[cfg(not(any(feature = "control_interface", feature = "grpc_server_interface")))]
+#[cfg(not(any(feature = "control_interface", feature = "command_interface")))]
 compile_error!(
     "ankaios_sdk requires at least one connection feature to be enabled: \
-     `control_interface` and/or `grpc_server_interface`."
+     `control_interface` and/or `command_interface`."
 );
 
 mod ankaios_api;
@@ -222,10 +261,10 @@ pub use errors::AnkaiosError;
 
 mod components;
 
+#[cfg(feature = "command_interface")]
+pub use components::connection::command_interface::GrpcConfig;
 #[cfg(feature = "control_interface")]
 pub use components::connection::control_interface::ControlInterfaceState;
-#[cfg(feature = "grpc_server_interface")]
-pub use components::connection::grpc_interface::GrpcConfig;
 
 pub use components::complete_state::{AgentAttributes, CompleteState};
 pub use components::event_types::{EventEntry, EventsCampaignResponse};

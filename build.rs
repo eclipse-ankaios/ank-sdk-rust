@@ -30,7 +30,7 @@ fn main() {
             .unwrap();
     }
 
-    if std::env::var("CARGO_FEATURE_GRPC_SERVER_INTERFACE").is_ok() {
+    if std::env::var("CARGO_FEATURE_COMMAND_INTERFACE").is_ok() {
         // Client-only: this SDK never needs to run a CliConnection/AgentConnection server.
         let mut grpc_builder = tonic_prost_build::configure().build_server(false);
         grpc_builder = setup_proto_annotations(grpc_builder);

@@ -25,10 +25,10 @@ use tokio::time::{Duration, sleep, timeout as tokio_timeout};
 use crate::components::connection::Connection;
 #[cfg(test)]
 use crate::components::connection::MockConnection;
+#[cfg(feature = "command_interface")]
+use crate::components::connection::command_interface::{CommandInterfaceConnection, GrpcConfig};
 #[cfg(feature = "control_interface")]
-use crate::components::connection::control_interface::ControlInterface;
-#[cfg(feature = "grpc_server_interface")]
-use crate::components::connection::grpc_interface::{GrpcConfig, GrpcConnection};
+use crate::components::connection::control_interface::ControlInterfaceConnection;
 
 use crate::components::event_types::{EventEntry, EventsCampaignResponse};
 use crate::components::log_types::{LogCampaignResponse, LogsRequest};
@@ -55,7 +55,8 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 
 /// This struct is used to interact with [Ankaios] using an intuitive API.
 /// The struct automatically handles the session creation and the requests
-/// and responses sent and received over the Control Interface.
+/// and responses sent and received over the configured connection (either
+/// Control Interface or Command Interface).
 ///
 /// [Ankaios]: https://eclipse-ankaios.github.io/ankaios
 ///
@@ -88,7 +89,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # })
 /// ```
 ///
-/// ## Create an Ankaios object, connect and disconnect from the grpc command interface:
+/// ## Create an Ankaios object, connect and disconnect from the command interface:
 ///
 /// ```rust,no_run
 /// use ankaios_sdk::{Ankaios, GrpcConfig};
@@ -275,7 +276,8 @@ pub struct Ankaios {
     /// The receiver end of the channel used to receive responses from Ankaios.
     response_receiver: mpsc::Receiver<Response>,
     /// The connection instance that is used to communicate with Ankaios, either via the
-    /// control interface or, with the `grpc` feature enabled, directly over gRPC.
+    /// control interface or the command interface, depending on whether the SDK is used from
+    /// inside or outside a workload and which feature is enabled.
     connection: Box<dyn Connection>,
     /// The timeout used for the requests.
     pub timeout: Duration,
@@ -353,7 +355,7 @@ impl Ankaios {
         Ok(object)
     }
 
-    /// Sends a request to the Control Interface and waits for the response.
+    /// Sends a request to the configured connection and waits for the response.
     ///
     /// ## Arguments
     ///
@@ -1383,7 +1385,8 @@ impl AnkaiosBuilder {
     #[must_use]
     pub fn control_interface(mut self) -> Self {
         let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
-        let connection: Box<dyn Connection> = Box::new(ControlInterface::new(response_sender));
+        let connection: Box<dyn Connection> =
+            Box::new(ControlInterfaceConnection::new(response_sender));
         self.connection = Some((connection, response_receiver));
         self
     }
@@ -1395,12 +1398,12 @@ impl AnkaiosBuilder {
     /// ## Arguments
     ///
     /// - `config`: The [`GrpcConfig`] (server URL, optional mTLS material) to use when connecting.
-    #[cfg(feature = "grpc_server_interface")]
+    #[cfg(feature = "command_interface")]
     #[must_use]
     pub fn command_interface(mut self, config: GrpcConfig) -> Self {
         let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
         let connection: Box<dyn Connection> =
-            Box::new(GrpcConnection::new(config, response_sender));
+            Box::new(CommandInterfaceConnection::new(config, response_sender));
         self.connection = Some((connection, response_receiver));
         self
     }
@@ -1556,9 +1559,9 @@ mod tests {
         assert!(matches!(result, Err(AnkaiosError::ConnectionError(_))));
     }
 
-    #[cfg(feature = "grpc_server_interface")]
+    #[cfg(feature = "command_interface")]
     #[tokio::test]
-    async fn itest_create_ankaios_with_grpc() {
+    async fn itest_create_ankaios_with_command_interface() {
         let _guard = MOCKALL_SYNC.lock().await;
 
         // No Ankaios server is running in the test environment, so these are expected to fail
