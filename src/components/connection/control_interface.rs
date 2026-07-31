@@ -12,8 +12,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the [`ControlInterface`] struct and the [`ControlInterfaceState`] enum,
-//! implementing the [`Connection`] trait over the
+//! This module contains the [`ControlInterfaceConnection`] struct and the
+//! [`ControlInterfaceState`] enum, implementing the [`Connection`] trait over the
 //! [Ankaios](https://eclipse-ankaios.github.io/ankaios) control interface (named pipes), used to
 //! connect to Ankaios from inside a workload.
 
@@ -50,19 +50,19 @@ const ANKAIOS_OUTPUT_FIFO_PATH: &str = "output";
 /// Maximum size of a varint in bytes.
 const MAX_VARINT_SIZE: usize = 19;
 
-/// Enum representing the state of the control interface.
+/// Enum representing the state of the control interface connection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(i32)]
 pub enum ControlInterfaceState {
-    /// The control interface was initialized.
+    /// The connection to the control interface was initialized.
     Initialized = 1,
-    /// The control interface is established.
+    /// The connection to the control interface is established.
     Connected = 2,
-    /// The control interface is terminated.
+    /// The connection to the control interface is terminated.
     Terminated = 3,
     /// The agent is disconnected.
     AgentDisconnected = 4,
-    /// The connection is closed. This state is unrecoverable.
+    /// The connection to the control interface is closed. This state is unrecoverable.
     ConnectionClosed = 5,
 }
 
@@ -71,7 +71,7 @@ pub enum ControlInterfaceState {
 ///
 /// It uses two [tokio] tasks, one for reading from the input FIFO and one for
 /// writing to the output FIFO.
-pub struct ControlInterface {
+pub struct ControlInterfaceConnection {
     /// Path to the FIFO pipes directory.
     pub(crate) path: String,
     /// Output file for writing to the control interface.
@@ -135,8 +135,8 @@ async fn read_protobuf_data(file: &mut BufReader<pipe::Receiver>) -> Result<Vec<
     Ok(buf)
 }
 
-impl ControlInterface {
-    /// Creates a new instance of the control interface.
+impl ControlInterfaceConnection {
+    /// Creates a new instance of the control interface connection.
     ///
     /// ## Arguments
     ///
@@ -144,7 +144,7 @@ impl ControlInterface {
     ///
     /// ## Returns
     ///
-    /// A new [`ControlInterface`] instance.
+    /// A new [`ControlInterfaceConnection`] instance.
     pub fn new(response_sender: mpsc::Sender<Response>) -> Self {
         Self {
             path: ANKAIOS_CONTROL_INTERFACE_BASE_PATH.to_owned(),
@@ -159,8 +159,8 @@ impl ControlInterface {
         }
     }
 
-    /// Changes the state of the control interface.
-    /// This method should be used for all state changes inside the control interface.
+    /// Changes the state of the control interface connection.
+    /// This method should be used for all state changes inside the connection.
     ///
     /// ## Arguments
     ///
@@ -177,7 +177,7 @@ impl ControlInterface {
         log::info!("State changed: {new_state:?}");
     }
 
-    /// Prepares the writer thread for the control interface.
+    /// Prepares the writer thread for the control interface connection.
     /// It uses a [tokio] task that waits for messages and sends them to the output FIFO.
     fn prepare_writer(&mut self) {
         let (writer_ch_sender, mut writer_ch_receiver) = mpsc::channel::<ToAnkaios>(5);
@@ -209,14 +209,14 @@ impl ControlInterface {
                         if *state_clone.lock().unwrap_or_else(|_| unreachable!())
                             == ControlInterfaceState::Connected
                         {
-                            ControlInterface::change_state(
+                            ControlInterfaceConnection::change_state(
                                 &state_clone,
                                 ControlInterfaceState::AgentDisconnected,
                             );
                         }
                         log::warn!("Waiting for the agent..");
                         sleep(Duration::from_secs(AGENT_RECONNECT_INTERVAL)).await;
-                        ControlInterface::send_initial_hello(&writer_ch_sender).await;
+                        ControlInterfaceConnection::send_initial_hello(&writer_ch_sender).await;
                     } else {
                         log::error!("Error while flushing to output fifo: '{err}'");
                         // let _ = self.disconnect();
@@ -224,7 +224,7 @@ impl ControlInterface {
                 } else if *state_clone.lock().unwrap_or_else(|_| unreachable!())
                     == ControlInterfaceState::AgentDisconnected
                 {
-                    ControlInterface::change_state(
+                    ControlInterfaceConnection::change_state(
                         &state_clone,
                         ControlInterfaceState::Initialized,
                     );
@@ -234,7 +234,7 @@ impl ControlInterface {
         }));
     }
 
-    /// Prepares the reader thread for the control interface.
+    /// Prepares the reader thread for the control interface connection.
     /// It uses a [tokio] task that reads continuously from the FIFO input pipe.
     fn read_from_control_interface(&mut self) {
         #[cfg(not(test))]
@@ -354,7 +354,10 @@ impl ControlInterface {
             ControlInterfaceState::Initialized => {
                 if received_response.content == ResponseType::ControlInterfaceAccepted {
                     log::debug!("Received control interface accepted response.");
-                    ControlInterface::change_state(state, ControlInterfaceState::Connected);
+                    ControlInterfaceConnection::change_state(
+                        state,
+                        ControlInterfaceState::Connected,
+                    );
                 }
             }
             ControlInterfaceState::Connected => match received_response.content {
@@ -420,7 +423,7 @@ impl ControlInterface {
 }
 
 #[async_trait]
-impl Connection for ControlInterface {
+impl Connection for ControlInterfaceConnection {
     async fn connect(&mut self, timeout: Duration) -> Result<(), AnkaiosError> {
         if matches!(
             *self.state.lock().unwrap_or_else(|_| unreachable!()),
@@ -443,8 +446,8 @@ impl Connection for ControlInterface {
 
         self.prepare_writer();
         self.read_from_control_interface();
-        ControlInterface::change_state(&self.state, ControlInterfaceState::Initialized);
-        ControlInterface::send_initial_hello(
+        ControlInterfaceConnection::change_state(&self.state, ControlInterfaceState::Initialized);
+        ControlInterfaceConnection::send_initial_hello(
             self.writer_ch_sender
                 .as_ref()
                 .unwrap_or_else(|| unreachable!()),
@@ -563,8 +566,8 @@ mod tests {
     };
 
     use super::{
-        ANKAIOS_INPUT_FIFO_PATH, ANKAIOS_OUTPUT_FIFO_PATH, ANKAIOS_VERSION, ControlInterface,
-        ControlInterfaceState, read_protobuf_data,
+        ANKAIOS_INPUT_FIFO_PATH, ANKAIOS_OUTPUT_FIFO_PATH, ANKAIOS_VERSION,
+        ControlInterfaceConnection, ControlInterfaceState, read_protobuf_data,
     };
     use crate::components::connection::{
         Connection, forward_log_entries, forward_logs_stop_response,
@@ -590,7 +593,7 @@ mod tests {
     const CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 
     /// Helper function for getting the state of the control interface.
-    fn get_state(ci: &ControlInterface) -> ControlInterfaceState {
+    fn get_state(ci: &ControlInterfaceConnection) -> ControlInterfaceState {
         let state = ci.state.lock().unwrap();
         *state
     }
@@ -651,7 +654,7 @@ mod tests {
         let fifo_output = tmpdir.path().join(ANKAIOS_OUTPUT_FIFO_PATH);
 
         // Create control interface
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
         tmpdir.path().to_str().unwrap().clone_into(&mut ci.path);
         assert_eq!(get_state(&ci), ControlInterfaceState::Terminated);
 
@@ -729,7 +732,7 @@ mod tests {
         let fifo_output = tmpdir.path().join(ANKAIOS_OUTPUT_FIFO_PATH);
 
         // Create control interface
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
         tmpdir.path().to_str().unwrap().clone_into(&mut ci.path);
         assert_eq!(get_state(&ci), ControlInterfaceState::Terminated);
 
@@ -770,7 +773,7 @@ mod tests {
         );
 
         // Create control interface
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
         tmpdir.path().to_str().unwrap().clone_into(&mut ci.path);
         assert_eq!(get_state(&ci), ControlInterfaceState::Terminated);
 
@@ -892,7 +895,7 @@ mod tests {
         });
 
         // Create control interface
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
         tmpdir.path().to_str().unwrap().clone_into(&mut ci.path);
         assert_eq!(get_state(&ci), ControlInterfaceState::Terminated);
         sleep(Duration::from_millis(10)).await;
@@ -980,7 +983,7 @@ mod tests {
         let (response_sender, mut response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
 
         // Create control interface
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
         let state = Arc::clone(&ci.state);
 
         // Create responses to test the method
@@ -990,7 +993,7 @@ mod tests {
 
         // Test invalid state
         *state.lock().unwrap() = ControlInterfaceState::Terminated;
-        ControlInterface::handle_decoded_response(
+        ControlInterfaceConnection::handle_decoded_response(
             &state,
             update_state_response.clone(),
             &ci.response_sender,
@@ -1002,7 +1005,7 @@ mod tests {
 
         // Test initialized state - received control interface accepted response
         *state.lock().unwrap() = ControlInterfaceState::Initialized;
-        ControlInterface::handle_decoded_response(
+        ControlInterfaceConnection::handle_decoded_response(
             &state,
             ci_accepted_response.clone(),
             &ci.response_sender,
@@ -1013,7 +1016,7 @@ mod tests {
         assert!(matches!(get_state(&ci), ControlInterfaceState::Connected));
 
         // Test connected state - received unexpected control interface accepted response
-        ControlInterface::handle_decoded_response(
+        ControlInterfaceConnection::handle_decoded_response(
             &state,
             ci_accepted_response,
             &ci.response_sender,
@@ -1024,7 +1027,7 @@ mod tests {
 
         // Test connected state - received valid response
         response_receiver.try_recv().unwrap_err(); // No response should be sent
-        ControlInterface::handle_decoded_response(
+        ControlInterfaceConnection::handle_decoded_response(
             &state,
             update_state_response,
             &ci.response_sender,
@@ -1052,7 +1055,7 @@ mod tests {
         mkfifo(&fifo_output, Mode::S_IRWXU).unwrap();
 
         // Create control interface
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
         tmpdir.path().to_str().unwrap().clone_into(&mut ci.path);
         let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
         ci.log_senders_map
@@ -1112,7 +1115,7 @@ mod tests {
         let (response_sender, mut response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
 
         // Create control interface
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
 
         let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
         ci.log_senders_map
@@ -1151,7 +1154,7 @@ mod tests {
         let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
 
         // Create control interface
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
         let state = ci.state;
         *state.lock().unwrap() = ControlInterfaceState::Connected;
 
@@ -1174,7 +1177,7 @@ mod tests {
         let response =
             generate_test_logs_stop_response(REQUEST_ID_1.to_owned(), instance_name_1.clone());
 
-        ControlInterface::handle_decoded_response(
+        ControlInterfaceConnection::handle_decoded_response(
             &state,
             response,
             &ci.response_sender,
@@ -1194,7 +1197,7 @@ mod tests {
         let response =
             generate_test_logs_stop_response(REQUEST_ID_1.to_owned(), instance_name_2.clone());
 
-        ControlInterface::handle_decoded_response(
+        ControlInterfaceConnection::handle_decoded_response(
             &state,
             response,
             &ci.response_sender,
@@ -1220,7 +1223,7 @@ mod tests {
         let (response_sender, mut response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
 
         // Create control interface
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
 
         let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
         ci.log_senders_map
@@ -1268,7 +1271,7 @@ mod tests {
         let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
 
         // Create control interface
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
         let state = ci.state;
         *state.lock().unwrap() = ControlInterfaceState::Connected;
 
@@ -1280,7 +1283,7 @@ mod tests {
         let event_entry_response = generate_test_response_event_entry(REQUEST_ID_1.to_owned());
 
         // Handle event entry response
-        ControlInterface::handle_decoded_response(
+        ControlInterfaceConnection::handle_decoded_response(
             &state,
             event_entry_response,
             &ci.response_sender,
@@ -1317,7 +1320,7 @@ mod tests {
         let event_entry_response = generate_test_response_event_entry(REQUEST_ID_2.to_owned());
 
         // Handle event entry response
-        ControlInterface::handle_decoded_response(
+        ControlInterfaceConnection::handle_decoded_response(
             &state,
             event_entry_response,
             &ci.response_sender,
@@ -1333,7 +1336,7 @@ mod tests {
     #[tokio::test]
     async fn utest_control_interface_add_log_campaign() {
         let (response_sender, _) = mpsc::channel::<Response>(CHANNEL_SIZE);
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
 
         let (logs_sender_1, _) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
         ci.add_log_campaign(REQUEST_ID_1.to_owned(), logs_sender_1);
@@ -1357,7 +1360,7 @@ mod tests {
     #[tokio::test]
     async fn utest_control_interface_remove_log_campaign() {
         let (response_sender, _) = mpsc::channel::<Response>(CHANNEL_SIZE);
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
 
         let (logs_sender_1, _) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
         ci.log_senders_map
@@ -1396,7 +1399,7 @@ mod tests {
     #[tokio::test]
     async fn utest_control_interface_add_events_campaign() {
         let (response_sender, _) = mpsc::channel::<Response>(CHANNEL_SIZE);
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
 
         let (events_sender_1, _) = mpsc::channel::<EventEntry>(CHANNEL_SIZE);
         ci.add_events_campaign(REQUEST_ID_1.to_owned(), events_sender_1);
@@ -1420,7 +1423,7 @@ mod tests {
     #[tokio::test]
     async fn utest_control_interface_remove_events_campaign() {
         let (response_sender, _) = mpsc::channel::<Response>(CHANNEL_SIZE);
-        let mut ci = ControlInterface::new(response_sender);
+        let mut ci = ControlInterfaceConnection::new(response_sender);
 
         let (events_sender_1, _) = mpsc::channel::<EventEntry>(CHANNEL_SIZE);
         ci.events_senders_map

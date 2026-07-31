@@ -12,10 +12,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains the [`GrpcConfig`] struct and the gRPC implementation of the
-//! [`Connection`] trait, used to connect to an
-//! [Ankaios](https://eclipse-ankaios.github.io/ankaios) server directly over gRPC, e.g. from
-//! outside of the cluster.
+//! This module contains the [`CommandInterfaceConnection`] and [`GrpcConfig`] structs and the
+//! [`CommandInterfaceState`] enum, implementing the [`Connection`] trait over the
+//! [Ankaios](https://eclipse-ankaios.github.io/ankaios) command interface (a direct gRPC
+//! connection to the Ankaios server), used to connect to Ankaios from outside a workload.
 
 use async_trait::async_trait;
 #[cfg(test)]
@@ -39,11 +39,10 @@ use crate::components::log_types::LogResponse;
 use crate::components::response::{Response, ResponseType};
 
 /// Configuration for connecting to an [Ankaios](https://eclipse-ankaios.github.io/ankaios)
-/// server over gRPC.
+/// server over the command interface.
 ///
 /// Constructed either insecure (plaintext, via [`GrpcConfig::insecure`]) or mTLS-secured (via
-/// [`GrpcConfig::mtls`]) — the certificate material is mandatory context for a secured
-/// connection, not an optional add-on, so there is no default-then-upgrade path between the two.
+/// [`GrpcConfig::mtls`]) with the certificate material being mandatory context.
 ///
 /// ## Examples
 ///
@@ -120,10 +119,10 @@ impl std::fmt::Debug for GrpcConfig {
     }
 }
 
-/// Enum representing the state of the [`GrpcConnection`].
+/// Enum representing the state of the [`CommandInterfaceConnection`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(i32)]
-pub enum GrpcConnectionState {
+pub enum CommandInterfaceState {
     /// The connection was initialized but not yet accepted by the server.
     Initialized = 1,
     /// The connection is established.
@@ -139,19 +138,18 @@ pub enum GrpcConnectionState {
 const RECONNECT_INTERVAL_MILLIS: u64 = 500;
 
 /// This struct handles the interaction with an [Ankaios](https://eclipse-ankaios.github.io/ankaios)
-/// server over gRPC, playing the commander role via `CommandConnection.ConnectCommand`. The
-/// initial [`connect`](Connection::connect) attempt is never retried. Once a connection has
-/// been successfully established, losing it is treated as transient: the connection is rebuilt
-/// and retried every [`RECONNECT_INTERVAL_MILLIS`] until it succeeds.
-pub struct GrpcConnection {
+/// server over the command interface (a gRPC connection). Once a connection has been
+/// successfully established, losing it is treated as transient: the connection is rebuilt and
+/// retried every [`RECONNECT_INTERVAL_MILLIS`] until it succeeds.
+pub struct CommandInterfaceConnection {
     /// Configuration used to connect to the Ankaios server.
     config: GrpcConfig,
-    /// State of the gRPC connection.
-    state: Arc<Mutex<GrpcConnectionState>>,
-    /// Sender for the outgoing message stream fed into the gRPC bidi call. Shared with the
+    /// State of the command interface connection.
+    state: Arc<Mutex<CommandInterfaceState>>,
+    /// Sender for the outgoing message stream fed into the command interface bidi call. Shared with the
     /// reader/reconnect task, which replaces it whenever the connection is rebuilt.
     writer_ch_sender: Arc<Mutex<Option<mpsc::Sender<ToServer>>>>,
-    /// Handler for the task reading incoming messages from the gRPC bidi stream (and
+    /// Handler for the task reading incoming messages from the command interface bidi stream (and
     /// transparently reconnecting on a lost connection).
     reader_task_handle: Option<JoinHandle<()>>,
     /// Sender for the response channel.
@@ -169,7 +167,7 @@ pub struct GrpcConnection {
 trait ReaderTransport: Send {
     async fn next_message(&mut self) -> Result<Option<FromServer>, tonic::Status>;
 
-    /// Also used for the initial connect, not just reconnects.
+    /// Used for both the initial connection and the reconnect logic.
     async fn attempt_connect(&mut self) -> Result<mpsc::Sender<ToServer>, AnkaiosError>;
 }
 
@@ -190,18 +188,18 @@ impl ReaderTransport for GrpcTransport {
     }
 
     async fn attempt_connect(&mut self) -> Result<mpsc::Sender<ToServer>, AnkaiosError> {
-        let (sender, streaming) = GrpcConnection::open_stream(&self.config).await?;
+        let (sender, streaming) = CommandInterfaceConnection::open_stream(&self.config).await?;
         self.streaming = Some(streaming);
         Ok(sender)
     }
 }
 
 /// Reads continuously from `transport`, reconnecting every [`RECONNECT_INTERVAL_MILLIS`] if the
-/// connection is lost, until `state` becomes [`GrpcConnectionState::Terminated`]. A free function
+/// connection is lost, until `state` becomes [`CommandInterfaceState::Terminated`]. A free function
 /// so tests can call it directly instead of through [`tokio::spawn`].
 async fn run_reader_loop<T: ReaderTransport>(
     mut transport: T,
-    state: Arc<Mutex<GrpcConnectionState>>,
+    state: Arc<Mutex<CommandInterfaceState>>,
     writer_ch_sender: Arc<Mutex<Option<mpsc::Sender<ToServer>>>>,
     response_sender: mpsc::Sender<Response>,
     mut logs_sender_map: SynchronizedSenderMap<LogResponse>,
@@ -211,7 +209,7 @@ async fn run_reader_loop<T: ReaderTransport>(
         loop {
             match transport.next_message().await {
                 Ok(Some(from_server)) => {
-                    GrpcConnection::handle_decoded_response(
+                    CommandInterfaceConnection::handle_decoded_response(
                         from_server,
                         &response_sender,
                         &mut logs_sender_map,
@@ -220,11 +218,11 @@ async fn run_reader_loop<T: ReaderTransport>(
                     .await;
                 }
                 Ok(None) => {
-                    log::warn!("The gRPC connection to the Ankaios server was closed.");
+                    log::warn!("The connection to the Ankaios server was closed.");
                     break;
                 }
                 Err(status) => {
-                    log::error!("Error while reading from the gRPC connection: '{status}'");
+                    log::error!("Error while reading from the connection: '{status}'");
                     break;
                 }
             }
@@ -232,11 +230,11 @@ async fn run_reader_loop<T: ReaderTransport>(
 
         {
             let mut state_guard = state.lock().unwrap_or_else(|_| unreachable!());
-            if *state_guard == GrpcConnectionState::Terminated {
+            if *state_guard == CommandInterfaceState::Terminated {
                 // disconnect() was called; don't try to reconnect.
                 break 'connection;
             }
-            *state_guard = GrpcConnectionState::Reconnecting;
+            *state_guard = CommandInterfaceState::Reconnecting;
         }
         log::warn!(
             "Lost connection to the Ankaios server, attempting to reconnect every {RECONNECT_INTERVAL_MILLIS}ms..."
@@ -247,11 +245,11 @@ async fn run_reader_loop<T: ReaderTransport>(
             match transport.attempt_connect().await {
                 Ok(sender) => {
                     let mut state_guard = state.lock().unwrap_or_else(|_| unreachable!());
-                    if *state_guard == GrpcConnectionState::Terminated {
+                    if *state_guard == CommandInterfaceState::Terminated {
                         break 'connection; // disconnect() won; drop the new sender/stream.
                     }
                     *writer_ch_sender.lock().unwrap_or_else(|_| unreachable!()) = Some(sender);
-                    *state_guard = GrpcConnectionState::Connected;
+                    *state_guard = CommandInterfaceState::Connected;
                     log::info!("Reconnected to the Ankaios server.");
                     break;
                 }
@@ -263,8 +261,8 @@ async fn run_reader_loop<T: ReaderTransport>(
     }
 }
 
-impl GrpcConnection {
-    /// Creates a new instance of the gRPC connection.
+impl CommandInterfaceConnection {
+    /// Creates a new instance of the command interface connection.
     ///
     /// ## Arguments
     ///
@@ -273,11 +271,11 @@ impl GrpcConnection {
     ///
     /// ## Returns
     ///
-    /// A new [`GrpcConnection`] instance.
+    /// A new [`CommandInterfaceConnection`] instance.
     pub fn new(config: GrpcConfig, response_sender: mpsc::Sender<Response>) -> Self {
         Self {
             config,
-            state: Arc::new(Mutex::new(GrpcConnectionState::Terminated)),
+            state: Arc::new(Mutex::new(CommandInterfaceState::Terminated)),
             writer_ch_sender: Arc::new(Mutex::new(None)),
             reader_task_handle: None,
             response_sender,
@@ -323,8 +321,7 @@ impl GrpcConnection {
     }
 
     /// Builds the gRPC channel, sends the initial [`CommanderHello`] and opens the
-    /// `ConnectCommand` bidi stream. Used both for the initial connect and for every reconnect
-    /// attempt.
+    /// `ConnectCommand` bidi stream.
     async fn open_stream(
         config: &GrpcConfig,
     ) -> Result<(mpsc::Sender<ToServer>, tonic::Streaming<FromServer>), AnkaiosError> {
@@ -359,8 +356,7 @@ impl GrpcConnection {
     }
 
     /// Establishes the gRPC channel, sends the initial [`CommanderHello`], opens the
-    /// `ConnectCommand` bidi stream and spawns the task reading from it (which transparently
-    /// reconnects if the connection is later lost).
+    /// `ConnectCommand` bidi stream and spawns the task reading from it.
     async fn connect_internal(&mut self) -> Result<(), AnkaiosError> {
         let mut transport = GrpcTransport {
             config: self.config.clone(),
@@ -457,27 +453,27 @@ impl GrpcConnection {
 }
 
 #[async_trait]
-impl Connection for GrpcConnection {
+impl Connection for CommandInterfaceConnection {
     async fn connect(&mut self, timeout: Duration) -> Result<(), AnkaiosError> {
         {
             let mut state_guard = self.state.lock().unwrap_or_else(|_| unreachable!());
             if matches!(
                 *state_guard,
-                GrpcConnectionState::Initialized
-                    | GrpcConnectionState::Connected
-                    | GrpcConnectionState::Reconnecting
+                CommandInterfaceState::Initialized
+                    | CommandInterfaceState::Connected
+                    | CommandInterfaceState::Reconnecting
             ) {
                 return Err(AnkaiosError::ConnectionError(
                     "Already connected.".to_owned(),
                 ));
             }
-            *state_guard = GrpcConnectionState::Initialized;
+            *state_guard = CommandInterfaceState::Initialized;
         }
         match tokio_timeout(timeout, self.connect_internal()).await {
             Ok(Ok(())) => {
                 *self.state.lock().unwrap_or_else(|_| unreachable!()) =
-                    GrpcConnectionState::Connected;
-                log::trace!("Connected to the Ankaios server over gRPC.");
+                    CommandInterfaceState::Connected;
+                log::trace!("Connected to the Ankaios server over the command interface.");
                 Ok(())
             }
             Ok(Err(err)) => Err(err),
@@ -490,12 +486,12 @@ impl Connection for GrpcConnection {
     fn disconnect(&mut self) -> Result<(), AnkaiosError> {
         {
             let mut state_guard = self.state.lock().unwrap_or_else(|_| unreachable!());
-            if *state_guard == GrpcConnectionState::Terminated {
+            if *state_guard == CommandInterfaceState::Terminated {
                 return Err(AnkaiosError::ConnectionError(
                     "Already disconnected.".to_owned(),
                 ));
             }
-            *state_guard = GrpcConnectionState::Terminated;
+            *state_guard = CommandInterfaceState::Terminated;
         }
 
         if let Some(handler) = self.reader_task_handle.take() {
@@ -509,10 +505,11 @@ impl Connection for GrpcConnection {
     }
 
     async fn write_request(&mut self, request: AnkaiosRequest) -> Result<(), AnkaiosError> {
-        if *self.state.lock().unwrap_or_else(|_| unreachable!()) != GrpcConnectionState::Connected {
-            log::error!("Could not write to the gRPC connection, not connected.");
+        if *self.state.lock().unwrap_or_else(|_| unreachable!()) != CommandInterfaceState::Connected
+        {
+            log::error!("Could not write to the command interface, not connected.");
             return Err(AnkaiosError::ConnectionError(
-                "Could not write to the gRPC connection, not connected.".to_owned(),
+                "Could not write to the command interface, not connected.".to_owned(),
             ));
         }
         let maybe_sender = self
@@ -572,8 +569,9 @@ mod tests {
     use tokio::time::{Duration, sleep};
 
     use super::{
-        Connection, FromServer, FromServerEnum, GrpcConfig, GrpcConnection, GrpcConnectionState,
-        MockReaderTransport, SynchronizedSenderMap, ToServer, ToServerEnum, run_reader_loop,
+        CommandInterfaceConnection, CommandInterfaceState, Connection, FromServer, FromServerEnum,
+        GrpcConfig, MockReaderTransport, SynchronizedSenderMap, ToServer, ToServerEnum,
+        run_reader_loop,
     };
     use crate::ankaios_api::ank_base::{self, response::ResponseContent as AnkaiosResponseContent};
     use crate::components::request::{Request, generate_test_request};
@@ -586,10 +584,10 @@ mod tests {
     const REQUEST_ID: &str = "request_id_1";
     const CHANNEL_SIZE: usize = 10;
 
-    fn generate_test_grpc_connection() -> (GrpcConnection, mpsc::Receiver<Response>) {
+    fn generate_test_command_interface_connection() -> (CommandInterfaceConnection, mpsc::Receiver<Response>) {
         let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
         (
-            GrpcConnection::new(GrpcConfig::insecure(SERVER_URL), response_sender),
+            CommandInterfaceConnection::new(GrpcConfig::insecure(SERVER_URL), response_sender),
             response_receiver,
         )
     }
@@ -627,42 +625,44 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn utest_grpc_connection_new_starts_terminated() {
-        let (connection, _response_receiver) = generate_test_grpc_connection();
+    async fn utest_command_interface_new_starts_terminated() {
+        let (connection, _response_receiver) = generate_test_command_interface_connection();
         assert_eq!(
             *connection.state.lock().unwrap(),
-            GrpcConnectionState::Terminated
+            CommandInterfaceState::Terminated
         );
     }
 
     #[tokio::test]
-    async fn utest_grpc_connection_connect_fails_on_unreachable_server() {
+    async fn utest_command_interface_connect_fails_on_unreachable_server() {
         let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
         // Port 0 is never a valid connection target, so this fails fast without needing a
         // real (or even reachable) Ankaios server.
-        let mut connection =
-            GrpcConnection::new(GrpcConfig::insecure("http://127.0.0.1:0"), response_sender);
+        let mut connection = CommandInterfaceConnection::new(
+            GrpcConfig::insecure("http://127.0.0.1:0"),
+            response_sender,
+        );
 
         let result = connection.connect(Duration::from_secs(5)).await;
         assert!(result.is_err());
         assert!(matches!(result, Err(AnkaiosError::ConnectionError(_))));
         assert_eq!(
             *connection.state.lock().unwrap(),
-            GrpcConnectionState::Initialized
+            CommandInterfaceState::Initialized
         );
     }
 
     #[tokio::test]
-    async fn utest_grpc_connection_disconnect_without_connect_fails() {
-        let (mut connection, _response_receiver) = generate_test_grpc_connection();
+    async fn utest_command_interface_disconnect_without_connect_fails() {
+        let (mut connection, _response_receiver) = generate_test_command_interface_connection();
         let result = connection.disconnect();
         assert!(result.is_err());
         assert!(matches!(result, Err(AnkaiosError::ConnectionError(_))));
     }
 
     #[tokio::test]
-    async fn utest_grpc_connection_write_request_fails_when_not_connected() {
-        let (mut connection, _response_receiver) = generate_test_grpc_connection();
+    async fn utest_command_interface_write_request_fails_when_not_connected() {
+        let (mut connection, _response_receiver) = generate_test_command_interface_connection();
         let result = connection
             .write_request(crate::ankaios_api::ank_base::Request::default())
             .await;
@@ -671,11 +671,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn utest_grpc_connection_write_request_succeeds_when_connected() {
-        let (mut connection, _response_receiver) = generate_test_grpc_connection();
+    async fn utest_command_interface_write_request_succeeds_when_connected() {
+        let (mut connection, _response_receiver) = generate_test_command_interface_connection();
         let (grpc_tx, mut grpc_rx) = mpsc::channel::<ToServer>(CHANNEL_SIZE);
         *connection.writer_ch_sender.lock().unwrap() = Some(grpc_tx);
-        *connection.state.lock().unwrap() = GrpcConnectionState::Connected;
+        *connection.state.lock().unwrap() = CommandInterfaceState::Connected;
 
         let request = generate_test_request().to_proto();
         let result = connection.write_request(request.clone()).await;
@@ -688,8 +688,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn utest_grpc_connection_log_campaign() {
-        let (mut connection, _response_receiver) = generate_test_grpc_connection();
+    async fn utest_command_interface_log_campaign() {
+        let (mut connection, _response_receiver) = generate_test_command_interface_connection();
         let (logs_sender, _logs_receiver) = mpsc::channel(CHANNEL_SIZE);
 
         connection.add_log_campaign(REQUEST_ID.to_owned(), logs_sender);
@@ -714,8 +714,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn utest_grpc_connection_events_campaign() {
-        let (mut connection, _response_receiver) = generate_test_grpc_connection();
+    async fn utest_command_interface_events_campaign() {
+        let (mut connection, _response_receiver) = generate_test_command_interface_connection();
         let (events_sender, _events_receiver) = mpsc::channel(CHANNEL_SIZE);
 
         connection.add_events_campaign(REQUEST_ID.to_owned(), events_sender);
@@ -740,13 +740,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn utest_grpc_handle_decoded_response_forwards_generic_response() {
-        let (connection, mut response_receiver) = generate_test_grpc_connection();
+    async fn utest_command_interface_handle_decoded_response_forwards_generic_response() {
+        let (connection, mut response_receiver) = generate_test_command_interface_connection();
         let mut log_senders_map = connection.log_senders_map.clone();
         let mut events_senders_map = connection.events_senders_map.clone();
         let ank_base_response = generate_test_ank_base_update_state_success(REQUEST_ID.to_owned());
 
-        GrpcConnection::handle_decoded_response(
+        CommandInterfaceConnection::handle_decoded_response(
             FromServer {
                 from_server_enum: Some(FromServerEnum::Response(ank_base_response)),
             },
@@ -764,8 +764,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn utest_grpc_handle_decoded_response_forwards_log_entries() {
-        let (connection, _response_receiver) = generate_test_grpc_connection();
+    async fn utest_command_interface_handle_decoded_response_forwards_log_entries() {
+        let (connection, _response_receiver) = generate_test_command_interface_connection();
         let mut log_senders_map = connection.log_senders_map.clone();
         let mut events_senders_map = connection.events_senders_map.clone();
         let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
@@ -778,7 +778,7 @@ mod tests {
             )),
         };
 
-        GrpcConnection::handle_decoded_response(
+        CommandInterfaceConnection::handle_decoded_response(
             FromServer {
                 from_server_enum: Some(FromServerEnum::Response(ank_base_response)),
             },
@@ -795,8 +795,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn utest_grpc_handle_decoded_response_forwards_logs_stop_response() {
-        let (connection, _response_receiver) = generate_test_grpc_connection();
+    async fn utest_command_interface_handle_decoded_response_forwards_logs_stop_response() {
+        let (connection, _response_receiver) = generate_test_command_interface_connection();
         let mut log_senders_map = connection.log_senders_map.clone();
         let mut events_senders_map = connection.events_senders_map.clone();
         let (logs_sender, mut logs_receiver) = mpsc::channel::<LogResponse>(CHANNEL_SIZE);
@@ -815,7 +815,7 @@ mod tests {
             )),
         };
 
-        GrpcConnection::handle_decoded_response(
+        CommandInterfaceConnection::handle_decoded_response(
             FromServer {
                 from_server_enum: Some(FromServerEnum::Response(ank_base_response)),
             },
@@ -832,8 +832,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn utest_grpc_handle_decoded_response_forwards_event_response() {
-        let (connection, _response_receiver) = generate_test_grpc_connection();
+    async fn utest_command_interface_handle_decoded_response_forwards_event_response() {
+        let (connection, _response_receiver) = generate_test_command_interface_connection();
         let mut log_senders_map = connection.log_senders_map.clone();
         let mut events_senders_map = connection.events_senders_map.clone();
         let (events_sender, mut events_receiver) = mpsc::channel::<EventEntry>(CHANNEL_SIZE);
@@ -853,7 +853,7 @@ mod tests {
             ))),
         };
 
-        GrpcConnection::handle_decoded_response(
+        CommandInterfaceConnection::handle_decoded_response(
             FromServer {
                 from_server_enum: Some(FromServerEnum::Response(ank_base_response)),
             },
@@ -874,8 +874,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn utest_grpc_handle_decoded_response_ignores_non_response_messages() {
-        let (connection, mut response_receiver) = generate_test_grpc_connection();
+    async fn utest_command_interface_handle_decoded_response_ignores_non_response_messages() {
+        let (connection, mut response_receiver) = generate_test_command_interface_connection();
         let mut log_senders_map = connection.log_senders_map.clone();
         let mut events_senders_map = connection.events_senders_map.clone();
 
@@ -889,7 +889,7 @@ mod tests {
             ),
             FromServerEnum::UpdateWorkload(crate::ankaios_api::grpc_api::UpdateWorkload::default()),
         ] {
-            GrpcConnection::handle_decoded_response(
+            CommandInterfaceConnection::handle_decoded_response(
                 FromServer {
                     from_server_enum: Some(from_server_enum),
                 },
@@ -899,7 +899,7 @@ mod tests {
             )
             .await;
         }
-        GrpcConnection::handle_decoded_response(
+        CommandInterfaceConnection::handle_decoded_response(
             FromServer {
                 from_server_enum: None,
             },
@@ -915,7 +915,7 @@ mod tests {
     #[tokio::test]
     async fn utest_run_reader_loop_reconnects_after_stream_drop() {
         let (response_sender, mut response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
-        let state = Arc::new(Mutex::new(GrpcConnectionState::Connected));
+        let state = Arc::new(Mutex::new(CommandInterfaceState::Connected));
         let writer_ch_sender = Arc::new(Mutex::new(None));
 
         let mut mock_transport = MockReaderTransport::new();
@@ -967,15 +967,18 @@ mod tests {
         // reconnect and (harmlessly) panic on the unmocked call after that.
         sleep(Duration::from_secs(2)).await;
 
-        assert_eq!(*state.lock().unwrap(), GrpcConnectionState::Connected);
+        assert_eq!(*state.lock().unwrap(), CommandInterfaceState::Connected);
         assert!(writer_ch_sender.lock().unwrap().is_some());
-        assert!(task.is_finished(), "task should have ended (panicked on the unmocked call)");
+        assert!(
+            task.is_finished(),
+            "task should have ended (panicked on the unmocked call)"
+        );
     }
 
     #[tokio::test]
     async fn utest_run_reader_loop_stops_reconnecting_once_terminated() {
         let (response_sender, _response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
-        let state = Arc::new(Mutex::new(GrpcConnectionState::Connected));
+        let state = Arc::new(Mutex::new(CommandInterfaceState::Connected));
         let writer_ch_sender = Arc::new(Mutex::new(None));
 
         let mut mock_transport = MockReaderTransport::new();
@@ -984,7 +987,7 @@ mod tests {
         // attempt_connect() must never be called once disconnect() has set Terminated.
         mock_transport.expect_attempt_connect().times(0);
 
-        *state.lock().unwrap() = GrpcConnectionState::Terminated;
+        *state.lock().unwrap() = CommandInterfaceState::Terminated;
 
         let task = tokio::spawn(run_reader_loop(
             mock_transport,
