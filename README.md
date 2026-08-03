@@ -145,20 +145,21 @@ To connect to an Ankaios server directly from outside a workload (e.g. from
 a CI job or a management tool), use the command interface instead, which relies on
 a gRPC connection directly to the Ankaios agent:
 
-```rust
+```rust,no_run
 use ankaios_sdk::{Ankaios, GrpcConfig};
 use tokio::time::Duration;
 
 #[tokio::main]
 async fn main() {
     // Setup the gRPC connection
+    let server_url = "http://127.0.0.1:25551";
     let grpc_config = GrpcConfig::insecure(server_url); // or GrpcConfig::mtls
-    // Create a new Ankaios object.
 
+    // Create a new Ankaios object.
     // The connection to the command interface is automatically done at this step.
     let mut ank = Ankaios::builder().command_interface(grpc_config).connect().await.expect("Failed to initialize");
 
-    ...
+    // From here on, the API is identical to the control interface example above.
 }
 ```
 
