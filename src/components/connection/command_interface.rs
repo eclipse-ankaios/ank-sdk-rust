@@ -194,6 +194,67 @@ impl ReaderTransport for GrpcTransport {
     }
 }
 
+/// Reads from `transport` until the connection is closed or errors, forwarding every decoded
+/// message to [`CommandInterfaceConnection::handle_decoded_response`].
+async fn read_until_disconnected<T: ReaderTransport>(
+    transport: &mut T,
+    response_sender: &mpsc::Sender<Response>,
+    logs_sender_map: &mut SynchronizedSenderMap<LogResponse>,
+    events_sender_map: &mut SynchronizedSenderMap<EventEntry>,
+) {
+    loop {
+        match transport.next_message().await {
+            Ok(Some(from_server)) => {
+                CommandInterfaceConnection::handle_decoded_response(
+                    from_server,
+                    response_sender,
+                    logs_sender_map,
+                    events_sender_map,
+                )
+                .await;
+            }
+            Ok(None) => {
+                log::warn!("The connection to the Ankaios server was closed.");
+                return;
+            }
+            Err(status) => {
+                log::error!("Error while reading from the connection: '{status}'");
+                return;
+            }
+        }
+    }
+}
+
+/// Retries `transport.attempt_connect()` every [`RECONNECT_INTERVAL_MILLIS`] until it succeeds
+/// or `state` becomes [`CommandInterfaceState::Terminated`]. Returns `true` once reconnected
+/// (with `state` set back to [`CommandInterfaceState::Connected`]), or `false` if `disconnect()`
+/// won the race.
+async fn reconnect_until_connected_or_terminated<T: ReaderTransport>(
+    transport: &mut T,
+    state: &Arc<Mutex<CommandInterfaceState>>,
+    writer_ch_sender: &Arc<Mutex<Option<mpsc::Sender<ToServer>>>>,
+) -> bool {
+    loop {
+        sleep(Duration::from_millis(RECONNECT_INTERVAL_MILLIS)).await;
+        let sender = match transport.attempt_connect().await {
+            Ok(sender) => sender,
+            Err(err) => {
+                log::debug!("Reconnect attempt failed: '{err}'");
+                continue;
+            }
+        };
+
+        let mut state_guard = state.lock().unwrap_or_else(|_| unreachable!());
+        if *state_guard == CommandInterfaceState::Terminated {
+            return false; // disconnect() won; drop the new sender/stream.
+        }
+        *writer_ch_sender.lock().unwrap_or_else(|_| unreachable!()) = Some(sender);
+        *state_guard = CommandInterfaceState::Connected;
+        log::info!("Reconnected to the Ankaios server.");
+        return true;
+    }
+}
+
 /// Reads continuously from `transport`, reconnecting every [`RECONNECT_INTERVAL_MILLIS`] if the
 /// connection is lost, until `state` becomes [`CommandInterfaceState::Terminated`]. A free function
 /// so tests can call it directly instead of through [`tokio::spawn`].
@@ -205,34 +266,20 @@ async fn run_reader_loop<T: ReaderTransport>(
     mut logs_sender_map: SynchronizedSenderMap<LogResponse>,
     mut events_sender_map: SynchronizedSenderMap<EventEntry>,
 ) {
-    'connection: loop {
-        loop {
-            match transport.next_message().await {
-                Ok(Some(from_server)) => {
-                    CommandInterfaceConnection::handle_decoded_response(
-                        from_server,
-                        &response_sender,
-                        &mut logs_sender_map,
-                        &mut events_sender_map,
-                    )
-                    .await;
-                }
-                Ok(None) => {
-                    log::warn!("The connection to the Ankaios server was closed.");
-                    break;
-                }
-                Err(status) => {
-                    log::error!("Error while reading from the connection: '{status}'");
-                    break;
-                }
-            }
-        }
+    loop {
+        read_until_disconnected(
+            &mut transport,
+            &response_sender,
+            &mut logs_sender_map,
+            &mut events_sender_map,
+        )
+        .await;
 
         {
             let mut state_guard = state.lock().unwrap_or_else(|_| unreachable!());
             if *state_guard == CommandInterfaceState::Terminated {
                 // disconnect() was called; don't try to reconnect.
-                break 'connection;
+                return;
             }
             *state_guard = CommandInterfaceState::Reconnecting;
         }
@@ -240,23 +287,9 @@ async fn run_reader_loop<T: ReaderTransport>(
             "Lost connection to the Ankaios server, attempting to reconnect every {RECONNECT_INTERVAL_MILLIS}ms..."
         );
 
-        loop {
-            sleep(Duration::from_millis(RECONNECT_INTERVAL_MILLIS)).await;
-            match transport.attempt_connect().await {
-                Ok(sender) => {
-                    let mut state_guard = state.lock().unwrap_or_else(|_| unreachable!());
-                    if *state_guard == CommandInterfaceState::Terminated {
-                        break 'connection; // disconnect() won; drop the new sender/stream.
-                    }
-                    *writer_ch_sender.lock().unwrap_or_else(|_| unreachable!()) = Some(sender);
-                    *state_guard = CommandInterfaceState::Connected;
-                    log::info!("Reconnected to the Ankaios server.");
-                    break;
-                }
-                Err(err) => {
-                    log::debug!("Reconnect attempt failed: '{err}'");
-                }
-            }
+        if !reconnect_until_connected_or_terminated(&mut transport, &state, &writer_ch_sender).await
+        {
+            return; // disconnect() was called during reconnect attempts.
         }
     }
 }
