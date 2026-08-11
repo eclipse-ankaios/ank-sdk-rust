@@ -219,7 +219,9 @@ impl CompleteState {
     #[must_use]
     pub fn to_dict(&self) -> serde_yaml::Mapping {
         let mut dict = serde_yaml::Mapping::new();
-        dict.insert(
+
+        let mut desired_state = serde_yaml::Mapping::new();
+        desired_state.insert(
             Value::String("apiVersion".to_owned()),
             Value::String(self.get_api_version()),
         );
@@ -230,7 +232,7 @@ impl CompleteState {
                 Value::Mapping(workload.to_dict()),
             );
         }
-        dict.insert(
+        desired_state.insert(
             Value::String("workloads".to_owned()),
             Value::Mapping(workloads),
         );
@@ -238,7 +240,12 @@ impl CompleteState {
         for (k, v) in self.get_configs() {
             configs.insert(Value::String(k), v);
         }
-        dict.insert(Value::String("configs".to_owned()), Value::Mapping(configs));
+        desired_state.insert(Value::String("configs".to_owned()), Value::Mapping(configs));
+        dict.insert(
+            Value::String("desiredState".to_owned()),
+            Value::Mapping(desired_state),
+        );
+
         let mut agents = serde_yaml::Mapping::new();
         for (agent_name, agent_attributes) in self.get_agents() {
             agents.insert(
@@ -248,7 +255,7 @@ impl CompleteState {
         }
         dict.insert(Value::String("agents".to_owned()), Value::Mapping(agents));
         dict.insert(
-            Value::String("workload_states".to_owned()),
+            Value::String("workloadStates".to_owned()),
             Value::Mapping(self.get_workload_states().as_mapping()),
         );
         dict
@@ -764,14 +771,19 @@ mod tests {
     fn utest_to_dict() {
         let complete_state = CompleteState::from(generate_complete_state_proto());
         let complete_state_dict = complete_state.to_dict();
+        let desired_state = complete_state_dict
+            .get(Value::String("desiredState".to_owned()))
+            .unwrap()
+            .as_mapping()
+            .unwrap();
         assert_eq!(
-            complete_state_dict
+            desired_state
                 .get(Value::String("apiVersion".to_owned()))
                 .unwrap(),
             &Value::String(SUPPORTED_API_VERSION.to_owned())
         );
 
-        let workloads = complete_state_dict
+        let workloads = desired_state
             .get(Value::String("workloads".to_owned()))
             .unwrap()
             .as_mapping()
@@ -788,7 +800,7 @@ mod tests {
             9
         );
 
-        let configs = complete_state_dict
+        let configs = desired_state
             .get(Value::String("configs".to_owned()))
             .unwrap()
             .as_mapping()
@@ -833,7 +845,7 @@ mod tests {
         );
 
         let workload_states = complete_state_dict
-            .get(Value::String("workload_states".to_owned()))
+            .get(Value::String("workloadStates".to_owned()))
             .unwrap()
             .as_mapping()
             .unwrap();
