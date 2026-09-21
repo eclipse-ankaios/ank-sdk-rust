@@ -3607,7 +3607,7 @@ mod tests {
             .withf(
                 move |request: &AnkaiosRequest| match &request.request_content {
                     Some(RequestContent::CompleteStateRequest(content)) => {
-                        content.field_mask == vec![format!("{WORKLOAD_STATES_PREFIX}")]
+                        content.field_mask == vec![WORKLOAD_STATES_PREFIX.to_owned()]
                     }
                     _ => false,
                 },
