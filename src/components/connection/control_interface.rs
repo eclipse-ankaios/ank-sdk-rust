@@ -19,11 +19,11 @@
 
 use prost::{Message, encoding::decode_varint};
 use std::{
-    fs::metadata,
     path::Path,
     sync::{Arc, Mutex},
 };
 use tokio::{
+    fs::metadata,
     io::{AsyncReadExt, AsyncWriteExt, BufReader, BufWriter, Error, ErrorKind},
     net::unix::pipe,
     spawn,
@@ -452,12 +452,18 @@ impl Connection for ControlInterfaceConnection {
                 "Already connected.".to_owned(),
             ));
         }
-        if metadata(&(self.path.clone() + "/" + ANKAIOS_INPUT_FIFO_PATH)).is_err() {
+        if metadata(&(self.path.clone() + "/" + ANKAIOS_INPUT_FIFO_PATH))
+            .await
+            .is_err()
+        {
             return Err(AnkaiosError::ConnectionError(
                 "Control interface input fifo does not exist.".to_owned(),
             ));
         }
-        if metadata(&(self.path.clone() + "/" + ANKAIOS_OUTPUT_FIFO_PATH)).is_err() {
+        if metadata(&(self.path.clone() + "/" + ANKAIOS_OUTPUT_FIFO_PATH))
+            .await
+            .is_err()
+        {
             return Err(AnkaiosError::ConnectionError(
                 "Control interface output fifo does not exist.".to_owned(),
             ));
