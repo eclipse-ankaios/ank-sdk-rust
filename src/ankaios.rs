@@ -1787,7 +1787,7 @@ mod tests {
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
     }
 
     #[tokio::test]
@@ -1940,7 +1940,7 @@ mod tests {
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
     }
 
     #[tokio::test]
@@ -2093,7 +2093,7 @@ mod tests {
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
     }
 
     #[tokio::test]
@@ -2239,7 +2239,7 @@ mod tests {
 
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
     }
 
     #[tokio::test]
@@ -2335,7 +2335,7 @@ mod tests {
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
     }
 
     #[tokio::test]
@@ -2475,7 +2475,7 @@ mod tests {
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
     }
 
     #[tokio::test]
@@ -2620,7 +2620,7 @@ mod tests {
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
     }
 
     #[tokio::test]
