@@ -164,6 +164,7 @@ pub struct CommandInterfaceConnection {
 /// tests mock the connection instead of needing a real server.
 #[cfg_attr(test, automock)]
 #[async_trait]
+#[allow(clippy::double_must_use)] // async_trait's generated futures already carry #[must_use].
 trait ReaderTransport: Send {
     async fn next_message(&mut self) -> Result<Option<FromServer>, tonic::Status>;
 
@@ -617,7 +618,8 @@ mod tests {
     const REQUEST_ID: &str = "request_id_1";
     const CHANNEL_SIZE: usize = 10;
 
-    fn generate_test_command_interface_connection() -> (CommandInterfaceConnection, mpsc::Receiver<Response>) {
+    fn generate_test_command_interface_connection()
+    -> (CommandInterfaceConnection, mpsc::Receiver<Response>) {
         let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
         (
             CommandInterfaceConnection::new(GrpcConfig::insecure(SERVER_URL), response_sender),

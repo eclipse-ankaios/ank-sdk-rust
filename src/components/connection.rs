@@ -52,6 +52,7 @@ pub(crate) const ANKAIOS_VERSION: &str = "1.0.0";
 /// whether it is connected via the control interface or the command interface.
 #[cfg_attr(test, automock)]
 #[async_trait]
+#[allow(clippy::double_must_use)] // async_trait's generated futures already carry #[must_use].
 pub(crate) trait Connection: Send {
     /// Establishes the connection, waiting up to `timeout` for it to be accepted.
     async fn connect(&mut self, timeout: Duration) -> Result<(), AnkaiosError>;

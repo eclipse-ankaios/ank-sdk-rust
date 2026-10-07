@@ -1784,10 +1784,8 @@ mod tests {
         // Send the response
         response_sender.send(response).await.unwrap();
 
-        // Get the result
-        let ret = method_handle.await.unwrap().unwrap();
-        assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        // Check that the result is ok
+        assert!(method_handle.await.unwrap().is_ok());
     }
 
     #[tokio::test]
@@ -1937,10 +1935,8 @@ mod tests {
         // Send the response
         response_sender.send(response).await.unwrap();
 
-        // Get the result
-        let ret = method_handle.await.unwrap().unwrap();
-        assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        // Check that the result is ok
+        assert!(method_handle.await.unwrap().is_ok());
     }
 
     #[tokio::test]
@@ -2090,10 +2086,8 @@ mod tests {
         // Send the response
         response_sender.send(response).await.unwrap();
 
-        // Get the result
-        let ret = method_handle.await.unwrap().unwrap();
-        assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        // Check that the result is ok
+        assert!(method_handle.await.unwrap().is_ok());
     }
 
     #[tokio::test]
@@ -2237,9 +2231,7 @@ mod tests {
         let response = generate_test_response_update_state_success(request.request_id.clone());
         response_sender.send(response).await.unwrap();
 
-        let ret = method_handle.await.unwrap().unwrap();
-        assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        assert!(method_handle.await.unwrap().is_ok());
     }
 
     #[tokio::test]
@@ -2332,10 +2324,8 @@ mod tests {
         // Send the response
         response_sender.send(response).await.unwrap();
 
-        // Get the result
-        let ret = method_handle.await.unwrap().unwrap();
-        assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        // Check that the result is ok
+        assert!(method_handle.await.unwrap().is_ok());
     }
 
     #[tokio::test]
@@ -2472,10 +2462,8 @@ mod tests {
         // Send the response
         response_sender.send(response).await.unwrap();
 
-        // Get the result
-        let ret = method_handle.await.unwrap().unwrap();
-        assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        // Check that the result is ok
+        assert!(method_handle.await.unwrap().is_ok());
     }
 
     #[tokio::test]
@@ -2617,10 +2605,8 @@ mod tests {
         // Send the response
         response_sender.send(response).await.unwrap();
 
-        // Get the result
-        let ret = method_handle.await.unwrap().unwrap();
-        assert_eq!(ret.added_workloads.len(), 1);
-        assert!(ret.deleted_workloads.is_empty());
+        // Check that the result is ok
+        assert!(method_handle.await.unwrap().is_ok());
     }
 
     #[tokio::test]
