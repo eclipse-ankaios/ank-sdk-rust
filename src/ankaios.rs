@@ -1787,7 +1787,10 @@ mod tests {
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
+        assert!(
+            ret.deleted_workloads.is_empty(),
+            "Deleted workloads should be empty"
+        );
     }
 
     #[tokio::test]
@@ -1940,7 +1943,10 @@ mod tests {
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
+        assert!(
+            ret.deleted_workloads.is_empty(),
+            "Deleted workloads should be empty"
+        );
     }
 
     #[tokio::test]
@@ -2093,7 +2099,10 @@ mod tests {
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
+        assert!(
+            ret.deleted_workloads.is_empty(),
+            "Deleted workloads should be empty"
+        );
     }
 
     #[tokio::test]
@@ -2239,7 +2248,10 @@ mod tests {
 
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
+        assert!(
+            ret.deleted_workloads.is_empty(),
+            "Deleted workloads should be empty"
+        );
     }
 
     #[tokio::test]
@@ -2335,7 +2347,10 @@ mod tests {
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
+        assert!(
+            ret.deleted_workloads.is_empty(),
+            "Deleted workloads should be empty"
+        );
     }
 
     #[tokio::test]
@@ -2475,7 +2490,10 @@ mod tests {
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
+        assert!(
+            ret.deleted_workloads.is_empty(),
+            "Deleted workloads should be empty"
+        );
     }
 
     #[tokio::test]
@@ -2620,7 +2638,10 @@ mod tests {
         // Get the result
         let ret = method_handle.await.unwrap().unwrap();
         assert_eq!(ret.added_workloads.len(), 1);
-        assert_eq!(ret.deleted_workloads, [] as [WorkloadInstanceName; 0]);
+        assert!(
+            ret.deleted_workloads.is_empty(),
+            "Deleted workloads should be empty"
+        );
     }
 
     #[tokio::test]
