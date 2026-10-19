@@ -283,7 +283,7 @@ impl WorkloadBuilder {
     /// # Arguments
     ///
     /// * `name` - A [String] that represents the name of the workload;
-    /// * `dict_workload` - An instance of [`serde_yaml::Mapping`] that represents the workload.
+    /// * `dict_workload` - An instance of [`yaml_serde::Mapping`] that represents the workload.
     ///
     /// # Returns
     ///

@@ -17,7 +17,7 @@ use crate::File;
 use crate::WorkloadBuilder;
 use crate::ankaios_api;
 use ankaios_api::ank_base;
-use serde_yaml::Value;
+use yaml_serde::Value;
 use std::{borrow::ToOwned, collections::HashMap, convert::Into, path::Path, vec};
 
 // Disable this from coverage
@@ -222,7 +222,7 @@ impl Workload {
     /// ## Arguments
     ///
     /// - `name` - A [String] that represents the name of the workload;
-    /// - `dict_workload` - An instance of [`serde_yaml::Mapping`] that represents the workload.
+    /// - `dict_workload` - An instance of [`yaml_serde::Mapping`] that represents the workload.
     ///
     /// ## Returns
     ///
@@ -234,7 +234,7 @@ impl Workload {
     #[allow(clippy::too_many_lines)]
     pub(crate) fn new_from_dict<T: Into<String>>(
         name: T,
-        dict_workload: &serde_yaml::Mapping,
+        dict_workload: &yaml_serde::Mapping,
     ) -> Result<Self, AnkaiosError> {
         let mut wl_builder = Self::builder();
         wl_builder = wl_builder.workload_name(name);
@@ -470,14 +470,14 @@ impl Workload {
         self.workload
     }
 
-    /// Converts the `Workload` instance to a [`serde_yaml::Mapping`].
+    /// Converts the `Workload` instance to a [`yaml_serde::Mapping`].
     ///
     /// ## Returns
     ///
-    /// A [`serde_yaml::Mapping`] instance.
+    /// A [`yaml_serde::Mapping`] instance.
     #[allow(clippy::too_many_lines)]
-    pub fn to_dict(&self) -> serde_yaml::Mapping {
-        let mut dict = serde_yaml::Mapping::new();
+    pub fn to_dict(&self) -> yaml_serde::Mapping {
+        let mut dict = yaml_serde::Mapping::new();
         if let Some(agent) = self.workload.agent.clone() {
             dict.insert(
                 Value::String(FIELD_AGENT_NAME.to_owned()),
@@ -505,10 +505,10 @@ impl Workload {
             }
         }
         if let Some(dependencies) = self.workload.dependencies.clone() {
-            let mut deps = serde_yaml::Mapping::new();
+            let mut deps = yaml_serde::Mapping::new();
             dict.insert(
                 Value::String(FIELD_DEPENDENCIES.to_owned()),
-                Value::Mapping(serde_yaml::Mapping::new()),
+                Value::Mapping(yaml_serde::Mapping::new()),
             );
             for (key, value) in &dependencies.dependencies {
                 if let Ok(cond) = ank_base::AddCondition::try_from(*value) {
@@ -524,18 +524,18 @@ impl Workload {
             );
         }
         if let Some(wl_tags) = self.workload.tags.clone() {
-            let mut tags = serde_yaml::Mapping::new();
+            let mut tags = yaml_serde::Mapping::new();
             for (key, value) in &wl_tags.tags {
                 tags.insert(Value::String(key.clone()), Value::String(value.clone()));
             }
             dict.insert(Value::String(FIELD_TAGS.to_owned()), Value::Mapping(tags));
         }
         if let Some(ci_access) = self.workload.control_interface_access.clone() {
-            let mut control_interface_access = serde_yaml::Mapping::new();
+            let mut control_interface_access = yaml_serde::Mapping::new();
 
-            let mut allow_rules = serde_yaml::Sequence::new();
+            let mut allow_rules = yaml_serde::Sequence::new();
             for rule in &ci_access.allow_rules {
-                let mut rule_dict = serde_yaml::Mapping::new();
+                let mut rule_dict = yaml_serde::Mapping::new();
                 rule_dict.insert(
                     Value::String(SUBFIELD_ACCESS_TYPE.to_owned()),
                     Value::String(SUBFIELD_ACCESS_STATE_RULE.to_owned()),
@@ -568,9 +568,9 @@ impl Workload {
                 );
             }
 
-            let mut deny_rules = serde_yaml::Sequence::new();
+            let mut deny_rules = yaml_serde::Sequence::new();
             for rule in &ci_access.deny_rules {
-                let mut rule_dict = serde_yaml::Mapping::new();
+                let mut rule_dict = yaml_serde::Mapping::new();
                 rule_dict.insert(
                     Value::String(SUBFIELD_ACCESS_TYPE.to_owned()),
                     Value::String(SUBFIELD_ACCESS_STATE_RULE.to_owned()),
@@ -609,7 +609,7 @@ impl Workload {
             );
         }
         if let Some(wl_configs) = self.workload.configs.clone() {
-            let mut configs = serde_yaml::Mapping::new();
+            let mut configs = yaml_serde::Mapping::new();
             for (alias, name) in &wl_configs.configs {
                 configs.insert(Value::String(alias.clone()), Value::String(name.clone()));
             }
@@ -619,7 +619,7 @@ impl Workload {
             );
         }
         if let Some(wl_files) = self.workload.files.clone() {
-            let mut files = serde_yaml::Sequence::new();
+            let mut files = yaml_serde::Sequence::new();
             for file in &wl_files.files {
                 let file_mapping = File::from_proto(file.clone()).to_dict();
 
