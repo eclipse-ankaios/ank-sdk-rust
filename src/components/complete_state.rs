@@ -14,8 +14,8 @@
 
 //! This module contains the [`CompleteState`] and [`AgentAttributes`] structs.
 
-use serde_yaml::Value;
 use std::collections::HashMap;
+use yaml_serde::Value;
 
 use crate::ankaios_api;
 use crate::components::manifest::Manifest;
@@ -211,21 +211,21 @@ impl CompleteState {
         obj
     }
 
-    /// Converts the `CompleteState` to a [`serde_yaml::Mapping`].
+    /// Converts the `CompleteState` to a [`yaml_serde::Mapping`].
     ///
     /// ## Returns
     ///
-    /// A [`serde_yaml::Mapping`] containing the `CompleteState` information.
+    /// A [`yaml_serde::Mapping`] containing the `CompleteState` information.
     #[must_use]
-    pub fn to_dict(&self) -> serde_yaml::Mapping {
-        let mut dict = serde_yaml::Mapping::new();
+    pub fn to_dict(&self) -> yaml_serde::Mapping {
+        let mut dict = yaml_serde::Mapping::new();
 
-        let mut desired_state = serde_yaml::Mapping::new();
+        let mut desired_state = yaml_serde::Mapping::new();
         desired_state.insert(
             Value::String("apiVersion".to_owned()),
             Value::String(self.get_api_version()),
         );
-        let mut workloads = serde_yaml::Mapping::new();
+        let mut workloads = yaml_serde::Mapping::new();
         for workload in self.get_workloads() {
             workloads.insert(
                 Value::String(workload.name.clone()),
@@ -236,7 +236,7 @@ impl CompleteState {
             Value::String("workloads".to_owned()),
             Value::Mapping(workloads),
         );
-        let mut configs = serde_yaml::Mapping::new();
+        let mut configs = yaml_serde::Mapping::new();
         for (k, v) in self.get_configs() {
             configs.insert(Value::String(k), v);
         }
@@ -246,7 +246,7 @@ impl CompleteState {
             Value::Mapping(desired_state),
         );
 
-        let mut agents = serde_yaml::Mapping::new();
+        let mut agents = yaml_serde::Mapping::new();
         for (agent_name, agent_attributes) in self.get_agents() {
             agents.insert(
                 Value::String(agent_name),
@@ -530,22 +530,22 @@ impl AgentAttributes {
         obj
     }
 
-    /// Converts the `AgentAttributes` to a [`serde_yaml::Mapping`].
+    /// Converts the `AgentAttributes` to a [`yaml_serde::Mapping`].
     ///
     /// ## Returns
     ///
-    /// A [`serde_yaml::Mapping`] containing the `AgentAttributes` information.
+    /// A [`yaml_serde::Mapping`] containing the `AgentAttributes` information.
     #[must_use]
-    pub fn to_dict(&self) -> serde_yaml::Mapping {
-        let mut dict = serde_yaml::Mapping::new();
+    pub fn to_dict(&self) -> yaml_serde::Mapping {
+        let mut dict = yaml_serde::Mapping::new();
 
-        let mut tags_dict = serde_yaml::Mapping::new();
+        let mut tags_dict = yaml_serde::Mapping::new();
         for (k, v) in &self.tags {
             tags_dict.insert(Value::String(k.clone()), Value::String(v.clone()));
         }
         dict.insert(Value::String("tags".to_owned()), Value::Mapping(tags_dict));
 
-        let mut status_dict = serde_yaml::Mapping::new();
+        let mut status_dict = yaml_serde::Mapping::new();
         for (k, v) in &self.status {
             status_dict.insert(Value::String(k.clone()), Value::String(v.clone()));
         }
@@ -696,8 +696,8 @@ pub fn generate_complete_state_proto() -> ank_base::CompleteState {
 
 #[cfg(test)]
 mod tests {
-    use serde_yaml::Value;
     use std::collections::HashMap;
+    use yaml_serde::Value;
 
     use super::{CompleteState, SUPPORTED_API_VERSION, generate_complete_state_proto};
     use crate::components::manifest::generate_test_manifest;

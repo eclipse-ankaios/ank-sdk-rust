@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use serde_yaml::Value;
+use yaml_serde::Value;
 
 use super::workload_state_enums::{WorkloadStateEnum, WorkloadSubStateEnum};
 use crate::ankaios_api;
@@ -63,8 +63,8 @@ impl WorkloadExecutionState {
     /// ## Returns
     ///
     /// A [String] representation of the [`WorkloadExecutionState`].
-    pub fn to_dict(&self) -> serde_yaml::Mapping {
-        let mut map = serde_yaml::Mapping::new();
+    pub fn to_dict(&self) -> yaml_serde::Mapping {
+        let mut map = yaml_serde::Mapping::new();
         map.insert(
             Value::String("state".to_owned()),
             Value::String(format!("{:?}", self.state)),
@@ -129,7 +129,7 @@ impl WorkloadExecutionState {
 mod tests {
     use super::ank_base;
     use super::{WorkloadExecutionState, WorkloadStateEnum, WorkloadSubStateEnum};
-    use serde_yaml::Value;
+    use yaml_serde::Value;
 
     #[test]
     fn utest_default_functionality() {
@@ -148,7 +148,7 @@ mod tests {
             "WorkloadExecutionState { state: NotScheduled, substate: NotScheduled, additional_info: \"No state present\" }"
         );
 
-        let mut expected_dict = serde_yaml::Mapping::new();
+        let mut expected_dict = yaml_serde::Mapping::new();
         expected_dict.insert(
             Value::String("state".to_owned()),
             Value::String("NotScheduled".to_owned()),

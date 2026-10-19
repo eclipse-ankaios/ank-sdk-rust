@@ -294,7 +294,7 @@ impl UpdateStateSuccess {
     /// ## Returns
     ///
     /// A [`HashMap`] containing the [`UpdateStateSuccess`] information.
-    pub fn to_dict(&self) -> HashMap<String, Vec<serde_yaml::Mapping>> {
+    pub fn to_dict(&self) -> HashMap<String, Vec<yaml_serde::Mapping>> {
         let mut map = HashMap::new();
         map.insert(
             "added_workloads".to_owned(),
@@ -586,35 +586,35 @@ mod tests {
             HashMap::from([
                 (
                     "added_workloads".to_owned(),
-                    vec![serde_yaml::Mapping::from_iter([
+                    vec![yaml_serde::Mapping::from_iter([
                         (
-                            serde_yaml::Value::String("agent_name".to_owned()),
-                            serde_yaml::Value::String("agent_Test".to_owned())
+                            yaml_serde::Value::String("agent_name".to_owned()),
+                            yaml_serde::Value::String("agent_Test".to_owned())
                         ),
                         (
-                            serde_yaml::Value::String("workload_name".to_owned()),
-                            serde_yaml::Value::String("workload_new".to_owned())
+                            yaml_serde::Value::String("workload_name".to_owned()),
+                            yaml_serde::Value::String("workload_new".to_owned())
                         ),
                         (
-                            serde_yaml::Value::String("workload_id".to_owned()),
-                            serde_yaml::Value::String("1234".to_owned())
+                            yaml_serde::Value::String("workload_id".to_owned()),
+                            yaml_serde::Value::String("1234".to_owned())
                         ),
                     ])]
                 ),
                 (
                     "deleted_workloads".to_owned(),
-                    vec![serde_yaml::Mapping::from_iter([
+                    vec![yaml_serde::Mapping::from_iter([
                         (
-                            serde_yaml::Value::String("agent_name".to_owned()),
-                            serde_yaml::Value::String("agent_Test".to_owned())
+                            yaml_serde::Value::String("agent_name".to_owned()),
+                            yaml_serde::Value::String("agent_Test".to_owned())
                         ),
                         (
-                            serde_yaml::Value::String("workload_name".to_owned()),
-                            serde_yaml::Value::String("workload_old".to_owned())
+                            yaml_serde::Value::String("workload_name".to_owned()),
+                            yaml_serde::Value::String("workload_old".to_owned())
                         ),
                         (
-                            serde_yaml::Value::String("workload_id".to_owned()),
-                            serde_yaml::Value::String("5678".to_owned())
+                            yaml_serde::Value::String("workload_id".to_owned()),
+                            yaml_serde::Value::String("5678".to_owned())
                         ),
                     ])]
                 ),

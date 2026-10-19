@@ -60,12 +60,12 @@ pub const CONFIGS_PREFIX: &str = "desiredState.configs";
 /// let manifest = Manifest::from_string("apiVersion: v1").unwrap();
 /// ```
 ///
-/// ## Load a manifest from a [`serde_yaml::Value`]:
+/// ## Load a manifest from a [`yaml_serde::Value`]:
 ///
 /// ```rust,no_run
 /// # use ankaios_sdk::Manifest;
 /// #
-/// let dict = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
+/// let dict = yaml_serde::Value::Mapping(yaml_serde::Mapping::new());
 /// let _manifest = Manifest::from_dict(dict).unwrap();
 /// ```
 ///
@@ -77,11 +77,11 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    /// Create a new `Manifest` object from a [`serde_yaml::Value`].
+    /// Create a new `Manifest` object from a [`yaml_serde::Value`].
     ///
     /// ## Arguments
     ///
-    /// * `manifest` - A [`serde_yaml::Value`] object representing the manifest.
+    /// * `manifest` - A [`yaml_serde::Value`] object representing the manifest.
     ///
     /// ## Returns
     ///
@@ -90,7 +90,7 @@ impl Manifest {
     /// ## Errors
     ///
     /// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError) if the manifest is not valid.
-    pub fn from_dict(manifest: serde_yaml::Value) -> Result<Manifest, AnkaiosError> {
+    pub fn from_dict(manifest: yaml_serde::Value) -> Result<Manifest, AnkaiosError> {
         Manifest::try_from(manifest)
     }
 
@@ -160,11 +160,11 @@ impl Manifest {
     }
 }
 
-/// Extract the `apiVersion` field from a manifest [`serde_yaml::Value`].
+/// Extract the `apiVersion` field from a manifest [`yaml_serde::Value`].
 ///
 /// ## Arguments
 ///
-/// * `manifest` - A [`serde_yaml::Value`] object representing the manifest.
+/// * `manifest` - A [`yaml_serde::Value`] object representing the manifest.
 ///
 /// ## Returns
 ///
@@ -174,7 +174,7 @@ impl Manifest {
 ///
 /// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError)
 /// if the field is missing or not a string.
-fn parse_api_version(manifest: &serde_yaml::Value) -> Result<String, AnkaiosError> {
+fn parse_api_version(manifest: &yaml_serde::Value) -> Result<String, AnkaiosError> {
     manifest
         .get("apiVersion")
         .ok_or_else(|| AnkaiosError::ManifestParsingError("Missing apiVersion".to_owned()))?
@@ -183,11 +183,11 @@ fn parse_api_version(manifest: &serde_yaml::Value) -> Result<String, AnkaiosErro
         .map(str::to_owned)
 }
 
-/// Extract and parse the `workloads` section from a manifest [`serde_yaml::Value`].
+/// Extract and parse the `workloads` section from a manifest [`yaml_serde::Value`].
 ///
 /// ## Arguments
 ///
-/// * `manifest` - A [`serde_yaml::Value`] object representing the manifest.
+/// * `manifest` - A [`yaml_serde::Value`] object representing the manifest.
 ///
 /// ## Returns
 ///
@@ -198,7 +198,7 @@ fn parse_api_version(manifest: &serde_yaml::Value) -> Result<String, AnkaiosErro
 /// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError)
 /// if the section or any individual workload entry is malformed.
 fn parse_workloads(
-    manifest: &serde_yaml::Value,
+    manifest: &yaml_serde::Value,
 ) -> Result<Option<ank_base::WorkloadMap>, AnkaiosError> {
     let Some(workloads_value) = manifest.get("workloads") else {
         return Ok(None);
@@ -227,11 +227,11 @@ fn parse_workloads(
     })
 }
 
-/// Extract and deserialize the `configs` section from a manifest [`serde_yaml::Value`].
+/// Extract and deserialize the `configs` section from a manifest [`yaml_serde::Value`].
 ///
 /// ## Arguments
 ///
-/// * `manifest` - A [`serde_yaml::Value`] object representing the manifest.
+/// * `manifest` - A [`yaml_serde::Value`] object representing the manifest.
 ///
 /// ## Returns
 ///
@@ -242,21 +242,21 @@ fn parse_workloads(
 /// Returns an [`AnkaiosError`]::[`ManifestParsingError`](AnkaiosError::ManifestParsingError)
 /// if the section cannot be deserialized into a [`ank_base::ConfigMap`].
 fn parse_configs(
-    manifest: &serde_yaml::Value,
+    manifest: &yaml_serde::Value,
 ) -> Result<Option<ank_base::ConfigMap>, AnkaiosError> {
     manifest
         .get("configs")
         .map(|v| {
-            serde_yaml::from_value::<ank_base::ConfigMap>(v.clone())
+            yaml_serde::from_value::<ank_base::ConfigMap>(v.clone())
                 .map_err(|e| AnkaiosError::ManifestParsingError(e.to_string()))
         })
         .transpose()
 }
 
-impl TryFrom<serde_yaml::Value> for Manifest {
+impl TryFrom<yaml_serde::Value> for Manifest {
     type Error = AnkaiosError;
 
-    fn try_from(manifest: serde_yaml::Value) -> Result<Self, Self::Error> {
+    fn try_from(manifest: yaml_serde::Value) -> Result<Self, Self::Error> {
         Ok(Self {
             desired_state: ank_base::State {
                 api_version: parse_api_version(&manifest)?,
@@ -271,7 +271,7 @@ impl TryFrom<String> for Manifest {
     type Error = AnkaiosError;
 
     fn try_from(manifest: String) -> Result<Self, Self::Error> {
-        match serde_yaml::from_str(&manifest) {
+        match yaml_serde::from_str(&manifest) {
             Ok(man) => Self::from_dict(man),
             Err(e) => Err(AnkaiosError::ManifestParsingError(e.to_string())),
         }
@@ -332,8 +332,8 @@ pub fn generate_test_manifest() -> Manifest {
 #[cfg(test)]
 mod tests {
     use super::{MANIFEST_CONTENT, Manifest};
-    use serde_yaml;
     use std::path::Path;
+    use yaml_serde;
 
     #[test]
     fn utest_creation() {
@@ -347,7 +347,7 @@ mod tests {
 
         let _ = Manifest::try_from(Path::new("path"));
         let _ = Manifest::try_from(MANIFEST_CONTENT.to_owned());
-        let _ = Manifest::try_from(serde_yaml::Value::default());
+        let _ = Manifest::try_from(yaml_serde::Value::default());
     }
 
     #[test]

@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use serde_yaml::Value;
+use yaml_serde::Value;
 use std::collections::HashMap;
 
 use super::workload_execution_state::WorkloadExecutionState;
@@ -176,14 +176,14 @@ impl WorkloadStateCollection {
         WorkloadStatesMap::from(self)
     }
 
-    /// Converts the `WorkloadStateCollection` to a [Mapping](serde_yaml::Mapping).
+    /// Converts the `WorkloadStateCollection` to a [Mapping](yaml_serde::Mapping).
     ///
     /// ## Returns
     ///
-    /// A [Mapping](serde_yaml::Mapping) containing the [`WorkloadStateCollection`] information.
+    /// A [Mapping](yaml_serde::Mapping) containing the [`WorkloadStateCollection`] information.
     #[must_use]
-    pub fn as_mapping(self) -> serde_yaml::Mapping {
-        serde_yaml::Mapping::from(self)
+    pub fn as_mapping(self) -> yaml_serde::Mapping {
+        yaml_serde::Mapping::from(self)
     }
 
     /// Converts the `WorkloadStateCollection` to a [Vec] of [`WorkloadState`].
@@ -230,13 +230,13 @@ impl From<WorkloadStateCollection> for WorkloadStatesMap {
     }
 }
 
-impl From<WorkloadStateCollection> for serde_yaml::Mapping {
+impl From<WorkloadStateCollection> for yaml_serde::Mapping {
     fn from(collection: WorkloadStateCollection) -> Self {
-        let mut map = serde_yaml::Mapping::new();
+        let mut map = yaml_serde::Mapping::new();
         for (agent_name, workload_states) in &collection.workload_states {
-            let mut agent_map = serde_yaml::Mapping::new();
+            let mut agent_map = yaml_serde::Mapping::new();
             for (workload_name, workload_states_for_id) in workload_states {
-                let mut workload_map = serde_yaml::Mapping::new();
+                let mut workload_map = yaml_serde::Mapping::new();
                 for (workload_id, workload_state) in workload_states_for_id {
                     workload_map.insert(
                         Value::String(workload_id.clone()),
