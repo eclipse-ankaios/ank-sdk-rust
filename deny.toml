@@ -20,5 +20,11 @@ license-files = [
     { path = "LICENSE", hash = 0x86e2b4b4 }
 ]
 
+[advisories]
+ignore = [
+    # unsafe-libyaml is unmaintained; pulled in by serde_yaml, upgrade is not desired at the moment
+    "RUSTSEC-2024-0449",
+]
+
 [bans]
 multiple-versions = "allow"
