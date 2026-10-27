@@ -46,7 +46,13 @@ cov-open:
 
 # Generate documentation
 doc:
-    cargo doc --no-deps --all-features --document-private-items
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features --document-private-items
+
+# Generate documentation the way docs.rs does
+# This uses nightly and it should be used everywhere, once it leaves the experimental stage
+doc-docsrs:
+    bash -c 'if ! which cargo-docs-rs > /dev/null 2>&1; then rustup toolchain install nightly --profile minimal && cargo install cargo-docs-rs; fi'
+    RUSTDOCFLAGS="-D warnings" cargo +nightly docs-rs
 
 # Open documentation
 doc-open:
