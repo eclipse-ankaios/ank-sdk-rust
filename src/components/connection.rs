@@ -45,7 +45,7 @@ pub(crate) use helpers::{
 /// Version of [Ankaios](https://eclipse-ankaios.github.io/ankaios) that is compatible with this
 /// SDK, sent as part of every connection handshake (control interface or command interface),
 /// regardless of transport.
-pub(crate) const ANKAIOS_VERSION: &str = "1.0.0";
+pub(crate) const ANKAIOS_VERSION: &str = "1.1.0";
 
 /// Abstracts over the transport used to exchange [`AnkaiosRequest`]/[`Response`](crate::Response)
 /// messages with Ankaios, so that [`Ankaios`](crate::Ankaios) can work identically regardless of
