@@ -13,6 +13,9 @@ keywords = ["ankaios", "automotive", "sdk", "container", "orchestration"]
 categories = ["automotive", "virtualization", "api-bindings"]  # https://crates.io/category_slugs
 exclude = ["/tests", "/.github"]
 
+[package.metadata.docs.rs]
+features = ["control_interface", "command_interface"]
+
 [lib]
 name = "ankaios_sdk"
 crate-type = ["lib"]
