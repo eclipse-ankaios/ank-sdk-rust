@@ -278,20 +278,16 @@ impl WorkloadBuilder {
         self
     }
 
-    /// Creates a new `Workload` instance from a Map.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - A [String] that represents the name of the workload;
-    /// * `dict_workload` - An instance of [`serde_yaml::Mapping`] that represents the workload.
+    /// Builds a new [`Workload`] instance from the fields set on the builder.
     ///
     /// # Returns
     ///
-    /// A new [Workload] instance.
+    /// A new [`Workload`] instance.
     ///
     /// # Errors
     ///
-    /// Returns an [`AnkaiosError`]::[`WorkloadBuilderError`](AnkaiosError::WorkloadBuilderError) if the builder fails to build the workload.
+    /// - [`AnkaiosError`]::[`WorkloadBuilderError`](AnkaiosError::WorkloadBuilderError) - If the name, agent name, runtime or runtime config is missing.
+    /// - [`AnkaiosError`]::[`WorkloadFieldError`](AnkaiosError::WorkloadFieldError) - If the restart policy, dependency conditions or rule operations are invalid.
     pub fn build(self) -> Result<Workload, AnkaiosError> {
         if self.wl_name.is_empty() {
             return Err(AnkaiosError::WorkloadBuilderError(
