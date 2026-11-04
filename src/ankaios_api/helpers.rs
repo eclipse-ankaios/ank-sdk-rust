@@ -12,6 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::ankaios_api::ank_base::ControlInterfaceAccess;
 use serde::{Serialize, Serializer};
 use std::collections::{BTreeMap, HashMap};
 
@@ -26,6 +27,16 @@ where
     ordered.serialize(serializer)
 }
 
+#[allow(clippy::ref_option)] // &Option<Type> is used by the serde::Serialize trait for optional fields, and this must match
+pub fn should_skip_control_interface_serialization(
+    control_interface_access: &Option<ControlInterfaceAccess>,
+) -> bool {
+    match control_interface_access {
+        None => true,
+        Some(access) => access.allow_rules.is_empty() && access.deny_rules.is_empty(),
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////////
 //                 ########  #######    #########  #########                //
 //                    ##     ##        ##             ##                    //
@@ -37,6 +48,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::components::workload_mod::test_helpers::generate_test_control_interface_access;
 
     #[test]
     fn utest_serialize_to_ordered_map() {
@@ -50,5 +62,32 @@ mod tests {
         let result = serialize_to_ordered_map(&map, &mut serializer);
         assert!(result.is_ok());
         assert_eq!(serializer.into_inner().unwrap(), b"a: 1\nb: 2\nc: 3\n");
+    }
+
+    #[test]
+    fn utest_should_skip_control_interface_serialization() {
+        let empty_access: Option<ControlInterfaceAccess> = None;
+        assert!(should_skip_control_interface_serialization(&empty_access));
+
+        let access_with_no_rules = Some(ControlInterfaceAccess {
+            allow_rules: vec![],
+            deny_rules: vec![],
+        });
+        assert!(should_skip_control_interface_serialization(
+            &access_with_no_rules
+        ));
+
+        let mut access_with_allow_rules = generate_test_control_interface_access();
+        access_with_allow_rules.deny_rules = vec![];
+
+        assert!(!should_skip_control_interface_serialization(&Some(
+            access_with_allow_rules
+        )));
+
+        let mut access_with_deny_rules = generate_test_control_interface_access();
+        access_with_deny_rules.allow_rules = vec![];
+        assert!(!should_skip_control_interface_serialization(&Some(
+            access_with_deny_rules
+        )));
     }
 }
