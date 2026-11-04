@@ -428,6 +428,7 @@ pub fn generate_test_response_event_entry(request_id: String) -> Response {
                         }),
                         workload_states: None,
                         agents: None,
+                        effective_state: None,
                     }),
                     altered_fields: Some(ankaios_api::ank_base::AlteredFields {
                         added_fields: vec![
@@ -464,7 +465,7 @@ mod tests {
         response_type = ResponseType::CompleteState(Box::default());
         assert_eq!(
             format!("{response_type:?}"),
-            "CompleteState(CompleteState { complete_state: CompleteState { desired_state: Some(State { api_version: \"v1\", workloads: None, configs: None }), workload_states: None, agents: None } })"
+            "CompleteState(CompleteState { complete_state: CompleteState { desired_state: Some(State { api_version: \"v1\", workloads: None, configs: None }), workload_states: None, agents: None, effective_state: None } })"
         );
         response_type = ResponseType::UpdateStateSuccess(Box::default());
         assert_eq!(
@@ -732,6 +733,7 @@ mod tests {
                 }),
                 workload_states: None,
                 agents: None,
+                effective_state: None,
             }),
             altered_fields: Some(ankaios_api::ank_base::AlteredFields {
                 added_fields: vec![

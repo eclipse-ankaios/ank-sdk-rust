@@ -46,6 +46,27 @@ commandArgs: ["bash"]
     )
 }
 
+pub fn generate_test_control_interface_access() -> ank_base::ControlInterfaceAccess {
+    ank_base::ControlInterfaceAccess {
+        allow_rules: vec![ank_base::AccessRightsRule {
+            access_rights_rule_enum: Some(ank_base::AccessRightsRuleEnum::StateRule(
+                ank_base::StateRule {
+                    operation: ank_base::ReadWriteEnum::RwRead as i32,
+                    filter_masks: vec![String::from("desiredState.workloads.workload_A")],
+                },
+            )),
+        }],
+        deny_rules: vec![ank_base::AccessRightsRule {
+            access_rights_rule_enum: Some(ank_base::AccessRightsRuleEnum::StateRule(
+                ank_base::StateRule {
+                    operation: ank_base::ReadWriteEnum::RwWrite as i32,
+                    filter_masks: vec![String::from("desiredState.workloads.workload_B")],
+                },
+            )),
+        }],
+    }
+}
+
 pub fn generate_test_workload_proto<T: Into<String>>(
     agent_name: T,
     runtime_name: T,
@@ -62,24 +83,7 @@ pub fn generate_test_workload_proto<T: Into<String>>(
         tags: Some(ank_base::Tags {
             tags: HashMap::from([(String::from("key_test"), String::from("val_test"))]),
         }),
-        control_interface_access: Some(ank_base::ControlInterfaceAccess {
-            allow_rules: vec![ank_base::AccessRightsRule {
-                access_rights_rule_enum: Some(ank_base::AccessRightsRuleEnum::StateRule(
-                    ank_base::StateRule {
-                        operation: ank_base::ReadWriteEnum::RwRead as i32,
-                        filter_masks: vec![String::from("desiredState.workloads.workload_A")],
-                    },
-                )),
-            }],
-            deny_rules: vec![ank_base::AccessRightsRule {
-                access_rights_rule_enum: Some(ank_base::AccessRightsRuleEnum::StateRule(
-                    ank_base::StateRule {
-                        operation: ank_base::ReadWriteEnum::RwWrite as i32,
-                        filter_masks: vec![String::from("desiredState.workloads.workload_B")],
-                    },
-                )),
-            }],
-        }),
+        control_interface_access: Some(generate_test_control_interface_access()),
         configs: Some(ank_base::ConfigMappings {
             configs: [(String::from("alias_test"), String::from("config_1"))]
                 .iter()
