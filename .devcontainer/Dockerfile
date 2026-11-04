@@ -16,6 +16,12 @@ FROM ghcr.io/eclipse-ankaios/devcontainer-base:1.3.0
 
 ARG USERNAME=vscode
 
+# add git completion for bash
+RUN curl -L https://raw.githubusercontent.com/git/git/master/contrib/completion/git-completion.bash -o /home/${USERNAME}/.git-completion.bash
+RUN echo 'if [ -f ~/.git-completion.bash ]; then\n\
+    . ~/.git-completion.bash\n\
+fi\n' >> /home/$USERNAME/.bashrc
+
 # add some convenience aliases
 RUN echo 'alias ll="ls -la"' | tee -a /home/${USERNAME}/.bashrc /home/${USERNAME}/.zshrc
 RUN echo 'alias ..="cd .."' | tee -a /home/${USERNAME}/.bashrc /home/${USERNAME}/.zshrc
