@@ -40,7 +40,7 @@ mod tests {
 
     #[test]
     fn utest_serialize_to_ordered_map() {
-        let mut serializer = serde_yaml::Serializer::new(Vec::new());
+        let mut serializer = yaml_serde::Serializer::new(Vec::new());
 
         let mut map = HashMap::new();
         map.insert("b".to_string(), 2);

@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use serde_yaml::Value;
+use yaml_serde::Value;
 use std::fmt;
 
 use crate::ankaios_api;
@@ -67,14 +67,14 @@ impl WorkloadInstanceName {
         }
     }
 
-    /// Converts the `WorkloadInstanceName` to a [Mapping](serde_yaml::Mapping).
+    /// Converts the `WorkloadInstanceName` to a [Mapping](yaml_serde::Mapping).
     ///
     /// ## Returns
     ///
-    /// A [Mapping](serde_yaml::Mapping) containing the `WorkloadInstanceName` information.
+    /// A [Mapping](yaml_serde::Mapping) containing the `WorkloadInstanceName` information.
     #[must_use]
-    pub fn to_dict(&self) -> serde_yaml::Mapping {
-        let mut map = serde_yaml::Mapping::new();
+    pub fn to_dict(&self) -> yaml_serde::Mapping {
+        let mut map = yaml_serde::Mapping::new();
         map.insert(
             Value::String("agent_name".to_owned()),
             Value::String(self.agent_name.clone()),
@@ -163,7 +163,7 @@ impl From<WorkloadInstanceName> for ankaios_api::ank_base::WorkloadInstanceName 
 #[cfg(test)]
 mod tests {
     use super::WorkloadInstanceName;
-    use serde_yaml::Value;
+    use yaml_serde::Value;
 
     #[test]
     fn utest_instance_name() {
@@ -188,7 +188,7 @@ mod tests {
         );
         assert_eq!(
             instance_name.to_dict(),
-            serde_yaml::Mapping::from_iter([
+            yaml_serde::Mapping::from_iter([
                 (
                     Value::String("agent_name".to_owned()),
                     Value::String("agent_Test".to_owned())

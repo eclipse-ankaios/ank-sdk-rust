@@ -14,7 +14,7 @@
 
 use crate::AnkaiosError;
 use crate::ankaios_api::ank_base;
-use serde_yaml::{Mapping, Value};
+use yaml_serde::{Mapping, Value};
 
 /// Key name for mount point of workload file.
 pub const FILE_MOUNT_POINT_KEY: &str = "mount_point";
@@ -102,7 +102,7 @@ impl File {
     ///
     /// ## Returns
     ///
-    /// A [`serde_yaml::Mapping`] containing the file's mount point and content data.
+    /// A [`yaml_serde::Mapping`] containing the file's mount point and content data.
     #[must_use]
     pub fn to_dict(&self) -> Mapping {
         let mut dict = Mapping::new();
@@ -133,7 +133,7 @@ impl File {
     ///
     /// ## Arguments
     ///
-    /// * `dict` - A [`serde_yaml::Mapping`] containing the file data with `mount_point` and either data or binaryData keys
+    /// * `dict` - A [`yaml_serde::Mapping`] containing the file data with `mount_point` and either data or binaryData keys
     ///
     /// ## Returns
     ///
@@ -259,7 +259,7 @@ impl File {
 mod tests {
     use super::*;
     use crate::ankaios_api::ank_base;
-    use serde_yaml::{Mapping, Value};
+    use yaml_serde::{Mapping, Value};
 
     #[test]
     fn test_from_data() {

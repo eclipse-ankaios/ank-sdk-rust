@@ -11,7 +11,6 @@ build-release:
 # Clean the build directory
 clean:
     cargo clean
-    rm -rf build
 
 # Run clippy code checks
 clippy:

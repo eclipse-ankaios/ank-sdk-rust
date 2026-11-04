@@ -57,14 +57,14 @@ async fn main() {
         .expect("Failed to build workload");
 
     // Create configuration
-    let mut port_map = serde_yaml::Mapping::new();
+    let mut port_map = yaml_serde::Mapping::new();
     port_map.insert(
-        serde_yaml::Value::String("port".to_owned()),
-        serde_yaml::Value::String("80".to_owned()),
+        yaml_serde::Value::String("port".to_owned()),
+        yaml_serde::Value::String("80".to_owned()),
     );
     let mut configs = HashMap::from([(
         "configuration".to_owned(),
-        serde_yaml::Value::Mapping(port_map),
+        yaml_serde::Value::Mapping(port_map),
     )]);
 
     // Send configuration to Ankaios
@@ -88,8 +88,8 @@ async fn main() {
         .as_mapping_mut()
         .unwrap()
         .insert(
-            serde_yaml::Value::String("port".to_owned()),
-            serde_yaml::Value::String("81".to_owned()),
+            yaml_serde::Value::String("port".to_owned()),
+            yaml_serde::Value::String("81".to_owned()),
         );
 
     // Send updated configuration to Ankaios
