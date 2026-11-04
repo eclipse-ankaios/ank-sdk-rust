@@ -8,3 +8,60 @@ on:
 jobs:
   build:
     uses: ./.github/workflows/build.yml
+
+  check-proto-sync:
+    name: Check proto files are in sync with Ankaios
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_TITLE: Proto files out of sync with Ankaios
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compare proto files with upstream
+        id: compare
+        run: |
+          upstream_dir="$RUNNER_TEMP/upstream_protos"
+          tools/fetch_protos.sh main --output "$upstream_dir"
+          : > report.md
+          for upstream_file in "$upstream_dir"/*.proto; do
+            file=$(basename "$upstream_file")
+            # Ignore blank lines and a missing trailing newline
+            if ! diff -u -B <(sed -e '$a\' "$upstream_file") <(sed -e '$a\' "proto/$file") > "$RUNNER_TEMP/$file.diff"; then
+              {
+                echo "### \`proto/$file\` differs from the upstream version"
+                echo
+                echo '```diff'
+                head -n 200 "$RUNNER_TEMP/$file.diff"
+                echo '```'
+                echo
+              } >> report.md
+            fi
+          done
+          if [ -s report.md ]; then
+            echo "diverged=true" >> "$GITHUB_OUTPUT"
+            cat report.md
+          fi
+
+      - name: Create or update GitHub issue
+        if: steps.compare.outputs.diverged == 'true'
+        run: |
+          {
+            echo "The proto files in this repository diverge from [eclipse-ankaios/ankaios](https://github.com/eclipse-ankaios/ankaios) \`main\`."
+            echo "Update them and the generated bindings accordingly."
+            echo
+            echo "Detected by [this run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)."
+            echo
+            cat report.md
+          } > issue_body.md
+
+          existing=$(gh issue list --state open --search "\"$ISSUE_TITLE\" in:title" \
+            --json number,title --jq "map(select(.title == \"$ISSUE_TITLE\"))[0].number // empty")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file issue_body.md
+          else
+            gh issue create --title "$ISSUE_TITLE" --body-file issue_body.md
+          fi
