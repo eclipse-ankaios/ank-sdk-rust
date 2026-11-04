@@ -691,6 +691,7 @@ pub fn generate_complete_state_proto() -> ank_base::CompleteState {
         }),
         workload_states: Some(generate_test_workload_states_proto()),
         agents: Some(generate_agents_proto()),
+        effective_state: None,
     }
 }
 

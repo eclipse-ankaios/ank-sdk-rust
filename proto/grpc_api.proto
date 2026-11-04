@@ -181,4 +181,3 @@ message UpdateWorkloadState {
     repeated ank_base.WorkloadState workloadStates = 1; /// A list of workload states.
 }
 
-

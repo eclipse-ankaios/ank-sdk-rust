@@ -14,7 +14,9 @@
 
 tonic::include_proto!("ank_base"); // The string specified here must match the proto package name
 
-pub use crate::ankaios_api::helpers::serialize_to_ordered_map;
+pub use crate::ankaios_api::helpers::{
+    serialize_to_ordered_map, should_skip_control_interface_serialization,
+};
 
 pub use access_rights_rule::AccessRightsRuleEnum;
 pub use config_item::ConfigItemEnum;
