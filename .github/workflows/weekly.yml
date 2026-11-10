@@ -18,6 +18,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       ISSUE_TITLE: Proto files out of sync with Ankaios
+      ISSUE_LABEL: ci/proto-sync
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -58,10 +59,22 @@ jobs:
             cat report.md
           } > issue_body.md
 
-          existing=$(gh issue list --state open --search "\"$ISSUE_TITLE\" in:title" \
-            --json number,title --jq "map(select(.title == \"$ISSUE_TITLE\"))[0].number // empty")
+          existing=$(gh issue list --state open --label "$ISSUE_LABEL" \
+            --json number --jq ".[0].number // empty")
           if [ -n "$existing" ]; then
-            gh issue comment "$existing" --body-file issue_body.md
+            current_body=$(gh issue view "$existing" --json body --jq .body)
+            if [ "$current_body" != "$(cat issue_body.md)" ]; then
+              gh issue edit "$existing" --body-file issue_body.md
+            fi
           else
-            gh issue create --title "$ISSUE_TITLE" --body-file issue_body.md
+            gh issue create --title "$ISSUE_TITLE" --body-file issue_body.md --label "$ISSUE_LABEL"
+          fi
+
+      - name: Close GitHub issue if back in sync
+        if: steps.compare.outputs.diverged != 'true'
+        run: |
+          existing=$(gh issue list --state open --label "$ISSUE_LABEL" \
+            --json number --jq ".[0].number // empty")
+          if [ -n "$existing" ]; then
+            gh issue close "$existing" --comment "Proto files are back in sync with upstream. Closed by [this run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)."
           fi
