@@ -739,6 +739,7 @@ impl CommandInterfaceConnection {
             .writer_ch_sender
             .lock()
             .unwrap_or_else(|_| unreachable!()) = Some(sender);
+        *self.state.lock().unwrap_or_else(|_| unreachable!()) = CommandInterfaceState::Connected;
         self.spawn_reader_task(transport);
         Ok(())
     }
@@ -843,8 +844,6 @@ impl Connection for CommandInterfaceConnection {
         }
         match tokio_timeout(timeout, self.connect_internal()).await {
             Ok(Ok(())) => {
-                *self.state.lock().unwrap_or_else(|_| unreachable!()) =
-                    CommandInterfaceState::Connected;
                 log::trace!("Connected to the Ankaios server over the command interface.");
                 Ok(())
             }
@@ -877,29 +876,34 @@ impl Connection for CommandInterfaceConnection {
     }
 
     async fn write_request(&mut self, request: AnkaiosRequest) -> Result<(), AnkaiosError> {
-        if *self.state.lock().unwrap_or_else(|_| unreachable!()) != CommandInterfaceState::Connected
-        {
+        let maybe_sender = {
+            let state_guard = self.state.lock().unwrap_or_else(|_| unreachable!());
+            if *state_guard == CommandInterfaceState::Connected {
+                self.writer_ch_sender
+                    .lock()
+                    .unwrap_or_else(|_| unreachable!())
+                    .clone()
+            } else {
+                None
+            }
+        };
+        let Some(sender) = maybe_sender else {
             log::error!("Could not write to the command interface, not connected.");
             return Err(AnkaiosError::ConnectionError(
                 "Could not write to the command interface, not connected.".to_owned(),
             ));
-        }
-        let maybe_sender = self
-            .writer_ch_sender
-            .lock()
-            .unwrap_or_else(|_| unreachable!())
-            .clone();
-        if let Some(sender) = maybe_sender {
-            sender
-                .send(ToServer {
-                    to_server_enum: Some(ToServerEnum::Request(request)),
-                })
-                .await
-                .unwrap_or_else(|err| {
-                    log::error!("Error while sending request: '{err}'");
-                });
-        }
-        Ok(())
+        };
+        sender
+            .send(ToServer {
+                to_server_enum: Some(ToServerEnum::Request(request)),
+            })
+            .await
+            .map_err(|err| {
+                log::error!("Error while sending request: '{err}'");
+                AnkaiosError::ConnectionError(format!(
+                    "Could not write to the command interface, connection lost: '{err}'"
+                ))
+            })
     }
 
     fn add_log_campaign(&mut self, request_id: String, logs_sender: mpsc::Sender<LogResponse>) {
@@ -1270,6 +1274,20 @@ mod tests {
             .try_recv()
             .expect("request should have been written");
         assert_eq!(sent.to_server_enum, Some(ToServerEnum::Request(request)));
+    }
+
+    #[tokio::test]
+    async fn utest_command_interface_write_request_fails_when_channel_closed() {
+        let (mut connection, _response_receiver) = generate_test_command_interface_connection();
+        let (grpc_tx, grpc_rx) = mpsc::channel::<ToServer>(CHANNEL_SIZE);
+        drop(grpc_rx);
+        *connection.writer_ch_sender.lock().unwrap() = Some(grpc_tx);
+        *connection.state.lock().unwrap() = CommandInterfaceState::Connected;
+
+        let result = connection
+            .write_request(generate_test_request().to_proto())
+            .await;
+        assert!(matches!(result, Err(AnkaiosError::ConnectionError(_))));
     }
 
     #[tokio::test]
