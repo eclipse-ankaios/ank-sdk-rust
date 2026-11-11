@@ -1156,6 +1156,32 @@ mod tests {
     }
 
     #[cfg(unix)]
+    #[test]
+    fn utest_has_permission_denied_nested_error() {
+        #[derive(Debug)]
+        struct Wrapper(IoError);
+        impl std::fmt::Display for Wrapper {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "wrapper")
+            }
+        }
+        impl std::error::Error for Wrapper {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                Some(&self.0)
+            }
+        }
+
+        let denied = Wrapper(IoError::from(ErrorKind::PermissionDenied));
+        let not_found = Wrapper(IoError::from(ErrorKind::NotFound));
+        let doubly_nested = Wrapper(IoError::other(Wrapper(IoError::from(
+            ErrorKind::PermissionDenied,
+        ))));
+        assert!(has_permission_denied(&denied));
+        assert!(!has_permission_denied(&not_found));
+        assert!(has_permission_denied(&doubly_nested));
+    }
+
+    #[cfg(unix)]
     #[tokio::test]
     async fn utest_build_channel_unix_socket_invalid_path() {
         let config: GrpcConfig = GrpcConfig::unix_socket().url("relative.sock").into();
