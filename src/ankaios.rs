@@ -657,7 +657,7 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn update_configs(
         &mut self,
-        configs: HashMap<String, serde_yaml::Value>,
+        configs: HashMap<String, yaml_serde::Value>,
     ) -> Result<UpdateStateSuccess, AnkaiosError> {
         // Create CompleteState
         let complete_state = CompleteState::new_from_configs(configs);
@@ -696,7 +696,7 @@ impl Ankaios {
     /// ## Arguments
     ///
     /// - `name`: A [String] containing the name of the config to be added;
-    /// - `configs`: A [`serde_yaml::Value`] containing the configs to be added.
+    /// - `configs`: A [`yaml_serde::Value`] containing the configs to be added.
     ///
     /// ## Returns
     ///
@@ -712,7 +712,7 @@ impl Ankaios {
     pub async fn add_config(
         &mut self,
         name: String,
-        configs: serde_yaml::Value,
+        configs: yaml_serde::Value,
     ) -> Result<UpdateStateSuccess, AnkaiosError> {
         // Create CompleteState
         let complete_state =
@@ -762,7 +762,7 @@ impl Ankaios {
     /// - [`AnkaiosError`]::[`ConnectionClosedError`](AnkaiosError::ConnectionClosedError) if the connection was closed.
     pub async fn get_configs(
         &mut self,
-    ) -> Result<HashMap<String, serde_yaml::Value>, AnkaiosError> {
+    ) -> Result<HashMap<String, yaml_serde::Value>, AnkaiosError> {
         let complete_state = self.get_state(vec![CONFIGS_PREFIX.to_owned()]).await?;
         Ok(complete_state.get_configs())
     }
@@ -787,7 +787,7 @@ impl Ankaios {
     pub async fn get_config(
         &mut self,
         name: String,
-    ) -> Result<HashMap<String, serde_yaml::Value>, AnkaiosError> {
+    ) -> Result<HashMap<String, yaml_serde::Value>, AnkaiosError> {
         let complete_state = self
             .get_state(vec![format!("{CONFIGS_PREFIX}.{name}")])
             .await?;
@@ -2590,7 +2590,7 @@ mod tests {
         let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
 
         // Prepare config
-        let config = serde_yaml::Value::default();
+        let config = yaml_serde::Value::default();
 
         // Prepare handle for adding a config
         let method_handle =
@@ -2635,7 +2635,7 @@ mod tests {
         let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
 
         // Prepare config
-        let config = serde_yaml::Value::default();
+        let config = yaml_serde::Value::default();
 
         // Prepare handle for adding a config
         let method_handle =
@@ -2685,7 +2685,7 @@ mod tests {
         let (mut ank, response_sender) = generate_test_ankaios(ci_mock);
 
         // Prepare config
-        let config = serde_yaml::Value::default();
+        let config = yaml_serde::Value::default();
 
         // Prepare handle for adding a config
         let method_handle =
@@ -2743,7 +2743,7 @@ mod tests {
         let request = request_receiver.await.unwrap();
 
         // Fabricate a response
-        let configs = HashMap::from_iter(vec![("Test".to_owned(), serde_yaml::Value::default())]);
+        let configs = HashMap::from_iter(vec![("Test".to_owned(), yaml_serde::Value::default())]);
         let complete_state = CompleteState::new_from_configs(configs.clone());
         let response = Response {
             content: super::ResponseType::CompleteState(Box::new(complete_state.clone())),
@@ -2795,7 +2795,7 @@ mod tests {
         // Fabricate a response
         let configs = HashMap::from_iter(vec![(
             "Test".to_owned(),
-            serde_yaml::Value::String("test".to_owned()),
+            yaml_serde::Value::String("test".to_owned()),
         )]);
         let complete_state = CompleteState::new_from_configs(configs.clone());
         let response = Response {
