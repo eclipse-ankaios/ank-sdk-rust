@@ -23,15 +23,25 @@ async fn main() {
         .filter_level(log::LevelFilter::Info)
         .init();
 
-    let server_url = std::env::args()
-        .nth(1)
+    let mut args = std::env::args().skip(1);
+    let example = args.next().unwrap_or_default();
+    let server_url = args
+        .next()
         .unwrap_or_else(|| "http://127.0.0.1:25551".to_owned());
-    let agent_name = std::env::args()
-        .nth(2)
-        .unwrap_or_else(|| "agent_A".to_owned());
+    let agent_name = args.next().unwrap_or_else(|| "agent_A".to_owned());
 
-    // Comment/uncomment to pick which example to run.
-    basic_test::run(&server_url, &agent_name).await;
-    // logs_events_test::run(&server_url, &agent_name).await;
-    // connection_lifecycle_test::run(&server_url, &agent_name).await;
+    match example.as_str() {
+        "basic_test" => basic_test::run(&server_url, &agent_name).await,
+        "logs_events_test" => logs_events_test::run(&server_url, &agent_name).await,
+        "connection_lifecycle_test" => {
+            connection_lifecycle_test::run(&server_url, &agent_name).await;
+        }
+        _ => {
+            eprintln!(
+                "Usage: test_app <example> [server_url] [agent_name]\n\n\
+                 Examples:\n  basic_test\n  logs_events_test\n  connection_lifecycle_test"
+            );
+            std::process::exit(2);
+        }
+    }
 }

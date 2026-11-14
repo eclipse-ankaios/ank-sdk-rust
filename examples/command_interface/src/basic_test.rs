@@ -96,6 +96,7 @@ pub async fn run(server_url: &str, agent_name: &str) {
     ank.delete_workload(workload_instance_name.workload_name)
         .await
         .expect("Failed to delete workload");
+    println!("Workload deleted, closing in 5 seconds...");
 
     tokio::time::sleep(Duration::from_secs(5)).await;
     print_workload_states(&mut ank).await;

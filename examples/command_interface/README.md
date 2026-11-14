@@ -11,11 +11,44 @@ Unix domain sockets require an Ankaios version that supports `unix://` endpoints
 The agent needs Podman to run the example workloads. Building requires Rust and
 Protobuf's `protoc`; the repository's devcontainer provides the build tools.
 
-An Ankaios server and at least one agent must be running and reachable before you
-run an example. A server listens on one endpoint, so choose one of the following
-options. Start the server and agent in separate terminals.
+> [!IMPORTANT]
+> The examples create and delete workloads named `dynamic_nginx` (port 8080) and
+> `count_to_five` on the cluster, and pull images from docker.io and ghcr.io.
+> `stop_ankaios.sh` stops and removes **all** Podman containers of the current
+> user, not only the ones started by the examples.
 
-### Option 1: TCP
+An Ankaios server and at least one agent must be running and reachable before you
+run an example. The server listens on one endpoint, so choose either TCP or a Unix
+domain socket.
+
+## Starting Ankaios
+
+From the repository root, enter the example directory:
+
+```shell
+cd examples/command_interface
+```
+
+[start_ankaios.sh](start_ankaios.sh) starts a server and an agent named `agent_A` in
+the background, waits until the agent is connected and stores the logs in
+`ankaios_run/`:
+
+```shell
+# TCP on 127.0.0.1:25551 (default)
+./start_ankaios.sh tcp
+
+# Unix domain socket at /tmp/ankaios.sock
+./start_ankaios.sh unix
+```
+
+The Ankaios executables are taken from `/usr/local/bin`. To use another location,
+set `ANK_BIN_DIR=/path/to/ankaios/executables`.
+
+### Manual setup
+
+Alternatively, start the server and agent yourself in separate terminals.
+
+#### TCP
 
 ```shell
 ank-server --insecure --address 127.0.0.1:25551
@@ -27,7 +60,7 @@ ank-agent --insecure --name agent_A --server-url http://127.0.0.1:25551
 
 This uses plaintext TCP and is intended for local development.
 
-### Option 2: Unix domain socket
+#### Unix domain socket
 
 This requires a Unix system and an Ankaios version with Unix socket support.
 No TLS is used, so do not pass `--insecure` to the server or agent.
@@ -49,37 +82,31 @@ that only you can access and pass it with `--run-folder <dir>`.
 
 ## Building and running
 
-From the repository root, enter the example directory:
-
-```shell
-cd examples/command_interface
-```
-
-The example to run is selected in [src/main.rs](src/main.rs) by
-commenting/uncommenting the calls. Only `basic_test` is enabled by default.
-Rebuild after changing the selection:
+From the example directory, build the examples:
 
 ```shell
 cargo build --release
 ```
 
 The package and resulting binary are named `test_app`. With the repository's
-default Cargo configuration, run it from this directory as follows:
+default Cargo configuration, run an example from this directory as follows:
 
 ```shell
 # TCP (default server URL and agent name)
-./target/x86_64-unknown-linux-musl/release/test_app
+./target/x86_64-unknown-linux-musl/release/test_app basic_test
 
 # Unix domain socket
-./target/x86_64-unknown-linux-musl/release/test_app unix:///tmp/ankaios.sock agent_A
+./target/x86_64-unknown-linux-musl/release/test_app basic_test unix:///tmp/ankaios.sock agent_A
 ```
 
 The signature is:
 
 ```shell
-test_app [server_url] [agent_name]
+test_app <example> [server_url] [agent_name]
 ```
 
+- `example`: one of `basic_test`, `logs_events_test` or `connection_lifecycle_test`
+  (see [Examples](#examples)). Required; running without it prints the usage.
 - `server_url`: defaults to `http://127.0.0.1:25551`. Use `http://...` for plaintext
   TCP or `unix://<absolute-path>` for a Unix domain socket.
 - `agent_name`: defaults to `agent_A` and must match a running agent.
@@ -90,7 +117,7 @@ adapting the helper to use `GrpcConfig::tcp().url(...).mtls(ca_pem, crt_pem, key
 
 The devcontainer targets `x86_64-unknown-linux-musl`. You can copy the resulting
 static `test_app` binary to an x86_64 Linux host with Ankaios installed and run
-`./test_app` there with the same arguments. If you override the Cargo target or
+`./test_app <example>` there with the same arguments. If you override the Cargo target or
 target directory, adjust the binary path accordingly.
 
 ## Examples
@@ -115,16 +142,18 @@ Opens and drops three sequential command interface connections, requesting and
 printing workload states each time. Uses the server URL but does not create
 workloads or use the agent name.
 
-### `common`
-
-Shared transport-selection and workload-state printing helpers.
-
 ## Stopping the examples
 
 The examples exit after completing their operations. Press Ctrl+C to interrupt a
-run. An interrupted or failed run can leave example workloads behind; inspect and
-remove those workloads manually.
+run. An interrupted or failed run can leave example workloads behind.
 
-The examples do not stop the Ankaios server or agent. Stop the processes you
-started in their respective terminals when you finish. There is no cleanup script
-that stops unrelated instances or removes all Podman containers.
+To clean up, run [stop_ankaios.sh](stop_ankaios.sh):
+
+```shell
+./stop_ankaios.sh
+```
+
+It stops the server and agent started by `start_ankaios.sh` (using the PIDs it
+recorded in `ankaios_run/`), removes the Unix socket and stops and removes all
+Podman containers. The logs remain in `ankaios_run/`. If you started Ankaios
+manually, stop the processes in their terminals instead.
