@@ -127,7 +127,7 @@
 //!
 //! The following example assumes that the code is running in a workload managed by
 //! Ankaios with configured control interface access. This can also be tested from the
-//! examples folder by running `./run_example.sh hello_ankaios`.
+//! control interface examples folder by running `./run_example.sh hello_ankaios`.
 //!
 //! ```rust,no_run
 //! use ankaios_sdk::{Ankaios, AnkaiosError, Workload, WorkloadStateEnum};
@@ -194,13 +194,13 @@
 //!     }
 //! }
 //! ```
-//! 
+//!
 //! ### Connecting over The Command Interface
-//! 
+//!
 //! To connect to an Ankaios server directly from outside a workload (e.g. from
 //! a CI job or a management tool), use the command interface instead, which relies on
 //! a gRPC connection directly to the Ankaios agent:
-//! 
+//!
 //! ```rust,no_run
 //! use ankaios_sdk::{Ankaios, GrpcConfig};
 //!
@@ -217,19 +217,19 @@
 //!     // From here on, the API is identical to the control interface example above.
 //! }
 //! ```
-//! 
+//!
 //! This requires the command interface feature to be enabled:
-//! 
+//!
 //! ```toml
 //! ankaios_sdk = { ..., default-features = false, features = ["command_interface"] }
 //! ```
-//! 
+//!
 //! > **_NOTE:_**  The default feature is the control interface. Without disabling it,
 //! > both features will be available.
-//! 
+//!
 //! The connection is insecure unless `mtls` is added, which takes the `ca_pem`, `crt_pem`
 //! and `key_pem` (the PEM-encoded CA certificate, client certificate and client key content):
-//! 
+//!
 //! ```rust,no_run
 //! # use ankaios_sdk::GrpcConfig;
 //! # let (ca_pem, crt_pem, key_pem) = (String::new(), String::new(), String::new());
@@ -237,18 +237,18 @@
 //!     .url("https://127.0.0.1:25551")
 //!     .mtls(ca_pem, crt_pem, key_pem);
 //! ```
-//! 
+//!
 //! On Unix, the connection can also go through the Unix domain socket opened by the
 //! Ankaios server. The socket is secured by its file permissions, so the process needs
 //! access to it, and no TLS is used. If no URL is provided, `/run/ankaios.sock` is used:
-//! 
+//!
 //! ```rust,no_run
 //! # use ankaios_sdk::GrpcConfig;
 //! let grpc_config = GrpcConfig::unix_socket().url("/run/ankaios.sock");
 //! ```
-//! 
+//!
 //! ### Resources
-//! 
+//!
 //! For more details, please visit:
 //!
 //! * [Ankaios documentation](https://eclipse-ankaios.github.io/ankaios/latest/)

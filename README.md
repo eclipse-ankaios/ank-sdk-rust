@@ -72,7 +72,7 @@ and request the state of the Ankaios system and the connected agents.
 
 The following example assumes that the code is running in a workload managed by
 Ankaios with configured control interface access. This can also be tested from the
-[examples](examples) by running `./run_example.sh hello_ankaios`.
+[control interface examples](examples/control_interface) by running `./run_example.sh hello_ankaios`.
 
 ```rust
 use ankaios_sdk::{Ankaios, AnkaiosError, Workload, WorkloadStateEnum};
