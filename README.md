@@ -72,7 +72,7 @@ and request the state of the Ankaios system and the connected agents.
 
 The following example assumes that the code is running in a workload managed by
 Ankaios with configured control interface access. This can also be tested from the
-[examples](examples) by running `./run_example.sh hello_ankaios`.
+[control interface examples](examples/control_interface) by running `./run_example.sh hello_ankaios`.
 
 ```rust
 use ankaios_sdk::{Ankaios, AnkaiosError, Workload, WorkloadStateEnum};
@@ -154,7 +154,7 @@ use tokio::time::Duration;
 async fn main() {
     // Setup the gRPC connection
     let server_url = "http://127.0.0.1:25551";
-    let grpc_config = GrpcConfig::insecure(server_url); // or GrpcConfig::mtls
+    let grpc_config = GrpcConfig::tcp().url(server_url);
 
     // Create a new Ankaios object.
     // The connection to the command interface is automatically done at this step.
@@ -173,8 +173,22 @@ ankaios_sdk = { ..., default-features = false, features = ["command_interface"] 
 > **_NOTE:_**  The default feature is the control interface. Without disabling it,
 > both features will be available.
 
-For mTLS-secured connections, also pass `ca_pem`, `crt_pem` and `key_pem`
-(the PEM-encoded CA certificate, client certificate and client key content).
+The connection is insecure unless `mtls` is added, which takes the `ca_pem`, `crt_pem`
+and `key_pem` (the PEM-encoded CA certificate, client certificate and client key content):
+
+```rust,no_run
+let grpc_config = GrpcConfig::tcp()
+    .url("https://127.0.0.1:25551")
+    .mtls(ca_pem, crt_pem, key_pem);
+```
+
+On Unix, the connection can also go through the Unix domain socket opened by the
+Ankaios server. The socket is secured by its file permissions, so the process needs
+access to it, and no TLS is used. If no URL is provided, `/run/ankaios.sock` is used:
+
+```rust,no_run
+let grpc_config = GrpcConfig::unix_socket().url("/run/ankaios.sock");
+```
 
 ### Resources
 
