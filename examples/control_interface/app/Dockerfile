@@ -15,7 +15,7 @@ RUN apk update && apk add --update-cache \
 RUN curl --proto '=https' --tlsv1.2 -sS https://sh.rustup.rs | sh -s -- -y > /dev/null
 
 COPY . ${WORKSPACE_DIR}/ankaios_sdk
-COPY examples/app/ ${WORKSPACE_DIR}
+COPY examples/control_interface/app/ ${WORKSPACE_DIR}
 WORKDIR ${WORKSPACE_DIR}
 RUN --mount=type=cache,target=${WORKSPACE_DIR}/target/release cargo build --release \
     && cp ${WORKSPACE_DIR}/target/release/app /usr/local/bin/

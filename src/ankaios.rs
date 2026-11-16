@@ -98,7 +98,7 @@ pub(crate) const CHANNEL_SIZE: usize = 100;
 /// # Runtime::new().unwrap().block_on(async {
 ///
 /// # let server_url = String::new();
-/// let grpc_config = GrpcConfig::insecure(server_url);
+/// let grpc_config = GrpcConfig::tcp().url(server_url);
 /// let ankaios = Ankaios::builder().command_interface(grpc_config).connect().await.unwrap();
 /// /* */
 /// drop(ankaios);
@@ -1397,13 +1397,16 @@ impl AnkaiosBuilder {
     ///
     /// ## Arguments
     ///
-    /// - `config`: The [`GrpcConfig`] (server URL, optional mTLS material) to use when connecting.
+    /// - `config`: The [`GrpcConfig`] to use when connecting. The result of
+    ///   [`GrpcConfig::tcp`] or [`GrpcConfig::unix_socket`] can be passed directly.
     #[cfg(feature = "command_interface")]
     #[must_use]
-    pub fn command_interface(mut self, config: GrpcConfig) -> Self {
+    pub fn command_interface(mut self, config: impl Into<GrpcConfig>) -> Self {
         let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
-        let connection: Box<dyn Connection> =
-            Box::new(CommandInterfaceConnection::new(config, response_sender));
+        let connection: Box<dyn Connection> = Box::new(CommandInterfaceConnection::new(
+            config.into(),
+            response_sender,
+        ));
         self.connection = Some((connection, response_receiver));
         self
     }
@@ -1567,11 +1570,11 @@ mod tests {
         // No Ankaios server is running in the test environment, so these are expected to fail
         // to connect; the SDK doesn't stand up a real (or fake) gRPC server to test the success
         // path against. Port 0 is never a valid connection target, so this fails fast.
-        let config = super::GrpcConfig::insecure("http://127.0.0.1:0");
+        let config = super::GrpcConfig::tcp().url("http://127.0.0.1:0");
         let result = Ankaios::builder().command_interface(config).connect().await;
         assert!(matches!(result, Err(AnkaiosError::ConnectionError(_))));
 
-        let config = super::GrpcConfig::insecure("http://127.0.0.1:0");
+        let config = super::GrpcConfig::tcp().url("http://127.0.0.1:0");
         let result = Ankaios::builder()
             .command_interface(config)
             .timeout(Duration::from_secs(5))
