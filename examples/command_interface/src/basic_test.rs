@@ -35,13 +35,17 @@ pub async fn run(server_url: &str, agent_name: &str) {
         .build()
         .expect("Failed to build workload");
 
-    tokio::time::sleep(Duration::from_secs(2)).await;
-
     // Run the workload
     let response = ank
         .apply_workload(workload)
         .await
         .expect("Failed to apply workload");
+
+    // Extract the workload instance name from the response
+    assert!(
+        response.added_workloads.len() == 1,
+        "Expected exactly one added workload"
+    );
     let workload_instance_name = response.added_workloads[0].clone();
 
     match ank
