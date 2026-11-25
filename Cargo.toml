@@ -25,6 +25,8 @@ prost = "0.14"
 tonic = "0.14"
 tonic-prost = { version = "0.14", optional = true }
 tokio-stream = { version = "0.1", optional = true }
+tower = { version = "0.5", optional = true }
+hyper-util = { version = "0.1", features = ["tokio"], optional = true }
 log = "0.4"
 env_logger = "0.11"
 serde = { version = "1.0", features = ["derive"] }
@@ -58,4 +60,11 @@ test_utils = []
 control_interface = []
 # Enables connection to Ankaios from outside a workload via the command interface,
 # which represent a direct gRPC connection to the Ankaios server
-command_interface = ["dep:tonic-prost", "dep:tokio-stream", "tonic/tls-ring"]
+command_interface = [
+    "dep:tonic-prost",
+    "dep:tokio-stream",
+    "dep:tower",
+    "dep:hyper-util",
+    "tokio/net",
+    "tonic/tls-ring",
+]

@@ -18,14 +18,28 @@
 //! connection to the Ankaios server), used to connect to Ankaios from outside a workload.
 
 use async_trait::async_trait;
+#[cfg(unix)]
+use hyper_util::rt::TokioIo;
 #[cfg(test)]
 use mockall::automock;
+use std::error::Error as StdError;
+use std::fmt;
+#[cfg(unix)]
+use std::io::{Error as IoError, ErrorKind};
+#[cfg(unix)]
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+#[cfg(unix)]
+use tokio::net::UnixStream;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::{Duration, sleep, timeout as tokio_timeout};
 use tokio_stream::wrappers::ReceiverStream;
+#[cfg(unix)]
+use tonic::transport::Endpoint;
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Identity};
+#[cfg(unix)]
+use tower::service_fn;
 
 use crate::AnkaiosError;
 use crate::ankaios_api::ank_base::Request as AnkaiosRequest;
@@ -41,44 +55,103 @@ use crate::components::response::{Response, ResponseType};
 /// Configuration for connecting to an [Ankaios](https://eclipse-ankaios.github.io/ankaios)
 /// server over the command interface.
 ///
-/// Constructed either insecure (plaintext, via [`GrpcConfig::insecure`]) or mTLS-secured (via
-/// [`GrpcConfig::mtls`]) with the certificate material being mandatory context.
+/// The transport is selected first, with [`GrpcConfig::tcp`] or [`GrpcConfig::unix_socket`],
+/// and then refined with the methods of the returned builder:
+///
+/// * [`GrpcTcpConfig`]: [`url`](GrpcTcpConfig::url) sets a custom server URL and
+///   [`mtls`](GrpcTcpConfig::mtls) secures the connection. Without `mtls` the connection is
+///   insecure (plaintext);
+/// * [`GrpcUnixSocketConfig`]: [`url`](GrpcUnixSocketConfig::url) sets a custom socket. No TLS
+///   is used, access is controlled by the permissions of the socket file.
+///
+/// The builders can be passed directly to
+/// [`AnkaiosBuilder::command_interface`](crate::AnkaiosBuilder::command_interface).
+/// The configuration is validated when connecting.
 ///
 /// ## Examples
 ///
 /// ```rust
 /// # use ankaios_sdk::GrpcConfig;
-/// // Insecure connection.
-/// let config = GrpcConfig::insecure("http://127.0.0.1:25551");
+/// // Insecure TCP connection to the default URL.
+/// let config = GrpcConfig::tcp();
+///
+/// // Insecure TCP connection to a custom URL.
+/// let config = GrpcConfig::tcp().url("http://192.168.0.10:25551");
 ///
 /// // mTLS connection.
 /// # let (ca_pem, crt_pem, key_pem) = (String::new(), String::new(), String::new());
-/// let config = GrpcConfig::mtls("https://127.0.0.1:25551", ca_pem, crt_pem, key_pem);
+/// let config = GrpcConfig::tcp()
+///     .url("https://192.168.0.10:25551")
+///     .mtls(ca_pem, crt_pem, key_pem);
+///
+/// // Unix domain socket connection to the default socket.
+/// # #[cfg(unix)]
+/// let config = GrpcConfig::unix_socket();
+///
+/// // Unix domain socket connection to a custom socket.
+/// # #[cfg(unix)]
+/// let config = GrpcConfig::unix_socket().url("unix:///run/ankaios.sock");
 /// ```
 #[derive(Clone)]
 pub struct GrpcConfig {
-    pub(crate) server_url: String,
-    pub(crate) insecure: bool,
-    pub(crate) ca_pem: Option<String>,
-    pub(crate) crt_pem: Option<String>,
-    pub(crate) key_pem: Option<String>,
+    target: ConnectionTarget,
 }
 
+/// How the [`GrpcConfig`] reaches the Ankaios server. Kept private so that invalid
+/// combinations, like TLS over a Unix domain socket, cannot be expressed.
+#[derive(Clone)]
+enum ConnectionTarget {
+    Tcp(GrpcTcpConfig),
+    #[cfg(unix)]
+    UnixSocket(GrpcUnixSocketConfig),
+}
+
+/// The default URL of the Ankaios server for TCP connections, without the scheme.
+const DEFAULT_TCP_ADDRESS: &str = "127.0.0.1:25551";
+/// The default socket the Ankaios server listens on.
+#[cfg(unix)]
+const DEFAULT_UNIX_SOCKET_PATH: &str = "/run/ankaios.sock";
+/// The scheme prefix used by Ankaios for Unix domain socket URLs.
+#[cfg(unix)]
+const UNIX_SCHEME: &str = "unix://";
+
 impl GrpcConfig {
+    /// Selects the TCP transport. Use [`GrpcTcpConfig::url`] to set a custom server URL
+    /// (default: `127.0.0.1:25551`) and [`GrpcTcpConfig::mtls`] to secure the connection.
+    #[must_use]
+    pub fn tcp() -> GrpcTcpConfig {
+        GrpcTcpConfig {
+            server_url: DEFAULT_TCP_ADDRESS.to_owned(),
+            mtls: None,
+        }
+    }
+
+    /// Selects the Unix domain socket transport. Use [`GrpcUnixSocketConfig::url`] to set a
+    /// custom socket (default: `/run/ankaios.sock`).
+    ///
+    /// No TLS is used: access is controlled by the permissions of the socket file, so the
+    /// process needs to be allowed to access it (e.g. by being a member of the group
+    /// configured as `socket_group` in the Ankaios server).
+    #[cfg(unix)]
+    #[must_use]
+    pub fn unix_socket() -> GrpcUnixSocketConfig {
+        GrpcUnixSocketConfig {
+            socket_url: DEFAULT_UNIX_SOCKET_PATH.to_owned(),
+        }
+    }
+
     /// Creates a new insecure (plaintext) [`GrpcConfig`] for the given server URL.
     ///
     /// ## Arguments
     ///
     /// * `server_url` - The URL of the Ankaios server, e.g. `http://127.0.0.1:25551`.
+    #[deprecated(
+        since = "1.2.0",
+        note = "use `GrpcConfig::tcp().url(server_url)` instead"
+    )]
     #[must_use]
     pub fn insecure(server_url: impl Into<String>) -> Self {
-        Self {
-            server_url: server_url.into(),
-            insecure: true,
-            ca_pem: None,
-            crt_pem: None,
-            key_pem: None,
-        }
+        Self::tcp().url(server_url).into()
     }
 
     /// Creates a new mTLS-secured [`GrpcConfig`] for the given server URL, using the given
@@ -90,6 +163,10 @@ impl GrpcConfig {
     /// * `ca_pem` - The PEM-encoded CA certificate content;
     /// * `crt_pem` - The PEM-encoded client certificate content;
     /// * `key_pem` - The PEM-encoded client private key content.
+    #[deprecated(
+        since = "1.2.0",
+        note = "use `GrpcConfig::tcp().url(server_url).mtls(ca_pem, crt_pem, key_pem)` instead"
+    )]
     #[must_use]
     pub fn mtls(
         server_url: impl Into<String>,
@@ -97,25 +174,220 @@ impl GrpcConfig {
         crt_pem: impl Into<String>,
         key_pem: impl Into<String>,
     ) -> Self {
+        Self::tcp()
+            .url(server_url)
+            .mtls(ca_pem, crt_pem, key_pem)
+            .into()
+    }
+}
+
+impl fmt::Debug for GrpcConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut debug = f.debug_struct("GrpcConfig");
+        match &self.target {
+            ConnectionTarget::Tcp(tcp) => tcp.debug_fields(&mut debug),
+            #[cfg(unix)]
+            ConnectionTarget::UnixSocket(socket) => socket.debug_fields(&mut debug),
+        }
+        debug.finish()
+    }
+}
+
+/// The certificate material of an mTLS connection.
+#[derive(Clone)]
+struct MtlsMaterial {
+    ca_pem: String,
+    crt_pem: String,
+    key_pem: String,
+}
+
+/// Builder for a [`GrpcConfig`] using the TCP transport, created with [`GrpcConfig::tcp`].
+///
+/// Without [`mtls`](Self::mtls) the connection is insecure (plaintext).
+///
+/// ## Examples
+///
+/// ```rust
+/// # use ankaios_sdk::GrpcConfig;
+/// # let (ca_pem, crt_pem, key_pem) = (String::new(), String::new(), String::new());
+/// let config = GrpcConfig::tcp()
+///     .url("https://192.168.0.10:25551")
+///     .mtls(ca_pem, crt_pem, key_pem);
+/// ```
+#[derive(Clone)]
+pub struct GrpcTcpConfig {
+    server_url: String,
+    mtls: Option<MtlsMaterial>,
+}
+
+impl GrpcTcpConfig {
+    /// Sets the URL of the Ankaios server, e.g. `http://192.168.0.10:25551`. If not set,
+    /// `127.0.0.1:25551` is used.
+    ///
+    /// The scheme must match the security of the connection: `http` without
+    /// [`mtls`](Self::mtls) and `https` with it. If the scheme is omitted, it is derived from
+    /// that. A mismatch is reported when connecting.
+    ///
+    /// ## Arguments
+    ///
+    /// * `server_url` - The URL of the Ankaios server.
+    #[must_use]
+    pub fn url(mut self, server_url: impl Into<String>) -> Self {
+        self.server_url = server_url.into();
+        self
+    }
+
+    /// Secures the connection with mTLS, using the given PEM-encoded certificate content.
+    ///
+    /// ## Arguments
+    ///
+    /// * `ca_pem` - The PEM-encoded CA certificate content;
+    /// * `crt_pem` - The PEM-encoded client certificate content;
+    /// * `key_pem` - The PEM-encoded client private key content.
+    #[must_use]
+    pub fn mtls(
+        mut self,
+        ca_pem: impl Into<String>,
+        crt_pem: impl Into<String>,
+        key_pem: impl Into<String>,
+    ) -> Self {
+        self.mtls = Some(MtlsMaterial {
+            ca_pem: ca_pem.into(),
+            crt_pem: crt_pem.into(),
+            key_pem: key_pem.into(),
+        });
+        self
+    }
+
+    /// The URL to connect to, with the scheme derived if missing.
+    fn resolved_url(&self) -> String {
+        let url = &self.server_url;
+        if url.contains("://") {
+            url.clone()
+        } else if self.mtls.is_some() {
+            format!("https://{url}")
+        } else {
+            format!("http://{url}")
+        }
+    }
+
+    /// Checks that the URL fits the transport and the security of the connection.
+    fn validated_url(&self) -> Result<String, AnkaiosError> {
+        let url = self.resolved_url();
+        let mismatch = if url.starts_with("unix://") {
+            Some("a unix socket URL requires `GrpcConfig::unix_socket()`")
+        } else if self.mtls.is_some() && url.starts_with("http://") {
+            Some("mTLS requires an 'https' URL")
+        } else if self.mtls.is_none() && url.starts_with("https://") {
+            Some("an 'https' URL requires `mtls(...)`, otherwise use an 'http' URL")
+        } else {
+            None
+        };
+        match mismatch {
+            Some(reason) => Err(AnkaiosError::ConnectionError(format!(
+                "Invalid gRPC server URL '{url}': {reason}."
+            ))),
+            None => Ok(url),
+        }
+    }
+
+    fn debug_fields(&self, debug: &mut fmt::DebugStruct<'_, '_>) {
+        let redacted = self.mtls.as_ref().map(|_| "<redacted>");
+        debug
+            .field("server_url", &self.resolved_url())
+            .field("insecure", &self.mtls.is_none())
+            .field("ca_pem", &redacted)
+            .field("crt_pem", &redacted)
+            .field("key_pem", &redacted);
+    }
+}
+
+impl From<GrpcTcpConfig> for GrpcConfig {
+    fn from(tcp: GrpcTcpConfig) -> Self {
         Self {
-            server_url: server_url.into(),
-            insecure: false,
-            ca_pem: Some(ca_pem.into()),
-            crt_pem: Some(crt_pem.into()),
-            key_pem: Some(key_pem.into()),
+            target: ConnectionTarget::Tcp(tcp),
         }
     }
 }
 
-impl std::fmt::Debug for GrpcConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GrpcConfig")
-            .field("server_url", &self.server_url)
-            .field("insecure", &self.insecure)
-            .field("ca_pem", &self.ca_pem.as_ref().map(|_| "<redacted>"))
-            .field("crt_pem", &self.crt_pem.as_ref().map(|_| "<redacted>"))
-            .field("key_pem", &self.key_pem.as_ref().map(|_| "<redacted>"))
-            .finish()
+impl fmt::Debug for GrpcTcpConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut debug = f.debug_struct("GrpcTcpConfig");
+        self.debug_fields(&mut debug);
+        debug.finish()
+    }
+}
+
+/// Builder for a [`GrpcConfig`] using a Unix domain socket, created with
+/// [`GrpcConfig::unix_socket`]. Only available on Unix.
+///
+/// No TLS is used: access is controlled by the permissions of the socket file.
+///
+/// ## Examples
+///
+/// ```rust
+/// # use ankaios_sdk::GrpcConfig;
+/// # #[cfg(unix)]
+/// let config = GrpcConfig::unix_socket().url("/run/ankaios.sock");
+/// ```
+#[cfg(unix)]
+#[derive(Clone, Debug)]
+pub struct GrpcUnixSocketConfig {
+    socket_url: String,
+}
+
+#[cfg(unix)]
+impl GrpcUnixSocketConfig {
+    /// Sets the socket the Ankaios server listens on. If not set, `/run/ankaios.sock` is
+    /// used.
+    ///
+    /// Both a plain absolute path (`/run/ankaios.sock`) and the Ankaios URL form
+    /// (`unix:///run/ankaios.sock`) are accepted. The path must be absolute, which is
+    /// validated when connecting.
+    ///
+    /// ## Arguments
+    ///
+    /// * `socket_url` - The path or `unix://` URL of the socket.
+    #[must_use]
+    pub fn url(mut self, socket_url: impl Into<String>) -> Self {
+        self.socket_url = socket_url.into();
+        self
+    }
+
+    /// The path of the socket, with the `unix://` scheme removed.
+    fn resolved_path(&self) -> PathBuf {
+        let url = &self.socket_url;
+        PathBuf::from(url.strip_prefix(UNIX_SCHEME).unwrap_or(url))
+    }
+
+    /// Checks that the socket path is usable.
+    fn validated_path(&self) -> Result<PathBuf, AnkaiosError> {
+        let path = self.resolved_path();
+        if path.as_os_str().is_empty() {
+            return Err(AnkaiosError::ConnectionError(
+                "Invalid unix socket path: the path is empty.".to_owned(),
+            ));
+        }
+        if !path.is_absolute() {
+            return Err(AnkaiosError::ConnectionError(format!(
+                "Invalid unix socket path: the path must be absolute: '{}'.",
+                path.display()
+            )));
+        }
+        Ok(path)
+    }
+
+    fn debug_fields(&self, debug: &mut fmt::DebugStruct<'_, '_>) {
+        debug.field("socket_path", &self.resolved_path());
+    }
+}
+
+#[cfg(unix)]
+impl From<GrpcUnixSocketConfig> for GrpcConfig {
+    fn from(socket: GrpcUnixSocketConfig) -> Self {
+        Self {
+            target: ConnectionTarget::UnixSocket(socket),
+        }
     }
 }
 
@@ -193,6 +465,38 @@ impl ReaderTransport for GrpcTransport {
         self.streaming = Some(streaming);
         Ok(sender)
     }
+}
+
+/// Joins the message of the error with the ones of its sources. Tonic's transport error only
+/// displays `transport error`, the actual cause is only available in its source chain.
+fn error_chain(err: &(dyn StdError + 'static)) -> String {
+    let mut message = err.to_string();
+    let mut source = err.source();
+    while let Some(cause) = source {
+        let cause_message = cause.to_string();
+        if !message.contains(&cause_message) {
+            message.push_str(" <- ");
+            message.push_str(&cause_message);
+        }
+        source = cause.source();
+    }
+    message
+}
+
+/// Checks if the error was caused by missing permissions on the file system.
+#[cfg(unix)]
+fn has_permission_denied(err: &(dyn StdError + 'static)) -> bool {
+    let mut current = Some(err);
+    while let Some(error) = current {
+        if error
+            .downcast_ref::<IoError>()
+            .is_some_and(|io_error| io_error.kind() == ErrorKind::PermissionDenied)
+        {
+            return true;
+        }
+        current = error.source();
+    }
+    false
 }
 
 /// Reads from `transport` until the connection is closed or errors, forwarding every decoded
@@ -318,40 +622,74 @@ impl CommandInterfaceConnection {
         }
     }
 
-    /// Builds the (optionally mTLS-secured) [`Channel`] used to reach the Ankaios server.
+    /// Builds the [`Channel`] used to reach the Ankaios server: plaintext, mTLS-secured or
+    /// through a Unix domain socket, depending on the [`GrpcConfig`].
     async fn build_channel(config: &GrpcConfig) -> Result<Channel, AnkaiosError> {
-        let plain_endpoint = Channel::from_shared(config.server_url.clone()).map_err(|err| {
+        match &config.target {
+            ConnectionTarget::Tcp(tcp) => Self::connect_tcp_channel(tcp).await,
+            #[cfg(unix)]
+            ConnectionTarget::UnixSocket(socket) => {
+                Self::connect_unix_channel(&socket.validated_path()?).await
+            }
+        }
+    }
+
+    /// Builds the plaintext or mTLS-secured [`Channel`] over TCP.
+    async fn connect_tcp_channel(tcp: &GrpcTcpConfig) -> Result<Channel, AnkaiosError> {
+        let server_url = tcp.validated_url()?;
+        let mut endpoint = Channel::from_shared(server_url.clone()).map_err(|err| {
             AnkaiosError::ConnectionError(format!(
-                "Invalid gRPC server URL '{}': '{err}'",
-                config.server_url
+                "Invalid gRPC server URL '{server_url}': '{err}'"
             ))
         })?;
-
-        let endpoint = if config.insecure {
-            plain_endpoint
-        } else {
-            let ca = Certificate::from_pem(config.ca_pem.as_deref().unwrap_or_default());
-            let identity = Identity::from_pem(
-                config.crt_pem.as_deref().unwrap_or_default(),
-                config.key_pem.as_deref().unwrap_or_default(),
-            );
-            // Ankaios server certificates are always issued for this domain name, regardless
-            // of the actual connection address.
-            let tls = ClientTlsConfig::new()
+        if let Some(mtls) = &tcp.mtls {
+            // Ankaios server certificates are always issued for this domain name,
+            // regardless of the actual connection address.
+            let client_tls = ClientTlsConfig::new()
                 .domain_name("ank-server")
-                .ca_certificate(ca)
-                .identity(identity);
-
-            plain_endpoint.tls_config(tls).map_err(|err| {
+                .ca_certificate(Certificate::from_pem(&mtls.ca_pem))
+                .identity(Identity::from_pem(&mtls.crt_pem, &mtls.key_pem));
+            endpoint = endpoint.tls_config(client_tls).map_err(|err| {
                 AnkaiosError::ConnectionError(format!("Invalid TLS configuration: '{err}'"))
-            })?
-        };
+            })?;
+        }
 
         endpoint.connect().await.map_err(|err| {
             AnkaiosError::ConnectionError(format!(
-                "Could not connect to the Ankaios server: '{err}'"
+                "Could not connect to the Ankaios server: '{}'",
+                error_chain(&err)
             ))
         })
+    }
+
+    /// Builds the [`Channel`] over a Unix domain socket. The path is re-dialed on every call,
+    /// so a reconnect also works after the server recreated the socket file.
+    #[cfg(unix)]
+    async fn connect_unix_channel(socket_path: &Path) -> Result<Channel, AnkaiosError> {
+        let connector_path = socket_path.to_path_buf();
+        // Tonic requires an endpoint URI even with a custom connector. The URI is not used to
+        // establish the connection, `UnixStream::connect` is.
+        Endpoint::from_static("http://unix-socket")
+            .connect_with_connector(service_fn(move |_| {
+                let path = connector_path.clone();
+                async move { UnixStream::connect(path).await.map(TokioIo::new) }
+            }))
+            .await
+            .map_err(|err| {
+                let mut message = format!(
+                    "Could not connect to the Ankaios server on '{}': '{}'.",
+                    socket_path.display(),
+                    error_chain(&err)
+                );
+                if has_permission_denied(&err) {
+                    message.push_str(
+                        " The process needs access to the socket: run it as root, as the \
+                         owner of the socket or as a member of its group (by default \
+                         'ankaios').",
+                    );
+                }
+                AnkaiosError::ConnectionError(message)
+            })
     }
 
     /// Builds the gRPC channel, sends the initial [`CommanderHello`] and opens the
@@ -401,6 +739,7 @@ impl CommandInterfaceConnection {
             .writer_ch_sender
             .lock()
             .unwrap_or_else(|_| unreachable!()) = Some(sender);
+        *self.state.lock().unwrap_or_else(|_| unreachable!()) = CommandInterfaceState::Connected;
         self.spawn_reader_task(transport);
         Ok(())
     }
@@ -505,8 +844,6 @@ impl Connection for CommandInterfaceConnection {
         }
         match tokio_timeout(timeout, self.connect_internal()).await {
             Ok(Ok(())) => {
-                *self.state.lock().unwrap_or_else(|_| unreachable!()) =
-                    CommandInterfaceState::Connected;
                 log::trace!("Connected to the Ankaios server over the command interface.");
                 Ok(())
             }
@@ -539,29 +876,34 @@ impl Connection for CommandInterfaceConnection {
     }
 
     async fn write_request(&mut self, request: AnkaiosRequest) -> Result<(), AnkaiosError> {
-        if *self.state.lock().unwrap_or_else(|_| unreachable!()) != CommandInterfaceState::Connected
-        {
+        let maybe_sender = {
+            let state_guard = self.state.lock().unwrap_or_else(|_| unreachable!());
+            if *state_guard == CommandInterfaceState::Connected {
+                self.writer_ch_sender
+                    .lock()
+                    .unwrap_or_else(|_| unreachable!())
+                    .clone()
+            } else {
+                None
+            }
+        };
+        let Some(sender) = maybe_sender else {
             log::error!("Could not write to the command interface, not connected.");
             return Err(AnkaiosError::ConnectionError(
                 "Could not write to the command interface, not connected.".to_owned(),
             ));
-        }
-        let maybe_sender = self
-            .writer_ch_sender
-            .lock()
-            .unwrap_or_else(|_| unreachable!())
-            .clone();
-        if let Some(sender) = maybe_sender {
-            sender
-                .send(ToServer {
-                    to_server_enum: Some(ToServerEnum::Request(request)),
-                })
-                .await
-                .unwrap_or_else(|err| {
-                    log::error!("Error while sending request: '{err}'");
-                });
-        }
-        Ok(())
+        };
+        sender
+            .send(ToServer {
+                to_server_enum: Some(ToServerEnum::Request(request)),
+            })
+            .await
+            .map_err(|err| {
+                log::error!("Error while sending request: '{err}'");
+                AnkaiosError::ConnectionError(format!(
+                    "Could not write to the command interface, connection lost: '{err}'"
+                ))
+            })
     }
 
     fn add_log_campaign(&mut self, request_id: String, logs_sender: mpsc::Sender<LogResponse>) {
@@ -602,10 +944,12 @@ mod tests {
     use tokio::sync::mpsc;
     use tokio::time::{Duration, sleep};
 
+    #[cfg(unix)]
+    use super::has_permission_denied;
     use super::{
         CommandInterfaceConnection, CommandInterfaceState, Connection, FromServer, FromServerEnum,
         GrpcConfig, MockReaderTransport, SynchronizedSenderMap, ToServer, ToServerEnum,
-        run_reader_loop,
+        error_chain, run_reader_loop,
     };
     use crate::ankaios_api::ank_base::{self, response::ResponseContent as AnkaiosResponseContent};
     use crate::components::request::{Request, generate_test_request};
@@ -613,6 +957,10 @@ mod tests {
         generate_test_ank_base_update_state_success, generate_test_proto_log_entries_response,
     };
     use crate::{AnkaiosError, EventEntry, LogResponse, Response};
+    #[cfg(unix)]
+    use std::io::{Error as IoError, ErrorKind};
+    #[cfg(unix)]
+    use std::path::PathBuf;
 
     const SERVER_URL: &str = "http://127.0.0.1:25551";
     const REQUEST_ID: &str = "request_id_1";
@@ -622,20 +970,17 @@ mod tests {
     -> (CommandInterfaceConnection, mpsc::Receiver<Response>) {
         let (response_sender, response_receiver) = mpsc::channel::<Response>(CHANNEL_SIZE);
         (
-            CommandInterfaceConnection::new(GrpcConfig::insecure(SERVER_URL), response_sender),
+            CommandInterfaceConnection::new(
+                GrpcConfig::tcp().url(SERVER_URL).into(),
+                response_sender,
+            ),
             response_receiver,
         )
     }
 
     #[test]
     fn utest_grpc_config_without_tls() {
-        let config = GrpcConfig::insecure(SERVER_URL);
-
-        assert_eq!(config.server_url, SERVER_URL);
-        assert!(config.insecure);
-        assert!(config.ca_pem.is_none());
-        assert!(config.crt_pem.is_none());
-        assert!(config.key_pem.is_none());
+        let config = GrpcConfig::from(GrpcConfig::tcp().url(SERVER_URL));
 
         assert_eq!(
             format!("{config:?}"),
@@ -645,18 +990,253 @@ mod tests {
 
     #[test]
     fn utest_grpc_config_with_tls() {
-        let config = GrpcConfig::mtls(SERVER_URL, "ca-secret", "crt-secret", "key-secret");
-
-        assert_eq!(config.server_url, SERVER_URL);
-        assert!(!config.insecure);
-        assert_eq!(config.ca_pem.as_deref(), Some("ca-secret"));
-        assert_eq!(config.crt_pem.as_deref(), Some("crt-secret"));
-        assert_eq!(config.key_pem.as_deref(), Some("key-secret"));
+        let config = GrpcConfig::from(GrpcConfig::tcp().url("https://127.0.0.1:25551").mtls(
+            "ca-secret",
+            "crt-secret",
+            "key-secret",
+        ));
 
         assert_eq!(
             format!("{config:?}"),
-            "GrpcConfig { server_url: \"http://127.0.0.1:25551\", insecure: false, ca_pem: Some(\"<redacted>\"), crt_pem: Some(\"<redacted>\"), key_pem: Some(\"<redacted>\") }"
+            "GrpcConfig { server_url: \"https://127.0.0.1:25551\", insecure: false, ca_pem: Some(\"<redacted>\"), crt_pem: Some(\"<redacted>\"), key_pem: Some(\"<redacted>\") }"
         );
+    }
+
+    #[test]
+    fn utest_grpc_tcp_config_defaults() {
+        let config = GrpcConfig::tcp();
+        assert_eq!(config.resolved_url(), "http://127.0.0.1:25551");
+        assert_eq!(config.validated_url().unwrap(), "http://127.0.0.1:25551");
+
+        let config = GrpcConfig::tcp().mtls("ca", "crt", "key");
+        assert_eq!(config.validated_url().unwrap(), "https://127.0.0.1:25551");
+    }
+
+    #[test]
+    fn utest_grpc_tcp_config_url_scheme() {
+        // Without a scheme, it is derived from the security of the connection.
+        let config = GrpcConfig::tcp().url("192.168.0.10:25551");
+        assert_eq!(config.validated_url().unwrap(), "http://192.168.0.10:25551");
+
+        // The order of the calls does not matter.
+        let config = GrpcConfig::tcp()
+            .mtls("ca", "crt", "key")
+            .url("192.168.0.10:25551");
+        assert_eq!(
+            config.validated_url().unwrap(),
+            "https://192.168.0.10:25551"
+        );
+
+        let config = GrpcConfig::tcp()
+            .url("https://host:1")
+            .mtls("ca", "crt", "key");
+        assert_eq!(config.validated_url().unwrap(), "https://host:1");
+    }
+
+    #[test]
+    fn utest_grpc_tcp_config_url_mismatch() {
+        let configs = [
+            GrpcConfig::tcp().url("https://127.0.0.1:25551"),
+            GrpcConfig::tcp()
+                .url("http://127.0.0.1:25551")
+                .mtls("ca", "crt", "key"),
+            GrpcConfig::tcp().url("unix:///run/ankaios.sock"),
+        ];
+        for config in configs {
+            assert!(matches!(
+                config.validated_url(),
+                Err(AnkaiosError::ConnectionError(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn utest_grpc_tcp_config_debug_redacts_secrets() {
+        let config = GrpcConfig::tcp().mtls("ca-secret", "crt-secret", "key-secret");
+        let debug = format!("{config:?}");
+        assert!(debug.starts_with("GrpcTcpConfig {"));
+        assert!(!debug.contains("secret"));
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn utest_grpc_config_deprecated_constructors() {
+        let insecure = GrpcConfig::insecure(SERVER_URL);
+        assert_eq!(
+            format!("{insecure:?}"),
+            format!("{:?}", GrpcConfig::from(GrpcConfig::tcp().url(SERVER_URL)))
+        );
+
+        let mtls = GrpcConfig::mtls("https://127.0.0.1:25551", "ca", "crt", "key");
+        assert_eq!(
+            format!("{mtls:?}"),
+            format!(
+                "{:?}",
+                GrpcConfig::from(
+                    GrpcConfig::tcp()
+                        .url("https://127.0.0.1:25551")
+                        .mtls("ca", "crt", "key")
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn utest_error_chain() {
+        #[derive(Debug)]
+        struct Outer(Inner);
+        #[derive(Debug)]
+        struct Inner;
+        impl std::fmt::Display for Outer {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "outer")
+            }
+        }
+        impl std::fmt::Display for Inner {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "inner")
+            }
+        }
+        impl std::error::Error for Inner {}
+        impl std::error::Error for Outer {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                Some(&self.0)
+            }
+        }
+
+        assert_eq!(error_chain(&Inner), "inner");
+        assert_eq!(error_chain(&Outer(Inner)), "outer <- inner");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn utest_grpc_unix_socket_config_path() {
+        let config = GrpcConfig::unix_socket();
+        assert_eq!(
+            config.validated_path().unwrap(),
+            PathBuf::from("/run/ankaios.sock")
+        );
+
+        for url in ["/tmp/ank.sock", "unix:///tmp/ank.sock"] {
+            let config = GrpcConfig::unix_socket().url(url);
+            assert_eq!(
+                config.validated_path().unwrap(),
+                PathBuf::from("/tmp/ank.sock")
+            );
+        }
+
+        let config: GrpcConfig = GrpcConfig::unix_socket().url("unix:///tmp/ank.sock").into();
+        assert_eq!(
+            format!("{config:?}"),
+            "GrpcConfig { socket_path: \"/tmp/ank.sock\" }"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn utest_grpc_unix_socket_config_invalid_path() {
+        for url in ["", "unix://", "relative.sock", "unix://relative.sock"] {
+            assert!(
+                matches!(
+                    GrpcConfig::unix_socket().url(url).validated_path(),
+                    Err(AnkaiosError::ConnectionError(_))
+                ),
+                "'{url}' should be rejected"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn utest_has_permission_denied() {
+        let denied = IoError::from(ErrorKind::PermissionDenied);
+        let not_found = IoError::from(ErrorKind::NotFound);
+        assert!(has_permission_denied(&denied));
+        assert!(!has_permission_denied(&not_found));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn utest_has_permission_denied_nested_error() {
+        #[derive(Debug)]
+        struct Wrapper(IoError);
+        impl std::fmt::Display for Wrapper {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "wrapper")
+            }
+        }
+        impl std::error::Error for Wrapper {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                Some(&self.0)
+            }
+        }
+
+        let denied = Wrapper(IoError::from(ErrorKind::PermissionDenied));
+        let not_found = Wrapper(IoError::from(ErrorKind::NotFound));
+        let doubly_nested = Wrapper(IoError::other(Wrapper(IoError::from(
+            ErrorKind::PermissionDenied,
+        ))));
+        assert!(has_permission_denied(&denied));
+        assert!(!has_permission_denied(&not_found));
+        assert!(has_permission_denied(&doubly_nested));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn utest_build_channel_unix_socket_invalid_path() {
+        let config: GrpcConfig = GrpcConfig::unix_socket().url("relative.sock").into();
+        let result = CommandInterfaceConnection::build_channel(&config).await;
+        assert!(
+            matches!(result, Err(AnkaiosError::ConnectionError(msg)) if msg.contains("absolute"))
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn utest_build_channel_unix_socket_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("missing.sock");
+        let config: GrpcConfig = GrpcConfig::unix_socket()
+            .url(socket.to_string_lossy())
+            .into();
+
+        let result = CommandInterfaceConnection::build_channel(&config).await;
+        assert!(matches!(
+            result,
+            Err(AnkaiosError::ConnectionError(msg)) if msg.contains("No such file or directory")
+        ));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn utest_build_channel_unix_socket_reaches_listener() {
+        use tokio::io::AsyncReadExt;
+        use tokio::net::UnixListener;
+
+        const HTTP2_PREFACE: &[u8] = b"PRI * HTTP/2.0";
+
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("ankaios.sock");
+        let listener = UnixListener::bind(&socket).unwrap();
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut buffer = [0_u8; HTTP2_PREFACE.len()];
+            stream.read_exact(&mut buffer).await.unwrap();
+            buffer
+        });
+
+        // Both the plain path and the `unix://` URL reach the same socket.
+        let config: GrpcConfig = GrpcConfig::unix_socket()
+            .url(format!("unix://{}", socket.display()))
+            .into();
+        let channel = CommandInterfaceConnection::build_channel(&config).await;
+        assert!(channel.is_ok());
+
+        let received = tokio::time::timeout(Duration::from_secs(5), server)
+            .await
+            .expect("the listener did not receive anything")
+            .unwrap();
+        assert_eq!(received, HTTP2_PREFACE);
     }
 
     #[tokio::test]
@@ -674,7 +1254,7 @@ mod tests {
         // Port 0 is never a valid connection target, so this fails fast without needing a
         // real (or even reachable) Ankaios server.
         let mut connection = CommandInterfaceConnection::new(
-            GrpcConfig::insecure("http://127.0.0.1:0"),
+            GrpcConfig::tcp().url("http://127.0.0.1:0").into(),
             response_sender,
         );
 
@@ -720,6 +1300,20 @@ mod tests {
             .try_recv()
             .expect("request should have been written");
         assert_eq!(sent.to_server_enum, Some(ToServerEnum::Request(request)));
+    }
+
+    #[tokio::test]
+    async fn utest_command_interface_write_request_fails_when_channel_closed() {
+        let (mut connection, _response_receiver) = generate_test_command_interface_connection();
+        let (grpc_tx, grpc_rx) = mpsc::channel::<ToServer>(CHANNEL_SIZE);
+        drop(grpc_rx);
+        *connection.writer_ch_sender.lock().unwrap() = Some(grpc_tx);
+        *connection.state.lock().unwrap() = CommandInterfaceState::Connected;
+
+        let result = connection
+            .write_request(generate_test_request().to_proto())
+            .await;
+        assert!(matches!(result, Err(AnkaiosError::ConnectionError(_))));
     }
 
     #[tokio::test]

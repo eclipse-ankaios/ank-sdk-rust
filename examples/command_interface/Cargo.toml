@@ -1,0 +1,10 @@
+[package]
+name = "test_app"
+edition = "2024"
+license = "Apache-2.0"
+
+[dependencies]
+ankaios_sdk = { path = "../..", default-features = false, features = ["command_interface"] }
+log = "0.4"
+env_logger = "0.11"
+tokio = { version = "1.41", features = ["macros", "rt-multi-thread"] }

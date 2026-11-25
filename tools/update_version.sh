@@ -115,6 +115,6 @@ fi
 if [ -n "$api_version" ]; then
     echo "Updating API version to $api_version"
     sed -i "s/const SUPPORTED_API_VERSION: &str = .*/const SUPPORTED_API_VERSION: \&str = \"$api_version\";/" "$base_dir"/src/components/complete_state.rs
-    sed -i "s/^apiVersion: .*/apiVersion: $api_version/" "$base_dir"/examples/manifest.yaml
+    sed -i "s/^apiVersion: .*/apiVersion: $api_version/" "$base_dir"/examples/control_interface/manifest.yaml
     sed -i "s/^\/\/\/ let manifest = Manifest::from_string(\"apiVersion: .*/\/\/\/ let manifest = Manifest::from_string(\"apiVersion: $api_version\").unwrap();/" "$base_dir"/src/components/manifest.rs
 fi
